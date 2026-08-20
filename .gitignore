@@ -31,10 +31,6 @@ Thumbs.db
 /_*.php
 /.claude/
 /.codegraph/
-CMS_*.md
-README.md
-PLUGIN_DEVELOPMENT.md
-THEME_DEVELOPMENT.md
 
 # ── Repository source boundary (PB-DIST-HYGIENE-2) ──────────────────────────────
 # Platform/plugin source code and tests are ALWAYS tracked. Only build output and
@@ -42,7 +38,6 @@ THEME_DEVELOPMENT.md
 # NOT reintroduce bare-filename ignores of source classes, nor broad "tests/*" or
 # "tests/Feature/*" hides — both silently drop platform source from version control.
 
-plugins/hello-world/plugin.json
 
 # Theme sync notes
 THEME_SYNC_AUDIT.md

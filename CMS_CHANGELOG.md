@@ -16,6 +16,83 @@ this project adheres to [Semantic Versioning](https://semver.org).
 
 ---
 
+## [1.0.0-beta.7.1.20] — Composer TLS & Zero-CLI APP_KEY Hygiene (CORE-RELEASE-1-H2)
+
+Security/release hardening. No Core functionality changes.
+
+### Fixed
+
+- **Composer TLS bypass removed from every shipped artifact.** The root
+  `composer.json` no longer carries the Laragon build-host workarounds
+  `disable-tls: true`, `secure-http: false`, and a machine-specific
+  `cafile: C:/laragon/…`. Public Composer configuration now uses secure defaults
+  (TLS verification on). The release build's own `composer install` was verified
+  to work securely on the build host with defaults (Composer's bundled
+  `composer/ca-bundle`), so no CA path is needed in, or ships with, any artifact.
+  `composer.lock` is unchanged (the `config` block is not part of the content
+  hash); `composer validate` passes.
+
+### Added
+
+- **Distribution verifier gates (CORE-RELEASE-1-H2):**
+  - `composer:no-tls-bypass` — hard-fails any profile whose `composer.json`
+    ships `disable-tls=true`, `secure-http=false`, or a `cafile`/`capath`.
+  - `app-key:no-shipped-key` — hard-fails any profile that ships a non-empty
+    `APP_KEY` in `.env.example`/`.env` (no fixed universal production key).
+
+### Notes
+
+- **Zero-CLI APP_KEY (unchanged, re-certified).** The installer already generates
+  a unique, cryptographically secure `base64:random_bytes(32)` per fresh site on
+  the first pre-install request (`InstallerManager::ensureRuntimeAppKey`, via the
+  not-installed-only `EnsureInstallerAppKey` middleware) and never rotates an
+  existing key (`ensureAppKey`); upgrades preserve `.env`/`APP_KEY` under the
+  CORE-UPGRADE-1 preserve authority. No fixed universal key is shipped;
+  `.env.example` carries an empty `APP_KEY=`. H2 adds artifact gates + tests + a
+  live extracted-package HTTP certification proving keyless `/install`,
+  per-installation key uniqueness, key persistence, and upgrade preservation.
+- Certified bytes changed (`composer.json` + verifier); the version advances per
+  the release/version authority. `v1.0.0-beta.7.1.18` and its immutable public
+  release are untouched. The Core-only boundary (hello-world + default theme) is
+  preserved.
+
+## [1.0.0-beta.7.1.19] — Public Source Release Hygiene (CORE-RELEASE-1-H1)
+
+Packaging-only release. No runtime behaviour changes. Closes two public-source
+release-hygiene debts found during CORE-PUBLISH-1 remote certification.
+
+### Fixed
+
+- **Monorepo-only test leakage.** The `source` distribution profile no longer
+  ships `tests/Feature/RepositorySourceBoundaryTest.php`. That guard asserts the
+  development monorepo keeps Page Builder source and monorepo test paths
+  git-tracked — paths intentionally absent from standalone `tncms/core`, where it
+  false-failed. The guard is retained in the monorepo and excluded only from the
+  public source profile (`manifest.php` `exclude_tests`).
+- **`.gitignore` hides legitimate public source.** The shipped `.gitignore` is now
+  sanitized during staging to drop the rules that ignore force-tracked public
+  files (`README.md`, `CMS_*.md`, `PLUGIN_DEVELOPMENT.md`, `THEME_DEVELOPMENT.md`,
+  `plugins/hello-world/plugin.json`). A fresh `git init && git add -A` in the
+  extracted public tree now stages the complete corpus with no `git add -f`. Every
+  runtime/private/generated ignore (`vendor/`, `node_modules/`, `.env`, build
+  output, `.tokensave/`, …) is preserved verbatim.
+
+### Added
+
+- **Public Git corpus equivalence gate** (`verify.php`
+  `tncms_core_git_corpus_gate()`), wired into the `source` publisher and the
+  unified release builder. It exercises REAL git (a build/certification dependency
+  only, never an end-user runtime dependency) to prove
+  `SOURCE_ZIP_EXTRACTION == FILES_STAGED_BY_PLAIN_GIT_ADD_A`, failing closed on any
+  missing, unexpected, or force-added path.
+
+### Notes
+
+- Certified bytes changed (source profile file set + shipped `.gitignore`), so the
+  version advances per the release/version authority. `v1.0.0-beta.7.1.18` and its
+  immutable public release are untouched. `install` and `upgrade` profiles are
+  unaffected; the Core-only boundary (hello-world + default theme) is preserved.
+
 ## [1.0.0-beta.7.1.18] — Open-Source Publication Readiness (MIT)
 
 Publication-preparation release for the first public open-source distribution of
