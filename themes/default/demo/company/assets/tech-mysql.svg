@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 48" role="img" aria-label="MySQL">
+  <ellipse cx="24" cy="14" rx="16" ry="5" fill="#00758f"/>
+  <path d="M8 14 v20 a16 5 0 0 0 32 0 v-20 a16 5 0 0 1 -32 0 z" fill="#00758f" opacity="0.85"/>
+  <text x="48" y="31" font-family="system-ui, sans-serif" font-size="22" font-weight="700" fill="#64748b">MySQL</text>
+</svg>

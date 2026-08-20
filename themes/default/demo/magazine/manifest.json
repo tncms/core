@@ -1,0 +1,29 @@
+{
+    "type": "theme",
+    "owner": "default",
+    "slug": "magazine",
+    "name": "Magazine / News",
+    "description": "An editorial homepage for a news or review site: a featured story grid with cover art, latest articles, category blocks, a trending list, newsletter, and a closing CTA. Populates the Magazine preset with realistic bilingual sample content about TNCMS and publishing.",
+    "preset": "magazine",
+    "version": "1.0.0",
+    "files": {
+        "theme_options": "theme-settings.json",
+        "media": "media.json",
+        "homepage": "homepage-layout.json",
+        "menus": "menus.json"
+    },
+    "requires": {
+        "theme": "default",
+        "cms": ">=1.0.0",
+        "plugins": []
+    },
+    "rollback": {
+        "supported": true,
+        "notes": "Restores the previous theme settings and homepage layout from the import snapshot. Imported demo media rows are reused on re-import."
+    },
+    "warnings": [
+        "Importing replaces the active homepage layout.",
+        "Importing updates the Magazine demo theme settings and imports its demo media.",
+        "Importing creates Magazine header and footer menus; resetting removes them."
+    ]
+}

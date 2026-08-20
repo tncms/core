@@ -1,0 +1,11 @@
+{
+    "options": {
+        "homepage_preset": "magazine",
+        "primary_color": "#111827",
+        "secondary_color": "#dc2626",
+        "show_tagline": true,
+        "footer_text": "© 2026 TNCMS Magazine — editorial coverage of a Laravel CMS.",
+        "social_links": "https://github.com/tncms\nhttps://tncms.org"
+    },
+    "settings": {}
+}

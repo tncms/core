@@ -1,0 +1,13 @@
+{
+    "name": "Dictionary Provider Plugin (Test Fixture)",
+    "slug": "dictionary-provider-plugin",
+    "version": "1.0.0",
+    "author": "The Nguyen Media",
+    "description": "Automated TEST FIXTURE only. Verifies the real plugin lifecycle contributing a localized Route Dictionary source through the ExtensionManager two-pass boot. Never discovered in production — it lives under tests/Fixtures and is only visible when a test points cms.paths.plugins at it.",
+    "requires": {
+        "tncms": "^1.0"
+    },
+    "providers": [
+        "Plugins\\DictionaryProviderPlugin\\DictionaryProviderPluginServiceProvider"
+    ]
+}

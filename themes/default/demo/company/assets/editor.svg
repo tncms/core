@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 660" role="img" aria-label="The TNCMS visual layout editor: a section list beside a live homepage canvas">
+  <defs>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2563eb"/><stop offset="1" stop-color="#0ea5e9"/>
+    </linearGradient>
+    <linearGradient id="panel" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#f6f9ff"/>
+    </linearGradient>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="18" stdDeviation="26" flood-color="#1e3a8a" flood-opacity="0.16"/>
+    </filter>
+    <filter id="card" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="12" stdDeviation="18" flood-color="#1e3a8a" flood-opacity="0.20"/>
+    </filter>
+  </defs>
+
+  <circle cx="820" cy="120" r="220" fill="url(#accent)" opacity="0.10"/>
+  <circle cx="150" cy="560" r="160" fill="url(#accent)" opacity="0.08"/>
+
+  <!-- app window -->
+  <g filter="url(#soft)">
+    <rect x="70" y="60" width="860" height="540" rx="26" fill="url(#panel)" stroke="#e2eafc" stroke-width="2"/>
+  </g>
+  <rect x="70" y="60" width="860" height="58" rx="26" fill="#ffffff"/>
+  <rect x="70" y="96" width="860" height="22" fill="#ffffff"/>
+  <line x1="70" y1="118" x2="930" y2="118" stroke="#eef2f8" stroke-width="2"/>
+  <circle cx="104" cy="89" r="7" fill="#cbd5e1"/><circle cx="128" cy="89" r="7" fill="#dbe7ff"/><circle cx="152" cy="89" r="7" fill="#bcd3ff"/>
+  <rect x="430" y="79" width="200" height="20" rx="10" fill="#f1f5f9"/>
+  <rect x="828" y="76" width="80" height="26" rx="13" fill="url(#accent)"/>
+
+  <!-- section list (left) -->
+  <rect x="92" y="142" width="244" height="430" rx="16" fill="#f8fafc" stroke="#eef2f8"/>
+  <rect x="112" y="164" width="120" height="12" rx="6" fill="#cbd5e1"/>
+  <!-- selected row -->
+  <rect x="108" y="196" width="212" height="46" rx="11" fill="url(#accent)" opacity="0.16"/>
+  <rect x="120" y="210" width="20" height="18" rx="4" fill="#2563eb"/>
+  <rect x="150" y="213" width="120" height="12" rx="6" fill="#2563eb"/>
+  <circle cx="306" cy="219" r="4" fill="#2563eb"/><circle cx="306" cy="219" r="4" fill="#2563eb" transform="translate(0,-9)"/><circle cx="306" cy="219" r="4" fill="#2563eb" transform="translate(0,9)"/>
+  <!-- other rows -->
+  <g>
+    <rect x="120" y="262" width="20" height="16" rx="4" fill="#cbd5e1"/><rect x="150" y="264" width="100" height="11" rx="5" fill="#94a3b8"/>
+    <rect x="120" y="300" width="20" height="16" rx="4" fill="#cbd5e1"/><rect x="150" y="302" width="130" height="11" rx="5" fill="#94a3b8"/>
+    <rect x="120" y="338" width="20" height="16" rx="4" fill="#cbd5e1"/><rect x="150" y="340" width="86" height="11" rx="5" fill="#94a3b8"/>
+    <rect x="120" y="376" width="20" height="16" rx="4" fill="#cbd5e1"/><rect x="150" y="378" width="112" height="11" rx="5" fill="#94a3b8"/>
+    <rect x="120" y="414" width="20" height="16" rx="4" fill="#cbd5e1"/><rect x="150" y="416" width="70" height="11" rx="5" fill="#94a3b8"/>
+  </g>
+  <rect x="108" y="510" width="212" height="44" rx="11" fill="none" stroke="#2563eb" stroke-width="2" stroke-dasharray="7 7"/>
+  <path d="M199 532 h28 M213 518 v28" stroke="#2563eb" stroke-width="3" stroke-linecap="round"/>
+
+  <!-- canvas (right) -->
+  <rect x="352" y="142" width="556" height="430" rx="16" fill="#ffffff" stroke="#eef2f8"/>
+  <!-- hero block (selected, accent outline) -->
+  <rect x="372" y="162" width="516" height="120" rx="14" fill="url(#accent)" opacity="0.14"/>
+  <rect x="372" y="162" width="516" height="120" rx="14" fill="none" stroke="url(#accent)" stroke-width="3"/>
+  <rect x="396" y="190" width="230" height="18" rx="9" fill="#2563eb"/>
+  <rect x="396" y="218" width="170" height="11" rx="5" fill="#94a3b8"/>
+  <rect x="396" y="244" width="96" height="22" rx="11" fill="url(#accent)"/>
+  <rect x="700" y="186" width="168" height="80" rx="12" fill="#ffffff" stroke="#e2eafc"/>
+  <!-- feature row (3 cards) -->
+  <rect x="372" y="298" width="160" height="92" rx="12" fill="#f1f5f9"/>
+  <rect x="550" y="298" width="160" height="92" rx="12" fill="#f1f5f9"/>
+  <rect x="728" y="298" width="160" height="92" rx="12" fill="#f1f5f9"/>
+  <!-- split block -->
+  <rect x="372" y="406" width="250" height="88" rx="12" fill="#f1f5f9"/>
+  <rect x="640" y="406" width="248" height="88" rx="12" fill="#eef4ff"/>
+  <!-- cta block -->
+  <rect x="372" y="510" width="516" height="44" rx="12" fill="url(#accent)" opacity="0.9"/>
+
+  <!-- floating pills -->
+  <g filter="url(#card)">
+    <rect x="300" y="300" width="186" height="58" rx="29" fill="#ffffff"/>
+  </g>
+  <circle cx="333" cy="329" r="15" fill="none" stroke="#2563eb" stroke-width="3"/>
+  <path d="M318 329 h30 M333 314 a20 20 0 0 1 0 30 a20 20 0 0 1 0 -30" fill="none" stroke="#2563eb" stroke-width="2"/>
+  <rect x="360" y="316" width="100" height="11" rx="5" fill="#0b1220"/>
+  <rect x="360" y="334" width="72" height="9" rx="4" fill="#cbd5e1"/>
+
+  <g filter="url(#card)">
+    <rect x="690" y="430" width="200" height="58" rx="16" fill="url(#accent)"/>
+  </g>
+  <circle cx="724" cy="459" r="16" fill="#ffffff" opacity="0.95"/>
+  <path d="M717 459 l5 6 l10 -12" fill="none" stroke="#2563eb" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="752" y="447" width="110" height="11" rx="5" fill="#ffffff" opacity="0.95"/>
+  <rect x="752" y="465" width="78" height="9" rx="4" fill="#ffffff" opacity="0.7"/>
+</svg>

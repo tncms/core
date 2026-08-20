@@ -1,0 +1,11 @@
+{
+    "options": {
+        "homepage_preset": "blog",
+        "primary_color": "#0f172a",
+        "secondary_color": "#6366f1",
+        "show_tagline": true,
+        "footer_text": "© 2026 TNCMS Journal — notes on building a Laravel CMS.",
+        "social_links": "https://github.com/tncms\nhttps://tncms.org"
+    },
+    "settings": {}
+}

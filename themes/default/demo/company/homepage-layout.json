@@ -1,0 +1,232 @@
+{
+    "version": 1,
+    "meta": { "generator": "tncms-demo", "demo": "company", "preset": "company" },
+    "sections": [
+        {
+            "id": "s_hero",
+            "type": "hero",
+            "settings": { "variant": "modern-split", "width": "wide", "background": "tint", "align": "left", "media_position": "right", "spacing": "spacious" },
+            "binding": null,
+            "fields": {
+                "eyebrow": { "vi": "CMS LARAVEL MÃ NGUỒN MỞ", "en": "OPEN SOURCE LARAVEL CMS" },
+                "title": { "vi": "Xây dựng website nhanh hơn với TNCMS", "en": "Build websites faster with TNCMS" },
+                "subtitle": { "vi": "Một CMS Laravel mã nguồn mở với theme, plugin, đa ngôn ngữ và trình chỉnh sửa bố cục trực quan — sẵn sàng cho production.", "en": "An open-source Laravel CMS with themes, plugins, localization, and a visual layout editor — ready for production." },
+                "ctas": [
+                    { "label": { "vi": "Bắt đầu", "en": "Get started" }, "url": "/start", "variant": "solid" },
+                    { "label": { "vi": "Đọc tài liệu", "en": "Read docs" }, "url": "/docs", "variant": "outline" }
+                ],
+                "media": { "ref": "company.media.hero" }
+            }
+        },
+        {
+            "id": "s_why",
+            "type": "feature-grid",
+            "settings": { "variant": "icon-cards", "width": "wide", "background": "none", "columns": 4, "align": "center" },
+            "binding": null,
+            "fields": {
+                "heading": { "vi": "Vì sao chọn TNCMS", "en": "Why TNCMS" },
+                "subheading": { "vi": "Một CMS được xây dựng cho các dự án dài hạn.", "en": "A CMS built for long-term projects." },
+                "features": [
+                    {
+                        "icon": "⚡",
+                        "title": { "vi": "Nhanh ngay từ đầu", "en": "Fast by default" },
+                        "text": { "vi": "Kết xuất Blade phía máy chủ. Trang nhẹ, hạ tầng vừa phải.", "en": "Server-rendered Blade. Light pages, modest hosting." }
+                    },
+                    {
+                        "icon": "🧩",
+                        "title": { "vi": "Ưu tiên plugin", "en": "Plugin first" },
+                        "text": { "vi": "Mở rộng qua registry — không bao giờ sửa core.", "en": "Extend through registries — never the core." }
+                    },
+                    {
+                        "icon": "🎨",
+                        "title": { "vi": "Thân thiện theme", "en": "Theme friendly" },
+                        "text": { "vi": "Ghi đè bất kỳ view nào. Đổi giao diện không lo hỏng.", "en": "Override any view. Restyle without fear." }
+                    },
+                    {
+                        "icon": "🛠️",
+                        "title": { "vi": "Dành cho lập trình viên", "en": "Developer focused" },
+                        "text": { "vi": "Laravel, Filament và một định dạng bố cục rõ ràng.", "en": "Laravel, Filament, and a clear layout format." }
+                    }
+                ]
+            }
+        },
+        {
+            "id": "s_features",
+            "type": "feature-grid",
+            "settings": { "variant": "screenshot-cards", "width": "wide", "background": "none", "columns": 3, "align": "center" },
+            "binding": null,
+            "fields": {
+                "heading": { "vi": "Mọi thứ bạn cần", "en": "Everything you need" },
+                "subheading": { "vi": "Các hệ thống hoạt động ăn ý với nhau, ngay khi cài đặt.", "en": "Systems that work together, out of the box." },
+                "features": [
+                    {
+                        "title": { "vi": "Hệ thống theme", "en": "Theme system" },
+                        "text": { "vi": "Đổi hoặc tự xây theme, ghi đè bất kỳ view nào — không sửa core.", "en": "Swap or build themes that override any view — no core edits." },
+                        "url": "/docs",
+                        "image": { "ref": "company.media.shot-themes" }
+                    },
+                    {
+                        "title": { "vi": "Hệ thống plugin", "en": "Plugin system" },
+                        "text": { "vi": "Mở rộng quản trị và giao diện qua registry. Cài bằng file zip.", "en": "Extend admin and frontend through registries. Zip-installable." },
+                        "url": "/docs",
+                        "image": { "ref": "company.media.shot-plugins" }
+                    },
+                    {
+                        "title": { "vi": "Đa ngôn ngữ", "en": "Localization" },
+                        "text": { "vi": "Dịch nội dung và giao diện với URL nhận biết ngôn ngữ.", "en": "Translate content and interface with locale-aware URLs." },
+                        "url": "/docs",
+                        "image": { "ref": "company.media.shot-localization" }
+                    },
+                    {
+                        "title": { "vi": "Trình chỉnh sửa bố cục", "en": "Layout editor" },
+                        "text": { "vi": "Dựng trang chủ từ các section có kiểu, trực quan.", "en": "Compose homepages from typed sections, visually." },
+                        "url": "/docs",
+                        "image": { "ref": "company.media.shot-layout" }
+                    },
+                    {
+                        "title": { "vi": "Nhập demo", "en": "Demo import" },
+                        "text": { "vi": "Cài trang chủ mẫu, media và cấu hình chỉ một bước.", "en": "Install a starter homepage, media, and settings in one step." },
+                        "url": "/docs",
+                        "image": { "ref": "company.media.shot-demo" }
+                    },
+                    {
+                        "title": { "vi": "Sẵn sàng SEO", "en": "SEO" },
+                        "text": { "vi": "Tiêu đề, meta, Open Graph, canonical và sitemap do core quản lý.", "en": "Core-owned titles, meta, Open Graph, canonical, and sitemaps." },
+                        "url": "/docs",
+                        "image": { "ref": "company.media.shot-seo" }
+                    }
+                ]
+            }
+        },
+        {
+            "id": "s_editor",
+            "type": "feature-split",
+            "settings": { "width": "wide", "background": "surface", "media_side": "right", "spacing": "spacious" },
+            "binding": null,
+            "fields": {
+                "heading": { "vi": "Dựng trang từ các section tái sử dụng", "en": "Compose pages from reusable sections" },
+                "body": {
+                    "vi": "<p>Mỗi trang chủ là một danh sách các section có kiểu, kết xuất từ một định dạng bố cục chuẩn. Sắp xếp, chỉnh sửa và xem trước trực quan — nội dung được bản địa hóa theo từng ngôn ngữ và an toàn với theme. Không cần viết code.</p>",
+                    "en": "<p>Every homepage is an ordered list of typed sections rendered from one canonical layout format. Arrange, edit, and preview them visually — content is localized per language and safe across themes. No code required.</p>"
+                },
+                "bullets": [
+                    { "text": { "vi": "Section tái sử dụng", "en": "Reusable sections" } },
+                    { "text": { "vi": "Nội dung đa ngôn ngữ", "en": "Localized content" } },
+                    { "text": { "vi": "An toàn với theme", "en": "Theme-safe" } },
+                    { "text": { "vi": "Không cần viết code", "en": "No code required" } }
+                ],
+                "media": { "ref": "company.media.editor" },
+                "cta": { "label": { "vi": "Khám phá trình chỉnh sửa", "en": "Explore the editor" }, "url": "/docs", "variant": "outline" }
+            }
+        },
+        {
+            "id": "s_architecture",
+            "type": "architecture",
+            "settings": { "width": "measure", "background": "none", "align": "center" },
+            "binding": null,
+            "fields": {
+                "heading": { "vi": "Cách TNCMS gắn kết với nhau", "en": "How TNCMS fits together" },
+                "subheading": { "vi": "Các tầng rõ ràng, từ giao diện xuống nền tảng.", "en": "Clear layers, from the surface down to the foundation." },
+                "layers": [
+                    { "icon": "🎨", "label": { "vi": "Theme", "en": "Themes" }, "description": { "vi": "Giao diện: view, style và preset.", "en": "Presentation: views, styles, and presets." } },
+                    { "icon": "🧱", "label": { "vi": "Section", "en": "Sections" }, "description": { "vi": "Khối trang chủ có kiểu, tái sử dụng.", "en": "Typed, reusable homepage blocks." } },
+                    { "icon": "⚙️", "label": { "vi": "CMS Core", "en": "CMS Core" }, "description": { "vi": "Nội dung, media, menu và định tuyến.", "en": "Content, media, menus, and routing." } },
+                    { "icon": "🧩", "label": { "vi": "Plugin", "en": "Plugins" }, "description": { "vi": "Tính năng tùy chọn qua registry.", "en": "Optional features via registries." } },
+                    { "icon": "🛠️", "label": { "vi": "Filament", "en": "Filament" }, "description": { "vi": "Trang quản trị.", "en": "The admin panel." } },
+                    { "icon": "🐘", "label": { "vi": "Laravel", "en": "Laravel" }, "description": { "vi": "Nền tảng framework.", "en": "The framework foundation." } }
+                ]
+            }
+        },
+        {
+            "id": "s_ecosystem",
+            "type": "feature-grid",
+            "settings": { "variant": "icon-cards", "width": "wide", "background": "surface", "columns": 3, "align": "center" },
+            "binding": null,
+            "fields": {
+                "heading": { "vi": "Một hệ sinh thái, không chỉ là core", "en": "An ecosystem, not just a core" },
+                "subheading": { "vi": "Ba trụ cột giúp dự án của bạn phát triển.", "en": "Three pillars that grow with your project." },
+                "features": [
+                    {
+                        "icon": "🎨",
+                        "title": { "vi": "Theme", "en": "Themes" },
+                        "text": { "vi": "Giao diện có thể hoán đổi với preset và tùy chọn theme.", "en": "Swappable looks with presets and theme options." },
+                        "url": "/docs"
+                    },
+                    {
+                        "icon": "🧩",
+                        "title": { "vi": "Plugin", "en": "Plugins" },
+                        "text": { "vi": "Bổ sung tính năng độc lập, cài bằng file zip.", "en": "Add self-contained features, installable from a zip." },
+                        "url": "/docs"
+                    },
+                    {
+                        "icon": "🌐",
+                        "title": { "vi": "Đa ngôn ngữ", "en": "Localization" },
+                        "text": { "vi": "Tiếp cận đối tượng toàn cầu với nội dung theo từng ngôn ngữ.", "en": "Reach a global audience with per-locale content." },
+                        "url": "/docs"
+                    }
+                ]
+            }
+        },
+        {
+            "id": "s_compat",
+            "type": "logo-strip",
+            "settings": { "width": "wide", "background": "none", "grayscale": true },
+            "binding": null,
+            "fields": {
+                "heading": { "vi": "Tương thích với stack của bạn", "en": "Works with your stack" },
+                "logos": [
+                    { "media": { "ref": "company.media.tech-laravel" }, "url": "#" },
+                    { "media": { "ref": "company.media.tech-filament" }, "url": "#" },
+                    { "media": { "ref": "company.media.tech-php" }, "url": "#" },
+                    { "media": { "ref": "company.media.tech-mysql" }, "url": "#" },
+                    { "media": { "ref": "company.media.tech-cloudflare" }, "url": "#" },
+                    { "media": { "ref": "company.media.tech-wordpress" }, "url": "#" },
+                    { "media": { "ref": "company.media.tech-flarum" }, "url": "#" }
+                ]
+            }
+        },
+        {
+            "id": "s_faq",
+            "type": "faq",
+            "settings": { "variant": "boxed", "width": "measure", "background": "none", "layout": "single", "allow_multiple": false },
+            "binding": null,
+            "fields": {
+                "heading": { "vi": "Câu hỏi thường gặp", "en": "Frequently asked questions" },
+                "items": [
+                    {
+                        "question": { "vi": "Vì sao chọn TNCMS?", "en": "Why TNCMS?" },
+                        "answer": { "vi": "<p>TNCMS giữ cho website của bạn nhanh, dễ mở rộng và dễ đoán — xây trên Laravel và Filament, mã nguồn mở theo giấy phép tự do.</p>", "en": "<p>TNCMS keeps your site fast, extensible, and predictable — built on Laravel and Filament, open source under a permissive license.</p>" }
+                    },
+                    {
+                        "question": { "vi": "Theme hoạt động thế nào?", "en": "How do themes work?" },
+                        "answer": { "vi": "<p>Theme được phát hiện từ thư mục <code>themes/</code> và có thể ghi đè bất kỳ view nào qua namespace <code>theme::</code> — không cần sửa core.</p>", "en": "<p>Themes are discovered from <code>themes/</code> and can override any view through the <code>theme::</code> namespace — no core edits.</p>" }
+                    },
+                    {
+                        "question": { "vi": "Plugin hoạt động thế nào?", "en": "How do plugins work?" },
+                        "answer": { "vi": "<p>Plugin đăng ký tính năng qua các registry của core và hoạt động độc lập, nên có thể cài từ file zip mà không cần sửa core.</p>", "en": "<p>Plugins register features through core registries and are self-contained, so they install from a zip without editing the core.</p>" }
+                    },
+                    {
+                        "question": { "vi": "Có đa ngôn ngữ không?", "en": "Does it support multiple languages?" },
+                        "answer": { "vi": "<p>Có. Nội dung và chuỗi giao diện đều có thể dịch, với URL nhận biết ngôn ngữ.</p>", "en": "<p>Yes. Content and interface strings are translatable, with locale-aware URLs.</p>" }
+                    },
+                    {
+                        "question": { "vi": "Tôi có thể đóng góp không?", "en": "Can I contribute?" },
+                        "answer": { "vi": "<p>Rất hoan nghênh. Mã nguồn mở trên GitHub — hãy mở issue, gửi pull request hoặc chia sẻ theme và plugin của bạn.</p>", "en": "<p>Absolutely. The source is open on GitHub — open an issue, send a pull request, or share your themes and plugins.</p>" }
+                    }
+                ]
+            }
+        },
+        {
+            "id": "s_cta",
+            "type": "cta",
+            "settings": { "variant": "gradient-panel", "width": "wide", "background": "accent", "align": "center", "spacing": "spacious" },
+            "binding": null,
+            "fields": {
+                "title": { "vi": "Bắt đầu xây dựng với TNCMS", "en": "Start building with TNCMS" },
+                "subtitle": { "vi": "Mã nguồn mở, đa ngôn ngữ và sẵn sàng cho production.", "en": "Open-source, multilingual, and production-ready." },
+                "button": { "label": { "vi": "Bắt đầu", "en": "Get started" }, "url": "/start", "variant": "solid" },
+                "secondary": { "label": { "vi": "Đọc tài liệu", "en": "Read docs" }, "url": "/docs", "variant": "outline" }
+            }
+        }
+    ]
+}

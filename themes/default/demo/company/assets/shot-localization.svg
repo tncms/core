@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 400" role="img" aria-label="Localization preview">
+  <defs>
+    <linearGradient id="a" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2563eb"/><stop offset="1" stop-color="#0ea5e9"/></linearGradient>
+  </defs>
+  <rect width="640" height="400" rx="20" fill="#f1f5f9"/>
+  <!-- language tabs -->
+  <rect x="28" y="32" width="72" height="34" rx="17" fill="url(#a)"/>
+  <text x="64" y="55" text-anchor="middle" font-family="system-ui, sans-serif" font-size="16" font-weight="700" fill="#ffffff">EN</text>
+  <rect x="112" y="32" width="72" height="34" rx="17" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="148" y="55" text-anchor="middle" font-family="system-ui, sans-serif" font-size="16" font-weight="700" fill="#64748b">VI</text>
+  <circle cx="600" cy="49" r="16" fill="none" stroke="#2563eb" stroke-width="3"/>
+  <path d="M584 49 h32 M600 33 a22 22 0 0 1 0 32 a22 22 0 0 1 0 -32" fill="none" stroke="#2563eb" stroke-width="2"/>
+  <!-- EN panel -->
+  <rect x="28" y="92" width="276" height="278" rx="16" fill="#ffffff" stroke="#e2e8f0"/>
+  <rect x="48" y="116" width="80" height="12" rx="6" fill="#2563eb"/>
+  <rect x="48" y="148" width="236" height="14" rx="7" fill="#0b1220"/>
+  <rect x="48" y="176" width="200" height="10" rx="5" fill="#cbd5e1"/>
+  <rect x="48" y="198" width="220" height="10" rx="5" fill="#e2e8f0"/>
+  <rect x="48" y="220" width="180" height="10" rx="5" fill="#e2e8f0"/>
+  <rect x="48" y="300" width="120" height="40" rx="20" fill="url(#a)"/>
+  <!-- VI panel -->
+  <rect x="336" y="92" width="276" height="278" rx="16" fill="#ffffff" stroke="#e2e8f0"/>
+  <rect x="356" y="116" width="80" height="12" rx="6" fill="#0ea5e9"/>
+  <rect x="356" y="148" width="220" height="14" rx="7" fill="#0b1220"/>
+  <rect x="356" y="176" width="236" height="10" rx="5" fill="#cbd5e1"/>
+  <rect x="356" y="198" width="190" height="10" rx="5" fill="#e2e8f0"/>
+  <rect x="356" y="220" width="210" height="10" rx="5" fill="#e2e8f0"/>
+  <rect x="356" y="300" width="120" height="40" rx="20" fill="#ffffff" stroke="#cbd5e1"/>
+</svg>

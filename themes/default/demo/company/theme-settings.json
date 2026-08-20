@@ -1,0 +1,13 @@
+{
+    "options": {
+        "homepage_preset": "company",
+        "primary_color": "#2563eb",
+        "secondary_color": "#0ea5e9",
+        "show_tagline": true,
+        "footer_text": "© 2026 TNCMS — MIT licensed · Built with Laravel & Filament.",
+        "social_links": "https://github.com/tncms\nhttps://tncms.org"
+    },
+    "settings": {
+        "general.site_tagline": "An open-source Laravel CMS for building modern websites with themes, plugins, and a visual layout editor."
+    }
+}

@@ -1,0 +1,31 @@
+{
+    "media": [
+        {
+            "key": "blog.media.post-1",
+            "file": "assets/cover-1.svg",
+            "title": "Launching a Laravel CMS (demo cover)",
+            "alt": "Abstract cover artwork for a product announcement",
+            "type": "image/svg+xml",
+            "width": 1200,
+            "height": 675
+        },
+        {
+            "key": "blog.media.post-2",
+            "file": "assets/cover-2.svg",
+            "title": "Inside the theme system (demo cover)",
+            "alt": "Abstract cover artwork of layered panels",
+            "type": "image/svg+xml",
+            "width": 1200,
+            "height": 675
+        },
+        {
+            "key": "blog.media.post-3",
+            "file": "assets/cover-3.svg",
+            "title": "Multilingual content (demo cover)",
+            "alt": "Abstract cover artwork of overlapping speech shapes",
+            "type": "image/svg+xml",
+            "width": 1200,
+            "height": 675
+        }
+    ]
+}

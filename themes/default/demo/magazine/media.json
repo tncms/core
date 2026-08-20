@@ -1,0 +1,76 @@
+{
+    "media": [
+        {
+            "key": "magazine.media.cover-1",
+            "file": "assets/magazine-cover-1.svg",
+            "title": "TNCMS 1.0 (demo cover)",
+            "alt": "Abstract editorial cover artwork",
+            "type": "image/svg+xml",
+            "width": 1200,
+            "height": 800
+        },
+        {
+            "key": "magazine.media.cover-2",
+            "file": "assets/magazine-cover-2.svg",
+            "title": "Publishing workflow (demo cover)",
+            "alt": "Abstract editorial cover artwork of stacked panels",
+            "type": "image/svg+xml",
+            "width": 1200,
+            "height": 800
+        },
+        {
+            "key": "magazine.media.cover-3",
+            "file": "assets/magazine-cover-3.svg",
+            "title": "Security and SEO (demo cover)",
+            "alt": "Abstract editorial cover artwork of a shield motif",
+            "type": "image/svg+xml",
+            "width": 1200,
+            "height": 800
+        },
+        {
+            "key": "magazine.media.cover-4",
+            "file": "assets/magazine-cover-4.svg",
+            "title": "Theme development (demo cover)",
+            "alt": "Abstract editorial cover artwork of overlapping shapes",
+            "type": "image/svg+xml",
+            "width": 1200,
+            "height": 800
+        },
+        {
+            "key": "magazine.media.cover-5",
+            "file": "assets/magazine-cover-5.svg",
+            "title": "Plugin ecosystem (demo cover)",
+            "alt": "Abstract editorial cover artwork of stacked bars",
+            "type": "image/svg+xml",
+            "width": 1200,
+            "height": 800
+        },
+        {
+            "key": "magazine.media.cover-6",
+            "file": "assets/magazine-cover-6.svg",
+            "title": "WordPress migration (demo cover)",
+            "alt": "Abstract editorial cover artwork of directional arrows",
+            "type": "image/svg+xml",
+            "width": 1200,
+            "height": 800
+        },
+        {
+            "key": "magazine.media.cover-7",
+            "file": "assets/magazine-cover-7.svg",
+            "title": "Performance (demo cover)",
+            "alt": "Abstract editorial cover artwork of a gauge dial",
+            "type": "image/svg+xml",
+            "width": 1200,
+            "height": 800
+        },
+        {
+            "key": "magazine.media.cover-8",
+            "file": "assets/magazine-cover-8.svg",
+            "title": "Multilingual publishing (demo cover)",
+            "alt": "Abstract editorial cover artwork of a globe motif",
+            "type": "image/svg+xml",
+            "width": 1200,
+            "height": 800
+        }
+    ]
+}

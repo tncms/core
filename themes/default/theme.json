@@ -1,0 +1,57 @@
+{
+    "name": "Default Theme",
+    "slug": "default",
+    "version": "1.0.0",
+    "description": "Default starter theme for TN CMS.",
+    "author": "The Nguyen Media",
+    "author_uri": "https://tncms.org",
+    "support_email": "support@tncms.org",
+    "screenshot": "screenshot.png",
+    "requires": {
+        "cms": ">=0.6.0"
+    },
+    "supports": {
+        "menus": [
+            "header",
+            "footer",
+            "sidebar"
+        ],
+        "theme_options": true,
+        "widgets": true,
+        "sections": true
+    },
+    "homepage_modes": [
+        "sections",
+        "latest_posts",
+        "static_page"
+    ],
+    "default_preset": "company",
+    "presets": [
+        "company",
+        "blog",
+        "magazine"
+    ],
+    "widget_regions": {
+        "sidebar": "Sidebar",
+        "footer-1": "Footer column 1",
+        "footer-2": "Footer column 2",
+        "footer-3": "Footer column 3"
+    },
+    "sections": [
+        "hero",
+        "logo-strip",
+        "feature-grid",
+        "feature-split",
+        "stats-band",
+        "pricing",
+        "testimonials",
+        "faq",
+        "cta",
+        "rich-text",
+        "newsletter",
+        "post-grid",
+        "featured-grid",
+        "category-blocks",
+        "trending-list"
+    ]
+}

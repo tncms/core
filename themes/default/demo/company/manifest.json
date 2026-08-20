@@ -1,0 +1,29 @@
+{
+    "type": "theme",
+    "owner": "default",
+    "slug": "company",
+    "name": "Company / Corporate",
+    "description": "A polished marketing homepage for TNCMS.org-style sites: hero, features, pricing, FAQ, and CTA. Populates the Company preset with realistic copy.",
+    "preset": "company",
+    "version": "1.0.0",
+    "files": {
+        "theme_options": "theme-settings.json",
+        "media": "media.json",
+        "homepage": "homepage-layout.json",
+        "menus": "menus.json"
+    },
+    "requires": {
+        "theme": "default",
+        "cms": ">=1.0.0",
+        "plugins": []
+    },
+    "rollback": {
+        "supported": true,
+        "notes": "Restores the previous theme settings and homepage layout from the import snapshot. Imported demo media rows are reused on re-import."
+    },
+    "warnings": [
+        "Importing replaces the active homepage layout.",
+        "Importing updates the Company demo theme settings and imports its demo media.",
+        "Importing creates Company header and footer menus; resetting removes them."
+    ]
+}

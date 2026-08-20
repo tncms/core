@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 48" role="img" aria-label="Flarum">
+  <defs><linearGradient id="fl" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2563eb"/><stop offset="1" stop-color="#0ea5e9"/></linearGradient></defs>
+  <path d="M12 12 h24 l-4 8 h-16 z M12 24 h20 l-4 8 h-12 z M12 36 h12 v-8 l-12 0 z" fill="url(#fl)"/>
+  <text x="48" y="31" font-family="system-ui, sans-serif" font-size="22" font-weight="700" fill="#64748b">Flarum</text>
+</svg>

@@ -1,0 +1,64 @@
+{
+    "_doc": "Header + footer navigation for the Company demo. Imported natively by TheNguyen\\CMS\\Services\\DemoMenuImporter when 'menus' is declared in manifest.json's `files` map. Each menu is identified by a stable `key`; re-import reuses the menu row (id/location stable) and rebuilds its items, so imports are idempotent. Demo menus sort before install-seeded location menus so they render at their location without destroying other menus; reset() deletes only these demo-created menus (by provenance imported_menu_ids).",
+    "menus": [
+        {
+            "key": "company.menu.header",
+            "location": "header",
+            "name": { "vi": "Menu đầu trang", "en": "Header Menu" },
+            "items": [
+                { "key": "company.menu.header.home", "label": { "vi": "Trang chủ", "en": "Home" }, "url": "/" },
+                { "key": "company.menu.header.features", "label": { "vi": "Tính năng", "en": "Features" }, "url": "/features" },
+                { "key": "company.menu.header.pricing", "label": { "vi": "Bảng giá", "en": "Pricing" }, "url": "/pricing" },
+                { "key": "company.menu.header.docs", "label": { "vi": "Tài liệu", "en": "Documentation" }, "url": "/docs" },
+                { "key": "company.menu.header.blog", "label": { "vi": "Blog", "en": "Blog" }, "url": "/blog" }
+            ]
+        },
+        {
+            "key": "company.menu.footer",
+            "location": "footer",
+            "name": { "vi": "Menu chân trang", "en": "Footer Menu" },
+            "items": [
+                {
+                    "key": "company.menu.footer.product",
+                    "label": { "vi": "Sản phẩm", "en": "Product" },
+                    "url": "#",
+                    "children": [
+                        { "key": "company.menu.footer.product.features", "label": { "vi": "Tính năng", "en": "Features" }, "url": "/features" },
+                        { "key": "company.menu.footer.product.pricing", "label": { "vi": "Bảng giá", "en": "Pricing" }, "url": "/pricing" },
+                        { "key": "company.menu.footer.product.roadmap", "label": { "vi": "Lộ trình", "en": "Roadmap" }, "url": "/roadmap" }
+                    ]
+                },
+                {
+                    "key": "company.menu.footer.resources",
+                    "label": { "vi": "Tài nguyên", "en": "Resources" },
+                    "url": "#",
+                    "children": [
+                        { "key": "company.menu.footer.resources.docs", "label": { "vi": "Tài liệu", "en": "Documentation" }, "url": "/docs" },
+                        { "key": "company.menu.footer.resources.blog", "label": { "vi": "Blog", "en": "Blog" }, "url": "/blog" },
+                        { "key": "company.menu.footer.resources.github", "label": { "vi": "GitHub", "en": "GitHub" }, "url": "/github" }
+                    ]
+                },
+                {
+                    "key": "company.menu.footer.company",
+                    "label": { "vi": "Công ty", "en": "Company" },
+                    "url": "#",
+                    "children": [
+                        { "key": "company.menu.footer.company.about", "label": { "vi": "Giới thiệu", "en": "About" }, "url": "/about" },
+                        { "key": "company.menu.footer.company.privacy", "label": { "vi": "Chính sách bảo mật", "en": "Privacy Policy" }, "url": "/privacy" },
+                        { "key": "company.menu.footer.company.license", "label": { "vi": "Giấy phép", "en": "License" }, "url": "/license" }
+                    ]
+                },
+                {
+                    "key": "company.menu.footer.community",
+                    "label": { "vi": "Cộng đồng", "en": "Community" },
+                    "url": "#",
+                    "children": [
+                        { "key": "company.menu.footer.community.discussions", "label": { "vi": "Thảo luận", "en": "Discussions" }, "url": "/discussions" },
+                        { "key": "company.menu.footer.community.issues", "label": { "vi": "Báo lỗi", "en": "Issues" }, "url": "/issues" },
+                        { "key": "company.menu.footer.community.changelog", "label": { "vi": "Nhật ký thay đổi", "en": "Changelog" }, "url": "/changelog" }
+                    ]
+                }
+            ]
+        }
+    ]
+}

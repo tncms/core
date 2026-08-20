@@ -1,0 +1,184 @@
+{
+    "id": "magazine",
+    "name": "Magazine / News",
+    "description": "An editorial, content-dense homepage: featured story grid, latest articles, category blocks, a trending list, newsletter, and a closing CTA.",
+    "screenshot": "presets/magazine.png",
+    "use_case": "News sites, review sites, editorial hubs, and multi-category content publications.",
+    "homepage_mode": "sections",
+    "sections": {
+        "required": ["hero", "featured-grid", "post-grid", "category-blocks", "trending-list", "newsletter", "cta"],
+        "optional": ["rich-text"]
+    },
+    "menus": ["header", "footer"],
+    "theme_settings": {
+        "primary_color": "#111827",
+        "secondary_color": "#dc2626"
+    },
+    "compatible_demos": ["magazine"],
+    "layout": {
+        "version": 1,
+        "meta": { "generator": "tncms-preset", "preset": "magazine" },
+        "sections": [
+            {
+                "id": "s_hero",
+                "type": "hero",
+                "settings": { "width": "wide", "background": "none", "align": "center", "media_position": "none", "spacing": "default" },
+                "binding": null,
+                "fields": {
+                    "eyebrow": { "vi": "Tạp chí", "en": "The Magazine" },
+                    "title": { "vi": "Tin tức, bài viết và đánh giá", "en": "News, stories, and reviews" },
+                    "subtitle": { "vi": "Nội dung biên tập về công nghệ, xuất bản và hệ sinh thái TNCMS.", "en": "Editorial coverage of technology, publishing, and the TNCMS ecosystem." },
+                    "ctas": [],
+                    "media": null
+                }
+            },
+            {
+                "id": "s_featured",
+                "type": "featured-grid",
+                "settings": { "width": "wide", "background": "none", "layout": "editorial", "show_meta": true },
+                "binding": null,
+                "fields": {
+                    "heading": { "vi": "Nổi bật", "en": "Featured" },
+                    "main": [
+                        {
+                            "title": { "vi": "TNCMS 1.0: nền tảng xuất bản trên Laravel", "en": "TNCMS 1.0: a publishing platform on Laravel" },
+                            "excerpt": { "vi": "Một cái nhìn tổng quan về bản phát hành lớn và những gì sắp tới.", "en": "An overview of the major release and what's coming next." },
+                            "category": { "vi": "Sản phẩm", "en": "Product" },
+                            "url": "/magazine/tncms-1-0",
+                            "image": null,
+                            "date": "2026-04-01"
+                        }
+                    ],
+                    "items": [
+                        {
+                            "title": { "vi": "Quy trình xuất bản với Filament", "en": "A publishing workflow with Filament" },
+                            "category": { "vi": "Kỹ thuật", "en": "Engineering" },
+                            "url": "/magazine/publishing-workflow",
+                            "image": null,
+                            "date": "2026-04-04"
+                        },
+                        {
+                            "title": { "vi": "Bảo mật và SEO mặc định", "en": "Security and SEO by default" },
+                            "category": { "vi": "Hướng dẫn", "en": "Guides" },
+                            "url": "/magazine/security-seo",
+                            "image": null,
+                            "date": "2026-04-08"
+                        }
+                    ]
+                }
+            },
+            {
+                "id": "s_latest",
+                "type": "post-grid",
+                "settings": { "width": "wide", "background": "none", "columns": 3, "show_excerpt": true, "show_meta": true },
+                "binding": null,
+                "fields": {
+                    "heading": { "vi": "Mới nhất", "en": "Latest" },
+                    "subheading": { "vi": "Những bài viết gần đây nhất.", "en": "The most recent articles." },
+                    "posts": [
+                        {
+                            "title": { "vi": "Phát triển theme cho TNCMS", "en": "Building themes for TNCMS" },
+                            "excerpt": { "vi": "Preset, section và một định dạng layout duy nhất.", "en": "Presets, sections, and one canonical layout format." },
+                            "url": "/magazine/building-themes",
+                            "date": "2026-04-10",
+                            "category": { "vi": "Kỹ thuật", "en": "Engineering" },
+                            "image": null
+                        },
+                        {
+                            "title": { "vi": "Hệ sinh thái plugin", "en": "The plugin ecosystem" },
+                            "excerpt": { "vi": "Mở rộng nền tảng mà không sửa lõi.", "en": "Extending the platform without touching core." },
+                            "url": "/magazine/plugin-ecosystem",
+                            "date": "2026-04-12",
+                            "category": { "vi": "Kỹ thuật", "en": "Engineering" },
+                            "image": null
+                        },
+                        {
+                            "title": { "vi": "Xuất bản đa ngôn ngữ", "en": "Multilingual publishing" },
+                            "excerpt": { "vi": "Nội dung theo từng locale và URL theo ngôn ngữ.", "en": "Per-locale content and language-aware URLs." },
+                            "url": "/magazine/multilingual-publishing",
+                            "date": "2026-04-15",
+                            "category": { "vi": "Hướng dẫn", "en": "Guides" },
+                            "image": null
+                        }
+                    ]
+                }
+            },
+            {
+                "id": "s_categories",
+                "type": "category-blocks",
+                "settings": { "width": "wide", "background": "surface", "columns": 3 },
+                "binding": null,
+                "fields": {
+                    "heading": { "vi": "Theo chuyên mục", "en": "By category" },
+                    "blocks": [
+                        {
+                            "title": { "vi": "Sản phẩm", "en": "Product" },
+                            "description": { "vi": "Cập nhật và thông báo phát hành.", "en": "Updates and release notes." },
+                            "url": "/category/product",
+                            "posts": [
+                                { "title": { "vi": "Lộ trình quý này", "en": "This quarter's roadmap" }, "url": "/magazine/roadmap", "date": "2026-04-02" },
+                                { "title": { "vi": "Có gì mới trong 1.0", "en": "What's new in 1.0" }, "url": "/magazine/whats-new", "date": "2026-04-01" }
+                            ]
+                        },
+                        {
+                            "title": { "vi": "Kỹ thuật", "en": "Engineering" },
+                            "description": { "vi": "Kiến trúc và quyết định thiết kế.", "en": "Architecture and design decisions." },
+                            "url": "/category/engineering",
+                            "posts": [
+                                { "title": { "vi": "Bên trong hệ thống section", "en": "Inside the section system" }, "url": "/magazine/section-system", "date": "2026-03-28" },
+                                { "title": { "vi": "Tối ưu hiệu năng", "en": "Performance optimization" }, "url": "/magazine/performance", "date": "2026-03-20" }
+                            ]
+                        },
+                        {
+                            "title": { "vi": "Hướng dẫn", "en": "Guides" },
+                            "description": { "vi": "Hướng dẫn thực hành và mẹo.", "en": "Practical how-tos and tips." },
+                            "url": "/category/guides",
+                            "posts": [
+                                { "title": { "vi": "Thiết lập SEO", "en": "Setting up SEO" }, "url": "/magazine/seo-setup", "date": "2026-03-15" },
+                                { "title": { "vi": "Quản lý media", "en": "Managing media" }, "url": "/magazine/media", "date": "2026-03-10" }
+                            ]
+                        }
+                    ]
+                }
+            },
+            {
+                "id": "s_trending",
+                "type": "trending-list",
+                "settings": { "width": "measure", "background": "none", "show_rank": true },
+                "binding": null,
+                "fields": {
+                    "heading": { "vi": "Xu hướng", "en": "Trending" },
+                    "items": [
+                        { "title": { "vi": "Vì sao chọn Laravel cho một CMS", "en": "Why Laravel for a CMS" }, "url": "/magazine/why-laravel", "category": { "vi": "Quan điểm", "en": "Opinion" }, "date": "2026-04-05" },
+                        { "title": { "vi": "Đa ngôn ngữ đúng cách", "en": "Multilingual done right" }, "url": "/magazine/multilingual", "category": { "vi": "Kỹ thuật", "en": "Engineering" }, "date": "2026-04-03" },
+                        { "title": { "vi": "Mười mẹo tối ưu hiệu năng", "en": "Ten performance tips" }, "url": "/magazine/perf-tips", "category": { "vi": "Hướng dẫn", "en": "Guides" }, "date": "2026-03-30" }
+                    ]
+                }
+            },
+            {
+                "id": "s_newsletter",
+                "type": "newsletter",
+                "settings": { "width": "wide", "background": "tint", "align": "center" },
+                "binding": null,
+                "fields": {
+                    "heading": { "vi": "Bản tin hàng tuần", "en": "The weekly briefing" },
+                    "subtitle": { "vi": "Những bài viết hay nhất gửi đến hộp thư của bạn.", "en": "The best stories, delivered to your inbox." },
+                    "provider": "",
+                    "button_label": { "vi": "Đăng ký", "en": "Subscribe" }
+                }
+            },
+            {
+                "id": "s_cta",
+                "type": "cta",
+                "settings": { "width": "wide", "background": "accent", "align": "center", "spacing": "default" },
+                "binding": null,
+                "fields": {
+                    "title": { "vi": "Tự vận hành tạp chí của bạn với TNCMS", "en": "Run your own magazine with TNCMS" },
+                    "subtitle": { "vi": "Mã nguồn mở, đa ngôn ngữ và sẵn sàng cho production.", "en": "Open-source, multilingual, and production-ready." },
+                    "button": { "label": { "vi": "Bắt đầu", "en": "Get started" }, "url": "/start", "variant": "solid" },
+                    "secondary": { "label": { "vi": "Xem tài liệu", "en": "Read the docs" }, "url": "/docs", "variant": "outline" }
+                }
+            }
+        ]
+    }
+}

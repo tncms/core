@@ -1,0 +1,27 @@
+{
+    "type": "theme",
+    "owner": "default",
+    "slug": "blog",
+    "name": "Blog / Publication",
+    "description": "A writing-first homepage for a personal or developer blog: intro hero, about blurb, featured posts with cover art, newsletter, and a closing CTA. Populates the Blog preset with realistic bilingual sample content about building TNCMS.",
+    "preset": "blog",
+    "version": "1.0.0",
+    "files": {
+        "theme_options": "theme-settings.json",
+        "media": "media.json",
+        "homepage": "homepage-layout.json"
+    },
+    "requires": {
+        "theme": "default",
+        "cms": ">=1.0.0",
+        "plugins": []
+    },
+    "rollback": {
+        "supported": true,
+        "notes": "Restores the previous theme settings and homepage layout from the import snapshot. Imported demo media rows are reused on re-import."
+    },
+    "warnings": [
+        "Importing replaces the active homepage layout.",
+        "Importing updates the Blog demo theme settings and imports its demo media."
+    ]
+}

@@ -1,0 +1,22 @@
+@import '../../../../vendor/filament/filament/resources/css/theme.css';
+
+/*
+ | Admin panel theme (Filament v5 canonical custom theme).
+ |
+ | The vendor base imports `tailwindcss` with `source(none)`, so Tailwind
+ | generates utilities ONLY from the paths declared below. The default Filament
+ | stylesheet is built scanning Filament's own views, which means Tailwind
+ | utility classes authored in first-party and plugin admin Blade views
+ | (grid, flex, rounded-xl, ring-1, gap-*, grid-cols-*, xl:* …) are otherwise
+ | absent from the panel. Registered on the admin panel via ->viteTheme().
+ |
+ | Scope is admin-only: this stylesheet is loaded exclusively by the Filament
+ | admin panel, so it never affects the public/frontend build (resources/css/app.css).
+ */
+
+/* First-party admin Filament surfaces (resources + custom Blade components). */
+@source '../../../../app/Filament/**/*';
+@source '../../../../resources/views/filament/**/*';
+
+/* Ecommerce plugin admin surfaces: Filament resources/pages/widgets and their
+   Blade views (Reporting Workspace, Store Setup, Settings Hub, product form…). */

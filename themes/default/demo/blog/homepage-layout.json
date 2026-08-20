@@ -1,0 +1,109 @@
+{
+    "version": 1,
+    "meta": { "generator": "tncms-demo", "demo": "blog", "preset": "blog" },
+    "sections": [
+        {
+            "id": "s_hero",
+            "type": "hero",
+            "settings": { "width": "measure", "background": "tint", "align": "center", "media_position": "none", "spacing": "spacious" },
+            "binding": null,
+            "fields": {
+                "eyebrow": { "vi": "Nhật ký TNCMS", "en": "The TNCMS Journal" },
+                "title": { "vi": "Ghi chép về việc xây dựng một CMS hiện đại", "en": "Notes on building a modern CMS" },
+                "subtitle": { "vi": "Bài viết về kiến trúc theme, hệ thống plugin, nội dung đa ngôn ngữ, hiệu năng và SEO — viết bởi nhóm xây dựng TNCMS.", "en": "Essays on theme architecture, the plugin system, multilingual content, performance, and SEO — from the team building TNCMS." },
+                "ctas": [
+                    { "label": { "vi": "Đọc bài mới nhất", "en": "Read the latest" }, "url": "#latest", "variant": "solid" },
+                    { "label": { "vi": "Giới thiệu", "en": "About the blog" }, "url": "/about", "variant": "outline" }
+                ],
+                "media": null
+            }
+        },
+        {
+            "id": "s_intro",
+            "type": "rich-text",
+            "settings": { "width": "measure", "background": "none", "align": "left" },
+            "binding": null,
+            "fields": {
+                "body": {
+                    "vi": "<p>TNCMS là một CMS mã nguồn mở dựa trên Laravel với giao diện quản trị Filament. Blog này theo dõi quá trình phát triển: các quyết định kiến trúc, những đánh đổi, và những bài học rút ra khi xây dựng một nền tảng nội dung sẵn sàng cho production.</p><p>Nếu bạn quan tâm đến theme, plugin, hoặc nội dung đa ngôn ngữ, đây là nơi dành cho bạn.</p>",
+                    "en": "<p>TNCMS is an open-source CMS built on Laravel with a Filament admin. This blog follows the work in progress: the architecture decisions, the trade-offs, and the lessons learned while building a production-ready content platform.</p><p>If you care about themes, plugins, or multilingual content, you're in the right place.</p>"
+                }
+            }
+        },
+        {
+            "id": "s_topics",
+            "type": "feature-grid",
+            "settings": { "width": "wide", "background": "none", "columns": 3, "align": "center" },
+            "binding": null,
+            "fields": {
+                "heading": { "vi": "Bạn sẽ tìm thấy gì ở đây", "en": "What you'll find here" },
+                "subheading": { "vi": "Những chủ đề được viết thường xuyên nhất.", "en": "The topics written about most often." },
+                "features": [
+                    { "icon": "🎨", "title": { "vi": "Hệ thống theme", "en": "Theme system" }, "text": { "vi": "Preset, section và một định dạng layout duy nhất.", "en": "Presets, sections, and one canonical layout format." }, "url": "" },
+                    { "icon": "🧩", "title": { "vi": "Kiến trúc plugin", "en": "Plugin architecture" }, "text": { "vi": "Mở rộng frontend và backend mà không sửa lõi.", "en": "Extending the front and back end without core edits." }, "url": "" },
+                    { "icon": "🌐", "title": { "vi": "Đa ngôn ngữ", "en": "Multilingual" }, "text": { "vi": "Nội dung theo từng locale và URL theo ngôn ngữ.", "en": "Per-locale content and language-aware URLs." }, "url": "" }
+                ]
+            }
+        },
+        {
+            "id": "s_latest",
+            "type": "post-grid",
+            "settings": { "width": "wide", "background": "none", "columns": 3, "show_excerpt": true, "show_meta": true },
+            "binding": null,
+            "fields": {
+                "heading": { "vi": "Bài viết mới nhất", "en": "Latest posts" },
+                "subheading": { "vi": "Những bài viết gần đây từ nhật ký.", "en": "Recent writing from the journal." },
+                "posts": [
+                    {
+                        "title": { "vi": "Ra mắt một CMS Laravel", "en": "Launching a Laravel CMS" },
+                        "excerpt": { "vi": "Vì sao chúng tôi chọn Laravel và Filament, và TNCMS hướng tới điều gì khác biệt so với các CMS truyền thống.", "en": "Why we chose Laravel and Filament, and what TNCMS sets out to do differently from traditional CMSes." },
+                        "url": "/blog/launching-a-laravel-cms",
+                        "date": "2026-01-15",
+                        "category": { "vi": "Sản phẩm", "en": "Product" },
+                        "image": { "ref": "blog.media.post-1" }
+                    },
+                    {
+                        "title": { "vi": "Bên trong hệ thống theme", "en": "Inside the theme system" },
+                        "excerpt": { "vi": "Một theme, nhiều preset, và một định dạng JSON duy nhất điều khiển preset, demo và trình dựng trang.", "en": "One theme, many presets, and a single JSON format that powers presets, demos, and the page builder." },
+                        "url": "/blog/inside-the-theme-system",
+                        "date": "2026-02-02",
+                        "category": { "vi": "Kỹ thuật", "en": "Engineering" },
+                        "image": { "ref": "blog.media.post-2" }
+                    },
+                    {
+                        "title": { "vi": "Nội dung đa ngôn ngữ đúng cách", "en": "Multilingual content done right" },
+                        "excerpt": { "vi": "Lưu trữ từng locale, URL theo ngôn ngữ và cách trang công khai phân giải bản dịch với phương án dự phòng an toàn.", "en": "Per-locale storage, language-aware URLs, and how the front end resolves translations with safe fallbacks." },
+                        "url": "/blog/multilingual-content",
+                        "date": "2026-03-10",
+                        "category": { "vi": "Kỹ thuật", "en": "Engineering" },
+                        "image": { "ref": "blog.media.post-3" }
+                    }
+                ]
+            }
+        },
+        {
+            "id": "s_newsletter",
+            "type": "newsletter",
+            "settings": { "width": "wide", "background": "surface", "align": "center" },
+            "binding": null,
+            "fields": {
+                "heading": { "vi": "Nhận bài viết mới qua email", "en": "Get new posts in your inbox" },
+                "subtitle": { "vi": "Thỉnh thoảng một email khi có bài mới — không spam, hủy bất cứ lúc nào.", "en": "An occasional email when something new ships — no spam, unsubscribe anytime." },
+                "provider": "",
+                "button_label": { "vi": "Đăng ký", "en": "Subscribe" }
+            }
+        },
+        {
+            "id": "s_cta",
+            "type": "cta",
+            "settings": { "width": "wide", "background": "accent", "align": "center", "spacing": "default" },
+            "binding": null,
+            "fields": {
+                "title": { "vi": "Tự xây dựng blog của bạn với TNCMS", "en": "Build your own blog with TNCMS" },
+                "subtitle": { "vi": "Mã nguồn mở, đa ngôn ngữ và sẵn sàng cho production.", "en": "Open-source, multilingual, and production-ready." },
+                "button": { "label": { "vi": "Bắt đầu", "en": "Get started" }, "url": "/start", "variant": "solid" },
+                "secondary": { "label": { "vi": "Xem tài liệu", "en": "Read the docs" }, "url": "/docs", "variant": "outline" }
+            }
+        }
+    ]
+}

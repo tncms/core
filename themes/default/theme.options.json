@@ -1,0 +1,191 @@
+{
+    "options": {
+        "sections": [
+            {
+                "key": "brand",
+                "label": "Brand",
+                "description": "Logo, site icon, and brand display.",
+                "fields": [
+                    {
+                        "key": "logo",
+                        "label": "Logo",
+                        "type": "image",
+                        "default": null,
+                        "helper": "Shown in the header. Falls back to the site name when empty."
+                    },
+                    {
+                        "key": "favicon",
+                        "label": "Site icon (favicon)",
+                        "type": "image",
+                        "default": null,
+                        "helper": "Shown in the browser tab. Falls back to the site icon from General Settings."
+                    },
+                    {
+                        "key": "show_tagline",
+                        "label": "Show tagline",
+                        "type": "boolean",
+                        "default": true,
+                        "helper": "Display the site tagline (from General Settings) in the header."
+                    }
+                ]
+            },
+            {
+                "key": "colors",
+                "label": "Colors",
+                "description": "Brand accents, exposed to the theme as CSS variables.",
+                "fields": [
+                    {
+                        "key": "primary_color",
+                        "label": "Primary color",
+                        "type": "color",
+                        "default": "#2563eb",
+                        "helper": "Used as the --tncms-primary CSS variable."
+                    },
+                    {
+                        "key": "secondary_color",
+                        "label": "Secondary color",
+                        "type": "color",
+                        "default": "#0ea5e9",
+                        "helper": "Secondary accent (--tncms-secondary), used for gradients/links."
+                    }
+                ]
+            },
+            {
+                "key": "layout",
+                "label": "Layout",
+                "fields": [
+                    {
+                        "key": "container_width",
+                        "label": "Container width",
+                        "type": "select",
+                        "default": "default",
+                        "options": {
+                            "default": "Default",
+                            "wide": "Wide",
+                            "full": "Full width"
+                        }
+                    }
+                ]
+            },
+            {
+                "key": "homepage",
+                "label": "Homepage",
+                "description": "The preset blueprint that powers the homepage. The live value is the setting theme.default.homepage_preset; import a demo to fill it with content.",
+                "fields": [
+                    {
+                        "key": "homepage_preset",
+                        "label": "Homepage preset",
+                        "type": "select",
+                        "default": "company",
+                        "options": {
+                            "company": "Company",
+                            "blog": "Blog",
+                            "magazine": "Magazine"
+                        },
+                        "helper": "Selects which preset blueprint powers the homepage. Available presets are discovered from the theme's presets/ folder."
+                    }
+                ]
+            },
+            {
+                "key": "content_layout",
+                "label": "Blog / Content Layout",
+                "description": "Controls the listing (category, tag, author, archive) and single-post layouts. A presentation concern, stored in Theme Options only.",
+                "fields": [
+                    {
+                        "key": "archive_layout",
+                        "label": "Archive layout",
+                        "type": "select",
+                        "default": "right-sidebar",
+                        "options": {
+                            "full-width": "Full width",
+                            "left-sidebar": "Left sidebar",
+                            "right-sidebar": "Right sidebar"
+                        },
+                        "helper": "Controls category, tag, author and archive listing pages."
+                    },
+                    {
+                        "key": "post_layout",
+                        "label": "Post layout",
+                        "type": "select",
+                        "default": "right-sidebar",
+                        "options": {
+                            "full-width": "Full width",
+                            "left-sidebar": "Left sidebar",
+                            "right-sidebar": "Right sidebar"
+                        },
+                        "helper": "Controls single post detail pages."
+                    },
+                    {
+                        "key": "sidebar_width",
+                        "label": "Sidebar width",
+                        "type": "select",
+                        "default": "320",
+                        "options": {
+                            "280": "280px",
+                            "320": "320px",
+                            "360": "360px"
+                        },
+                        "helper": "Controls the sidebar width on left/right sidebar layouts."
+                    },
+                    {
+                        "key": "show_post_author",
+                        "label": "Show post author",
+                        "type": "boolean",
+                        "default": true,
+                        "helper": "Display the author block on single posts."
+                    },
+                    {
+                        "key": "show_post_tags",
+                        "label": "Show post tags",
+                        "type": "boolean",
+                        "default": true,
+                        "helper": "Display the tag list on single posts."
+                    },
+                    {
+                        "key": "show_related_posts",
+                        "label": "Show related posts",
+                        "type": "boolean",
+                        "default": true,
+                        "helper": "Display the related posts block on single posts (when related posts are available)."
+                    },
+                    {
+                        "key": "related_posts_count",
+                        "label": "Related posts count",
+                        "type": "number",
+                        "default": 3,
+                        "min": 1,
+                        "max": 12,
+                        "helper": "How many related posts to display."
+                    }
+                ]
+            },
+            {
+                "key": "footer",
+                "label": "Footer",
+                "fields": [
+                    {
+                        "key": "footer_text",
+                        "label": "Footer text",
+                        "type": "textarea",
+                        "default": "© 2026 TN CMS",
+                        "helper": "Shown in the site footer."
+                    }
+                ]
+            },
+            {
+                "key": "social",
+                "label": "Social",
+                "description": "Social profile links shown in the theme.",
+                "fields": [
+                    {
+                        "key": "social_links",
+                        "label": "Social links",
+                        "type": "textarea",
+                        "default": "",
+                        "helper": "One URL per line. A structured repeater field (label, url, icon) is planned — see theme-architecture 07 §4."
+                    }
+                ]
+            }
+        ]
+    }
+}

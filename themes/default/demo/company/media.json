@@ -1,0 +1,139 @@
+{
+    "media": [
+        {
+            "key": "company.media.hero",
+            "file": "assets/hero.svg",
+            "title": "TNCMS dashboard illustration",
+            "alt": "Abstract illustration of a CMS dashboard",
+            "type": "image/svg+xml",
+            "width": 1200,
+            "height": 800
+        },
+        {
+            "key": "company.media.editor",
+            "file": "assets/editor.svg",
+            "title": "TNCMS layout editor",
+            "alt": "The visual layout editor with a section list beside a live homepage canvas",
+            "type": "image/svg+xml",
+            "width": 1000,
+            "height": 660
+        },
+        {
+            "key": "company.media.shot-themes",
+            "file": "assets/shot-themes.svg",
+            "title": "Theme system",
+            "alt": "Choosing between theme previews",
+            "type": "image/svg+xml",
+            "width": 640,
+            "height": 400
+        },
+        {
+            "key": "company.media.shot-plugins",
+            "file": "assets/shot-plugins.svg",
+            "title": "Plugin system",
+            "alt": "A list of installable plugins with toggles",
+            "type": "image/svg+xml",
+            "width": 640,
+            "height": 400
+        },
+        {
+            "key": "company.media.shot-localization",
+            "file": "assets/shot-localization.svg",
+            "title": "Localization",
+            "alt": "Editing the same content in two languages side by side",
+            "type": "image/svg+xml",
+            "width": 640,
+            "height": 400
+        },
+        {
+            "key": "company.media.shot-layout",
+            "file": "assets/shot-layout.svg",
+            "title": "Layout editor",
+            "alt": "Arranging homepage sections on a canvas",
+            "type": "image/svg+xml",
+            "width": 640,
+            "height": 400
+        },
+        {
+            "key": "company.media.shot-demo",
+            "file": "assets/shot-demo.svg",
+            "title": "Demo import",
+            "alt": "Importing a starter homepage in one step",
+            "type": "image/svg+xml",
+            "width": 640,
+            "height": 400
+        },
+        {
+            "key": "company.media.shot-seo",
+            "file": "assets/shot-seo.svg",
+            "title": "SEO",
+            "alt": "A search result preview with meta tags",
+            "type": "image/svg+xml",
+            "width": 640,
+            "height": 400
+        },
+        {
+            "key": "company.media.tech-laravel",
+            "file": "assets/tech-laravel.svg",
+            "title": "Laravel",
+            "alt": "Laravel",
+            "type": "image/svg+xml",
+            "width": 220,
+            "height": 48
+        },
+        {
+            "key": "company.media.tech-filament",
+            "file": "assets/tech-filament.svg",
+            "title": "Filament",
+            "alt": "Filament",
+            "type": "image/svg+xml",
+            "width": 220,
+            "height": 48
+        },
+        {
+            "key": "company.media.tech-php",
+            "file": "assets/tech-php.svg",
+            "title": "PHP",
+            "alt": "PHP",
+            "type": "image/svg+xml",
+            "width": 220,
+            "height": 48
+        },
+        {
+            "key": "company.media.tech-mysql",
+            "file": "assets/tech-mysql.svg",
+            "title": "MySQL",
+            "alt": "MySQL",
+            "type": "image/svg+xml",
+            "width": 220,
+            "height": 48
+        },
+        {
+            "key": "company.media.tech-cloudflare",
+            "file": "assets/tech-cloudflare.svg",
+            "title": "Cloudflare",
+            "alt": "Cloudflare",
+            "type": "image/svg+xml",
+            "width": 220,
+            "height": 48
+        },
+        {
+            "key": "company.media.tech-wordpress",
+            "file": "assets/tech-wordpress.svg",
+            "title": "WordPress",
+            "alt": "WordPress",
+            "type": "image/svg+xml",
+            "width": 220,
+            "height": 48
+        },
+        {
+            "key": "company.media.tech-flarum",
+            "file": "assets/tech-flarum.svg",
+            "title": "Flarum",
+            "alt": "Flarum",
+            "type": "image/svg+xml",
+            "width": 220,
+            "height": 48
+        }
+    ]
+}

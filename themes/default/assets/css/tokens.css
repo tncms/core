@@ -1,0 +1,106 @@
+/*
+ * Default Theme — tokens.css
+ * Design tokens (CSS custom properties) for the TNCMS frontend. Loaded BEFORE
+ * app.css and sections.css so every rule styles against these variables instead
+ * of hardcoding values (theme-architecture 03, web/coding-style).
+ *
+ * Brand accents come from Theme Options: the master layout sets --tncms-primary
+ * and --tncms-secondary inline from theme_option('primary_color' / 'secondary_color').
+ *
+ * Dark mode activates when <html> or <body> carries .dark or [data-theme="dark"].
+ * There is no JS toggle here — the theme only needs to *support* dark surfaces.
+ */
+
+:root {
+    /* Brand / accent */
+    --color-accent: var(--tncms-primary, #2563eb);
+    --color-accent-2: var(--tncms-secondary, #0ea5e9);
+    --color-accent-contrast: #ffffff;
+    --color-accent-hover: #1d4ed8;
+    --color-accent-hover: color-mix(in srgb, var(--color-accent) 85%, black);
+
+    /* Text */
+    --color-text: #0f172a;
+    --color-heading: #0b1220;
+    --color-muted: #64748b;
+
+    /* Surfaces */
+    --color-bg: #ffffff;
+    --color-surface: #f8fafc;
+    --color-surface-2: #f1f5f9;
+    --color-tint: #eef4ff;
+    --color-tint: color-mix(in srgb, var(--color-accent) 10%, white);
+
+    /* Border */
+    --color-border: #e2e8f0;
+
+    /* Radius */
+    --radius-sm: 0.375rem;
+    --radius: 0.625rem;
+    --radius-lg: 1rem;
+    --radius-xl: 1.5rem;
+    --radius-pill: 999px;
+
+    /* Shadow */
+    --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
+    --shadow: 0 4px 16px rgba(15, 23, 42, 0.08);
+    --shadow-lg: 0 18px 40px -12px rgba(15, 23, 42, 0.18);
+
+    /* Spacing scale */
+    --space-2xs: 0.25rem;
+    --space-xs: 0.5rem;
+    --space-sm: 0.75rem;
+    --space-md: 1rem;
+    --space-lg: 1.5rem;
+    --space-xl: 2.5rem;
+    --space-2xl: 4rem;
+    /* Vertical rhythm between full-width section bands (fluid). */
+    --space-section: clamp(3rem, 2rem + 5vw, 6rem);
+
+    /* Container widths */
+    --container: 64rem;
+    --container-wide: 72rem;
+    --container-measure: 44rem;
+
+    /* Content layout (Phase 8A) — sidebar width for archive/post layouts.
+       Safe values: 280px, 320px, 360px. The master layout overrides this inline
+       from theme_option('sidebar_width') via tn_sidebar_width(); this is the
+       default so the grid always has a valid track width. */
+    --tn-sidebar-width: 320px;
+
+    /* Typography */
+    --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --font-display: var(--font-sans);
+    --text-hero: clamp(2.25rem, 1.4rem + 3.6vw, 3.75rem);
+    --text-h2: clamp(1.6rem, 1.2rem + 1.6vw, 2.25rem);
+
+    /* Motion */
+    --transition-fast: 120ms;
+    --transition: 220ms;
+    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Dark mode — higher specificity than :root, so it wins regardless of load order. */
+html.dark,
+html[data-theme="dark"],
+body.dark,
+body[data-theme="dark"] {
+    --color-accent-contrast: #ffffff;
+    --color-accent-hover: color-mix(in srgb, var(--color-accent) 80%, white);
+
+    --color-text: #e5e7eb;
+    --color-heading: #f8fafc;
+    --color-muted: #94a3b8;
+
+    --color-bg: #0b1120;
+    --color-surface: #111827;
+    --color-surface-2: #1f2937;
+    --color-tint: #16213a;
+    --color-tint: color-mix(in srgb, var(--color-accent) 22%, #0b1120);
+
+    --color-border: #243044;
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+    --shadow-lg: 0 18px 40px -12px rgba(0, 0, 0, 0.6);
+}

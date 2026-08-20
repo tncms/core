@@ -1,0 +1,67 @@
+*.log
+.DS_Store
+.env
+.env.backup
+.env.production
+.phpactor.json
+.phpunit.result.cache
+/.fleet
+/.idea
+/.nova
+/.phpunit.cache
+/.vscode
+/.zed
+/auth.json
+/node_modules
+/public/build
+/public/hot
+/public/storage
+/storage/*.key
+/storage/pail
+/vendor
+Homestead.json
+Homestead.yaml
+Thumbs.db
+
+# TN CMS — local working dirs & installer/test artifacts (never committed)
+/references
+/tmp
+/temp
+/storage/app/tncms-installer
+/_*.php
+/.claude/
+/.codegraph/
+CMS_*.md
+README.md
+PLUGIN_DEVELOPMENT.md
+THEME_DEVELOPMENT.md
+
+# ── Repository source boundary (PB-DIST-HYGIENE-2) ──────────────────────────────
+# Platform/plugin source code and tests are ALWAYS tracked. Only build output and
+# local artifacts are ignored (see the artifact rules elsewhere in this file). Do
+# NOT reintroduce bare-filename ignores of source classes, nor broad "tests/*" or
+# "tests/Feature/*" hides — both silently drop platform source from version control.
+
+plugins/hello-world/plugin.json
+
+# Theme sync notes
+THEME_SYNC_AUDIT.md
+THEME_SYNC_REPORT.md
+
+# Local archives
+themes/*.zip
+themes/*.rar
+
+# Local published assets
+public/themes/
+
+# Generated Page Builder bundles (reproducible via `npm run build`)
+/public/vendor/page-builder/
+
+# Local uploads
+public/uploads/
+
+# tokensave runtime DB state (RTK/tokensave MCP local index — never distributed)
+.tokensave/tokensave.db
+.tokensave/tokensave.db-shm
+.tokensave/tokensave.db-wal

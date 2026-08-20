@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 48" role="img" aria-label="PHP">
+  <ellipse cx="26" cy="24" rx="22" ry="14" fill="#777bb3"/>
+  <text x="26" y="30" text-anchor="middle" font-family="system-ui, sans-serif" font-size="15" font-weight="800" fill="#ffffff">php</text>
+  <text x="58" y="31" font-family="system-ui, sans-serif" font-size="22" font-weight="700" fill="#64748b">PHP</text>
+</svg>

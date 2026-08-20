@@ -1,0 +1,112 @@
+{
+    "id": "blog",
+    "name": "Blog / Publication",
+    "description": "A clean writing-first homepage: intro hero, about blurb, featured posts, newsletter, and a closing CTA.",
+    "screenshot": "presets/blog.png",
+    "use_case": "Personal blogs, developer notes, documentation sites, and knowledge bases.",
+    "homepage_mode": "sections",
+    "sections": {
+        "required": ["hero", "rich-text", "post-grid", "newsletter", "cta"],
+        "optional": ["feature-grid"]
+    },
+    "menus": ["header", "footer"],
+    "theme_settings": {
+        "primary_color": "#0f172a",
+        "secondary_color": "#6366f1"
+    },
+    "compatible_demos": ["blog"],
+    "layout": {
+        "version": 1,
+        "meta": { "generator": "tncms-preset", "preset": "blog" },
+        "sections": [
+            {
+                "id": "s_hero",
+                "type": "hero",
+                "settings": { "width": "measure", "background": "none", "align": "center", "media_position": "none", "spacing": "spacious" },
+                "binding": null,
+                "fields": {
+                    "eyebrow": { "vi": "Nhật ký", "en": "Journal" },
+                    "title": { "vi": "Viết, chia sẻ, và xây dựng cùng TNCMS", "en": "Write, share, and build with TNCMS" },
+                    "subtitle": { "vi": "Ghi chú lập trình, hướng dẫn và những bài viết về việc xây dựng một CMS hiện đại.", "en": "Developer notes, guides, and essays on building a modern CMS." },
+                    "ctas": [
+                        { "label": { "vi": "Đọc bài mới nhất", "en": "Read the latest" }, "url": "#latest", "variant": "solid" },
+                        { "label": { "vi": "Giới thiệu", "en": "About" }, "url": "/about", "variant": "outline" }
+                    ],
+                    "media": null
+                }
+            },
+            {
+                "id": "s_intro",
+                "type": "rich-text",
+                "settings": { "width": "measure", "background": "none", "align": "left" },
+                "binding": null,
+                "fields": {
+                    "body": {
+                        "vi": "<p>Đây là không gian để ghi lại quá trình xây dựng TNCMS — một CMS dựa trên Laravel và Filament. Bạn sẽ tìm thấy các bài viết về kiến trúc theme, hệ thống plugin, nội dung đa ngôn ngữ, hiệu năng và SEO.</p>",
+                        "en": "<p>This is where the making of TNCMS gets written down — a CMS built on Laravel and Filament. Expect posts on the theme architecture, the plugin system, multilingual content, performance, and SEO.</p>"
+                    }
+                }
+            },
+            {
+                "id": "s_latest",
+                "type": "post-grid",
+                "settings": { "width": "wide", "background": "none", "columns": 3, "show_excerpt": true, "show_meta": true },
+                "binding": null,
+                "fields": {
+                    "heading": { "vi": "Bài viết nổi bật", "en": "Featured posts" },
+                    "subheading": { "vi": "Một vài bài viết để bắt đầu.", "en": "A few posts to get you started." },
+                    "posts": [
+                        {
+                            "title": { "vi": "Ra mắt một CMS Laravel", "en": "Launching a Laravel CMS" },
+                            "excerpt": { "vi": "Vì sao chúng tôi xây dựng TNCMS trên Laravel và Filament, và những gì nó hướng tới.", "en": "Why we built TNCMS on Laravel and Filament, and what it sets out to do." },
+                            "url": "/blog/launching-a-laravel-cms",
+                            "date": "2026-01-15",
+                            "category": { "vi": "Sản phẩm", "en": "Product" },
+                            "image": null
+                        },
+                        {
+                            "title": { "vi": "Bên trong hệ thống theme", "en": "Inside the theme system" },
+                            "excerpt": { "vi": "Theme, preset và một định dạng layout JSON duy nhất hoạt động cùng nhau như thế nào.", "en": "How themes, presets, and one canonical JSON layout format fit together." },
+                            "url": "/blog/inside-the-theme-system",
+                            "date": "2026-02-02",
+                            "category": { "vi": "Kỹ thuật", "en": "Engineering" },
+                            "image": null
+                        },
+                        {
+                            "title": { "vi": "Nội dung đa ngôn ngữ", "en": "Multilingual content done right" },
+                            "excerpt": { "vi": "Lưu trữ từng locale, URL theo ngôn ngữ và cách trang công khai phân giải bản dịch.", "en": "Per-locale storage, language-aware URLs, and how the front end resolves translations." },
+                            "url": "/blog/multilingual-content",
+                            "date": "2026-03-10",
+                            "category": { "vi": "Kỹ thuật", "en": "Engineering" },
+                            "image": null
+                        }
+                    ]
+                }
+            },
+            {
+                "id": "s_newsletter",
+                "type": "newsletter",
+                "settings": { "width": "wide", "background": "surface", "align": "center" },
+                "binding": null,
+                "fields": {
+                    "heading": { "vi": "Nhận bài viết mới qua email", "en": "Get new posts in your inbox" },
+                    "subtitle": { "vi": "Thỉnh thoảng một email — không spam, hủy bất cứ lúc nào.", "en": "An occasional email — no spam, unsubscribe anytime." },
+                    "provider": "",
+                    "button_label": { "vi": "Đăng ký", "en": "Subscribe" }
+                }
+            },
+            {
+                "id": "s_cta",
+                "type": "cta",
+                "settings": { "width": "wide", "background": "accent", "align": "center", "spacing": "default" },
+                "binding": null,
+                "fields": {
+                    "title": { "vi": "Bắt đầu blog của bạn với TNCMS", "en": "Start your blog with TNCMS" },
+                    "subtitle": { "vi": "Mã nguồn mở, đa ngôn ngữ và sẵn sàng cho production.", "en": "Open-source, multilingual, and production-ready." },
+                    "button": { "label": { "vi": "Bắt đầu", "en": "Get started" }, "url": "/start", "variant": "solid" },
+                    "secondary": { "label": { "vi": "Xem tài liệu", "en": "Read the docs" }, "url": "/docs", "variant": "outline" }
+                }
+            }
+        ]
+    }
+}

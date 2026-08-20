@@ -1,0 +1,13 @@
+{
+    "name": "Hello World",
+    "slug": "hello-world",
+    "version": "1.0.0",
+    "author": "The Nguyen Media",
+    "description": "Demo/sample plugin shipped with TN CMS to prove the Extension Framework boots a plugin (provider, route, view). Not production functionality — safe to delete.",
+    "requires": {
+        "tncms": "^1.0"
+    },
+    "providers": [
+        "Plugins\\HelloWorld\\HelloWorldServiceProvider"
+    ]
+}

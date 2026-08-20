@@ -1,0 +1,101 @@
+{
+    "_doc": "Header + footer navigation for the Magazine demo. Imported natively by TheNguyen\\CMS\\Services\\DemoMenuImporter when 'menus' is declared in manifest.json's `files` map. Each menu is identified by a stable `key`; re-import reuses the menu row (id/location stable) and rebuilds its items, so imports are idempotent. reset() deletes only these demo-created menus (by provenance imported_menu_ids).",
+    "menus": [
+        {
+            "key": "magazine.menu.header",
+            "location": "header",
+            "name": { "vi": "Menu đầu trang", "en": "Header Menu" },
+            "items": [
+                { "key": "magazine.menu.header.home", "label": { "vi": "Trang chủ", "en": "Home" }, "url": "/" },
+                {
+                    "key": "magazine.menu.header.topics",
+                    "label": { "vi": "Chủ đề", "en": "Topics" },
+                    "url": "#",
+                    "meta": { "display": "mega", "mega_columns": 4, "mega_width": "wide" },
+                    "children": [
+                        {
+                            "key": "magazine.menu.header.cms",
+                            "label": { "vi": "CMS", "en": "CMS" },
+                            "url": "/category/cms",
+                            "children": [
+                                { "key": "magazine.menu.header.cms.all", "label": { "vi": "Tất cả CMS", "en": "All CMS" }, "url": "/category/cms" },
+                                { "key": "magazine.menu.header.cms.migration", "label": { "vi": "Di chuyển", "en": "Migration" }, "url": "/category/migration", "meta": { "badge": "NEW" } }
+                            ]
+                        },
+                        {
+                            "key": "magazine.menu.header.security",
+                            "label": { "vi": "Bảo mật", "en": "Security" },
+                            "url": "/category/security",
+                            "children": [
+                                { "key": "magazine.menu.header.security.all", "label": { "vi": "Tất cả bảo mật", "en": "All Security" }, "url": "/category/security" }
+                            ]
+                        },
+                        {
+                            "key": "magazine.menu.header.seo",
+                            "label": { "vi": "SEO", "en": "SEO" },
+                            "url": "/category/seo",
+                            "children": [
+                                { "key": "magazine.menu.header.seo.all", "label": { "vi": "Tất cả SEO", "en": "All SEO" }, "url": "/category/seo" }
+                            ]
+                        },
+                        {
+                            "key": "magazine.menu.header.tutorials",
+                            "label": { "vi": "Hướng dẫn", "en": "Tutorials" },
+                            "url": "/category/tutorials",
+                            "children": [
+                                { "key": "magazine.menu.header.tutorials.all", "label": { "vi": "Tất cả hướng dẫn", "en": "All Tutorials" }, "url": "/category/tutorials" }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "key": "magazine.menu.footer",
+            "location": "footer",
+            "name": { "vi": "Menu chân trang", "en": "Footer Menu" },
+            "items": [
+                {
+                    "key": "magazine.menu.footer.topics",
+                    "label": { "vi": "Chủ đề", "en": "Topics" },
+                    "url": "#",
+                    "children": [
+                        { "key": "magazine.menu.footer.topics.cms", "label": { "vi": "CMS", "en": "CMS" }, "url": "/category/cms" },
+                        { "key": "magazine.menu.footer.topics.security", "label": { "vi": "Bảo mật", "en": "Security" }, "url": "/category/security" },
+                        { "key": "magazine.menu.footer.topics.seo", "label": { "vi": "SEO", "en": "SEO" }, "url": "/category/seo" }
+                    ]
+                },
+                {
+                    "key": "magazine.menu.footer.resources",
+                    "label": { "vi": "Tài nguyên", "en": "Resources" },
+                    "url": "#",
+                    "children": [
+                        { "key": "magazine.menu.footer.resources.docs", "label": { "vi": "Tài liệu", "en": "Documentation" }, "url": "/docs" },
+                        { "key": "magazine.menu.footer.resources.tutorials", "label": { "vi": "Hướng dẫn", "en": "Tutorials" }, "url": "/category/tutorials" },
+                        { "key": "magazine.menu.footer.resources.migration", "label": { "vi": "Di chuyển", "en": "Migration" }, "url": "/category/migration" }
+                    ]
+                },
+                {
+                    "key": "magazine.menu.footer.community",
+                    "label": { "vi": "Cộng đồng", "en": "Community" },
+                    "url": "#",
+                    "children": [
+                        { "key": "magazine.menu.footer.community.github", "label": { "vi": "GitHub", "en": "GitHub" }, "url": "/community/github" },
+                        { "key": "magazine.menu.footer.community.forum", "label": { "vi": "Diễn đàn", "en": "Forum" }, "url": "/community/forum" },
+                        { "key": "magazine.menu.footer.community.contribute", "label": { "vi": "Đóng góp", "en": "Contribute" }, "url": "/community/contribute" }
+                    ]
+                },
+                {
+                    "key": "magazine.menu.footer.company",
+                    "label": { "vi": "Công ty", "en": "Company" },
+                    "url": "#",
+                    "children": [
+                        { "key": "magazine.menu.footer.company.about", "label": { "vi": "Giới thiệu", "en": "About" }, "url": "/about" },
+                        { "key": "magazine.menu.footer.company.contact", "label": { "vi": "Liên hệ", "en": "Contact" }, "url": "/contact" },
+                        { "key": "magazine.menu.footer.company.privacy", "label": { "vi": "Quyền riêng tư", "en": "Privacy" }, "url": "/privacy" }
+                    ]
+                }
+            ]
+        }
+    ]
+}

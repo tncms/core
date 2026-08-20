@@ -1,0 +1,116 @@
+{
+    "id": "company",
+    "name": "Company / Corporate",
+    "description": "Marketing homepage: hero, features, architecture, FAQ, CTA.",
+    "screenshot": "presets/company.png",
+    "use_case": "Product, SaaS, agency, and company sites.",
+    "homepage_mode": "sections",
+    "sections": {
+        "required": ["hero", "feature-grid", "architecture", "faq", "cta"],
+        "optional": ["feature-split", "logo-strip"]
+    },
+    "menus": ["header", "footer"],
+    "theme_settings": {
+        "primary_color": "#2563eb",
+        "secondary_color": "#0ea5e9"
+    },
+    "compatible_demos": ["company"],
+    "layout": {
+        "version": 1,
+        "meta": { "generator": "tncms-preset", "preset": "company" },
+        "sections": [
+            {
+                "id": "s_hero",
+                "type": "hero",
+                "settings": { "variant": "modern-split", "width": "wide", "background": "tint", "align": "left", "media_position": "none", "spacing": "spacious" },
+                "binding": null,
+                "fields": {
+                    "eyebrow": "Open source Laravel CMS",
+                    "title": "Build websites faster with TNCMS",
+                    "subtitle": "An opinionated, open-source Laravel CMS for company and product sites.",
+                    "ctas": [
+                        { "label": "Get started", "url": "/start", "variant": "solid" },
+                        { "label": "Read docs", "url": "/docs", "variant": "outline" }
+                    ]
+                }
+            },
+            {
+                "id": "s_why",
+                "type": "feature-grid",
+                "settings": { "variant": "icon-cards", "width": "wide", "background": "none", "columns": 4, "align": "center" },
+                "binding": null,
+                "fields": {
+                    "heading": "Why TNCMS",
+                    "subheading": "A CMS built for long-term projects.",
+                    "features": [
+                        { "icon": "⚡", "title": "Fast by default", "text": "Server-rendered Blade, no heavy SPA." },
+                        { "icon": "🧩", "title": "Plugin first", "text": "Extend through registries, never the core." },
+                        { "icon": "🎨", "title": "Theme friendly", "text": "Override any view. Restyle without fear." },
+                        { "icon": "🛠️", "title": "Developer focused", "text": "Laravel, Filament, and a clear layout format." }
+                    ]
+                }
+            },
+            {
+                "id": "s_editor",
+                "type": "feature-split",
+                "settings": { "width": "wide", "background": "surface", "media_side": "right", "spacing": "spacious" },
+                "binding": null,
+                "fields": {
+                    "heading": "Compose pages from reusable sections",
+                    "body": "<p>Every homepage is an ordered list of typed sections. Arrange and edit them visually — localized per language and safe across themes. No code required.</p>",
+                    "bullets": [
+                        { "text": "Reusable sections" },
+                        { "text": "Localized content" },
+                        { "text": "Theme-safe" },
+                        { "text": "No code required" }
+                    ],
+                    "media": null,
+                    "cta": { "label": "Explore the editor", "url": "/docs", "variant": "outline" }
+                }
+            },
+            {
+                "id": "s_architecture",
+                "type": "architecture",
+                "settings": { "width": "measure", "background": "none", "align": "center" },
+                "binding": null,
+                "fields": {
+                    "heading": "How TNCMS fits together",
+                    "subheading": "Clear layers, from the surface down to the foundation.",
+                    "layers": [
+                        { "icon": "🎨", "label": "Themes", "description": "Presentation: views, styles, and presets." },
+                        { "icon": "🧱", "label": "Sections", "description": "Typed, reusable homepage blocks." },
+                        { "icon": "⚙️", "label": "CMS Core", "description": "Content, media, menus, and routing." },
+                        { "icon": "🧩", "label": "Plugins", "description": "Optional features via registries." },
+                        { "icon": "🛠️", "label": "Filament", "description": "The admin panel." },
+                        { "icon": "🐘", "label": "Laravel", "description": "The framework foundation." }
+                    ]
+                }
+            },
+            {
+                "id": "s_faq",
+                "type": "faq",
+                "settings": { "variant": "boxed", "width": "measure", "background": "none", "layout": "single", "allow_multiple": false },
+                "binding": null,
+                "fields": {
+                    "heading": "Frequently asked questions",
+                    "items": [
+                        { "question": "Why TNCMS?", "answer": "<p>It keeps your site fast, extensible, and predictable — built on Laravel and Filament.</p>" },
+                        { "question": "Is it open source?", "answer": "<p>Yes — it ships under a permissive license.</p>" }
+                    ]
+                }
+            },
+            {
+                "id": "s_cta",
+                "type": "cta",
+                "settings": { "variant": "gradient-panel", "width": "wide", "background": "accent", "align": "center", "spacing": "spacious" },
+                "binding": null,
+                "fields": {
+                    "title": "Start building with TNCMS",
+                    "subtitle": "Free, open-source, production-ready.",
+                    "button": { "label": "Get started", "url": "/start", "variant": "solid" },
+                    "secondary": { "label": "Read docs", "url": "/docs", "variant": "outline" }
+                }
+            }
+        ]
+    }
+}
