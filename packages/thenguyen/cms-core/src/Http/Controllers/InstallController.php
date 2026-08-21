@@ -7,16 +7,24 @@ namespace TheNguyen\CMS\Http\Controllers;
 use Illuminate\Contracts\View\View as ViewContract;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\URL;
 use TheNguyen\CMS\Services\InstallerManager;
 
 /**
- * Web Installer Core (v1.0.0-beta.6).
+ * Web Installer Core (CORE-INSTALLER-2).
  *
- * A small first-run wizard: welcome → requirements → database/app config →
- * super-admin → finish. The database step writes .env and tests the connection;
- * the admin step runs migrations, seeders, creates the super-admin and locks the
- * installer. Simple Blade views (no Filament, no admin login). All execution is
+ * A first-run wizard: welcome → requirements → configure (site + database) →
+ * admin → review → (commit) → finish. Everything is COLLECTED into the
+ * server-side installer session first; NOTHING is persisted to .env until the
+ * single, explicit install commit at /install/run. That commit atomically
+ * creates the permanent .env with a freshly-generated permanent APP_KEY, then
+ * migrates, seeds, creates the super-admin, health-checks and locks the
+ * installer. Views are simple Blade (no Filament, no login); all execution is
  * delegated to the InstallerManager so this controller stays transport-only.
+ *
+ * State model (§34): FRESH (no .env, no marker) → CONFIG_COMMITTED_NOT_INSTALLED
+ * (valid .env + permanent key, no marker) → INSTALLED (marker written). .env
+ * existence alone never means installed.
  */
 class InstallController
 {
@@ -41,20 +49,29 @@ class InstallController
         ]);
     }
 
-    public function database(): ViewContract
+    public function database(): ViewContract|RedirectResponse
     {
+        // Requirements gate (§27): never collect configuration — let alone
+        // secrets — until the server can actually run the CMS.
+        if (! $this->installer()->requirementsPassed()) {
+            return redirect()->route('cms.install.requirements');
+        }
+
+        $site = (array) session('install.site', []);
+        $db = (array) session('install.db', []);
+
         return view('install.database', [
             'step' => 3,
             'defaults' => [
-                'app_name' => (string) config('app.name', 'TN CMS'),
-                'app_url' => $this->installer()->detectAppUrl(),
-                'app_timezone' => (string) config('app.timezone', 'Asia/Ho_Chi_Minh'),
-                'default_language' => 'vi',
-                'admin_path' => (string) config('cms.admin_path', 'admin'),
-                'db_host' => '127.0.0.1',
-                'db_port' => '3306',
-                'db_database' => '',
-                'db_username' => 'root',
+                'app_name' => (string) ($site['app_name'] ?? config('app.name', 'TN CMS')),
+                'app_url' => (string) ($site['app_url'] ?? $this->installer()->detectAppUrl()),
+                'app_timezone' => (string) ($site['app_timezone'] ?? config('app.timezone', 'UTC')),
+                'default_language' => (string) ($site['default_language'] ?? 'vi'),
+                'admin_path' => (string) ($site['admin_path'] ?? config('cms.admin_path', 'admin')),
+                'db_host' => (string) ($db['host'] ?? '127.0.0.1'),
+                'db_port' => (string) ($db['port'] ?? '3306'),
+                'db_database' => (string) ($db['database'] ?? ''),
+                'db_username' => (string) ($db['username'] ?? 'root'),
             ],
         ]);
     }
@@ -82,6 +99,8 @@ class InstallController
             'password' => (string) ($data['db_password'] ?? ''),
         ];
 
+        // Test the connection WITHOUT persisting anything — no .env write, no
+        // permanent connection change (§12, §34).
         $test = $this->installer()->testDatabaseConnection($dbConfig);
 
         if (! $test['ok']) {
@@ -90,32 +109,17 @@ class InstallController
                 ->with('db_error', $test['error']);
         }
 
-        $written = $this->installer()->writeEnv([
-            'APP_NAME' => $data['app_name'],
-            'APP_URL' => rtrim($data['app_url'], '/'),
-            'APP_TIMEZONE' => $data['app_timezone'],
-            'APP_LOCALE' => $data['default_language'],
-            'CMS_DEFAULT_LANGUAGE' => $data['default_language'],
-            'ADMIN_PATH' => $data['admin_path'],
-            'DB_CONNECTION' => 'mysql',
-            'DB_HOST' => $dbConfig['host'],
-            'DB_PORT' => $dbConfig['port'],
-            'DB_DATABASE' => $dbConfig['database'],
-            'DB_USERNAME' => $dbConfig['username'],
-            'DB_PASSWORD' => $dbConfig['password'],
-        ]);
-
-        if (! $written) {
-            return back()
-                ->withInput($request->except('db_password'))
-                ->with('db_error', tn_trans('Could not write the .env file. Check that it is writable.'));
-        }
-
-        // Carry the verified DB config + app choices to the execution step. The
-        // password lives only in the server-side session, never echoed to the UI.
+        // Collect into the server-side installer session only. Nothing touches
+        // .env until the install commit at /install/run.
         session([
+            'install.site' => [
+                'app_name' => $data['app_name'],
+                'app_url' => rtrim($data['app_url'], '/'),
+                'app_timezone' => $data['app_timezone'],
+                'default_language' => $data['default_language'],
+                'admin_path' => $data['admin_path'],
+            ],
             'install.db' => $dbConfig,
-            'install.default_language' => $data['default_language'],
         ]);
 
         return redirect()->route('cms.install.admin');
@@ -133,9 +137,7 @@ class InstallController
 
     public function storeAdmin(Request $request): RedirectResponse
     {
-        $dbConfig = session('install.db');
-
-        if (! is_array($dbConfig)) {
+        if (! session()->has('install.db')) {
             return redirect()->route('cms.install.database')
                 ->with('db_error', tn_trans('Please configure the database first.'));
         }
@@ -146,41 +148,129 @@ class InstallController
             'password' => ['required', 'string', 'min:8', 'confirmed'],
         ]);
 
+        // The password lives ONLY in the server-side (file) session until commit —
+        // never in .env, a hidden field, a query string, or a log (§29).
+        session(['install.admin' => [
+            'name' => $data['name'],
+            'email' => $data['email'],
+            'password' => $data['password'],
+        ]]);
+
+        return redirect()->route('cms.install.review');
+    }
+
+    public function review(): ViewContract|RedirectResponse
+    {
+        $site = session('install.site');
+        $db = session('install.db');
+        $admin = session('install.admin');
+
+        if (! is_array($site) || ! is_array($db) || ! is_array($admin)) {
+            return redirect()->route('cms.install.database')
+                ->with('db_error', tn_trans('Please complete the configuration steps first.'));
+        }
+
+        // Non-secret summary only — no DB password, no key (§12).
+        return view('install.review', [
+            'step' => 5,
+            'site' => $site,
+            'db' => [
+                'host' => $db['host'],
+                'port' => $db['port'],
+                'database' => $db['database'],
+                'username' => $db['username'],
+            ],
+            'admin' => ['name' => $admin['name'], 'email' => $admin['email']],
+            'error' => session('install_error'),
+        ]);
+    }
+
+    /**
+     * The single install commit. Atomically creates .env with a permanent key,
+     * then runs the database lifecycle and locks the installer.
+     */
+    public function run(Request $request): RedirectResponse
+    {
         $installer = $this->installer();
 
+        $site = session('install.site');
+        $db = session('install.db');
+        $admin = session('install.admin');
+
+        if (! is_array($site) || ! is_array($db) || ! is_array($admin)) {
+            return redirect()->route('cms.install.database')
+                ->with('db_error', tn_trans('Please complete the configuration steps first.'));
+        }
+
+        $config = [
+            'app_name' => (string) $site['app_name'],
+            'app_url' => (string) $site['app_url'],
+            'app_timezone' => (string) $site['app_timezone'],
+            'default_language' => (string) $site['default_language'],
+            'admin_path' => (string) $site['admin_path'],
+            'db' => $db,
+        ];
+
+        // Step 1 — atomic environment commit. On failure NOTHING is persisted:
+        // no partial .env, no key, no marker. Safe to retry (§15, §42).
         try {
-            $installer->applyRuntimeDatabase($dbConfig);
-            $installer->ensureAppKey();
-            $installer->runMigrations();
-            $installer->runSeeders();
-            $installer->applyDefaultLanguage((string) session('install.default_language', 'vi'));
-            $installer->createSuperAdmin($data);
-            $installer->clearCaches();
-            $installer->markInstalled();
+            $installer->commitEnvironment($config);
         } catch (\Throwable $e) {
             report($e);
 
-            return back()
-                ->withInput($request->except(['password', 'password_confirmation']))
-                ->with('install_error', tn_trans('Installation failed: :message', ['message' => $e->getMessage()]));
+            return redirect()->route('cms.install.review')->with(
+                'install_error',
+                tn_trans('Could not create the environment file. Check that the project root is writable.'),
+            );
         }
 
-        session()->forget(['install.db', 'install.default_language']);
+        // Step 2 — database lifecycle + lock. If any step here fails the .env and
+        // its permanent key are preserved (CONFIG_COMMITTED_NOT_INSTALLED); no
+        // marker is written and the key is never rotated on retry (§19, §43).
+        try {
+            $installer->applyRuntimeDatabase($db);
+            $installer->runMigrations();
+            $installer->runSeeders();
+            $installer->applyDefaultLanguage((string) $site['default_language']);
+
+            if (! $installer->superAdminExists()) {
+                $installer->createSuperAdmin($admin);
+            }
+
+            $installer->clearCaches();
+            $installer->markInstalled();
+            $installer->finalizeKeyTransition();
+        } catch (\Throwable $e) {
+            report($e);
+
+            return redirect()->route('cms.install.review')->with(
+                'install_error',
+                tn_trans('Installation failed: :message', ['message' => $e->getMessage()]),
+            );
+        }
+
+        session()->forget(['install.site', 'install.db', 'install.admin']);
 
         session()->flash('install.success', true);
         session()->flash('install.frontend_url', $installer->frontendUrl());
         session()->flash('install.admin_url', $installer->adminUrl());
 
-        return redirect()->route('cms.install.finish');
+        // Signed redirect so the finish screen recognizes a just-completed install
+        // even if the session does not survive the ephemeral→permanent key
+        // transition (§17). The signature is created with the permanent key.
+        return redirect(URL::temporarySignedRoute('cms.install.finish', now()->addMinutes(30)));
     }
 
-    public function finish(): ViewContract|RedirectResponse
+    public function finish(Request $request): ViewContract|RedirectResponse
     {
         $installer = $this->installer();
 
-        if (session()->get('install.success') === true) {
+        $justInstalled = $installer->isInstalled()
+            && ($request->hasValidSignature() || session()->get('install.success') === true);
+
+        if ($justInstalled) {
             return view('install.finish', [
-                'step' => 5,
+                'step' => 6,
                 'already' => false,
                 'frontend_url' => (string) session('install.frontend_url', $installer->frontendUrl()),
                 'admin_url' => (string) session('install.admin_url', $installer->adminUrl()),
@@ -189,7 +279,7 @@ class InstallController
 
         if ($installer->isInstalled()) {
             return view('install.finish', [
-                'step' => 5,
+                'step' => 6,
                 'already' => true,
                 'frontend_url' => $installer->frontendUrl(),
                 'admin_url' => $installer->adminUrl(),

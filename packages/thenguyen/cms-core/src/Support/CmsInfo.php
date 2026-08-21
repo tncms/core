@@ -6,7 +6,7 @@ namespace TheNguyen\CMS\Support;
 
 final class CmsInfo
 {
-    public const VERSION = '1.0.0-beta.7.1.20';
+    public const VERSION = '1.0.0-beta.7.1.21';
 
     /** Canonical brand identity (see CMS_ARCHITECTURE.md §brand). */
     public const BRAND = 'TN CMS';

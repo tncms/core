@@ -16,6 +16,54 @@ this project adheres to [Semantic Versioning](https://semver.org).
 
 ---
 
+## [1.0.0-beta.7.1.21] — First-Run Environment Bootstrap (CORE-INSTALLER-2)
+
+Shared-hosting first-run redesign. `.env` is now an explicit **result** of a
+successful installer commit, never a file silently created just so the first HTTP
+request could encrypt a cookie. No end-user CLI is required for a normal install.
+
+### Added
+
+- **Ephemeral pre-install bootstrap key.** A file-backed, cryptographically secure
+  key (`storage/framework/tncms-installer.key`) lets a keyless fresh extract boot
+  cookie/session encryption before any `.env` exists. It is stable across wizard
+  requests, never written to `.env`, never logged/rendered, and is removed the
+  moment the permanent `.env` is committed and the runtime holds the permanent key
+  (`InstallerBootstrapKey`, `EnsureInstallerAppKey`).
+- **Atomic `.env` creation.** `AtomicEnvWriter` writes temp → flush → validate →
+  rename so a failed commit leaves no partial, secret-bearing `.env`; a previous
+  valid `.env` is preserved on failure.
+- **Single install commit.** `InstallerManager::commitEnvironment()` is the only
+  place a permanent `.env` is created — it generates a unique permanent `APP_KEY`
+  on a fresh install and **reuses** (never rotates) an existing key on a resume,
+  then switches the running process to the permanent key.
+- **Review step + explicit `/install/run` commit** in the wizard: welcome →
+  requirements → configure → admin → review → (commit) → finish. Configuration is
+  collected server-side; nothing touches `.env` until the review step is confirmed.
+- **Friendly first-run routing.** A fresh, unconfigured extract redirects any
+  non-installer request to `/install` (`RedirectToInstaller`) instead of showing a
+  raw error. Installed sites are unaffected.
+- **Distribution verifier gates:** artifacts hard-fail if they carry the ephemeral
+  bootstrap key, an install lock, or a fixed universal `APP_KEY` in runtime config.
+- `APP_TIMEZONE` is now honored by `config/app.php` so the installer-chosen timezone
+  actually applies.
+
+### Changed
+
+- The pre-install runtime no longer writes `.env` on the first request. The DB test
+  step no longer persists connection details. State model: `FRESH` (no `.env`, no
+  marker) → `CONFIG_COMMITTED_NOT_INSTALLED` (valid `.env` + permanent key, no
+  marker) → `INSTALLED` (marker). `.env` existence alone never means installed.
+- `.env` values with a bare `=` (e.g. the base64 `APP_KEY`) are written unquoted, to
+  match Laravel's `key:generate` convention.
+
+### Notes
+
+- Failure after the `.env` commit preserves the permanent `APP_KEY` and allows a safe
+  retry without rotating the key or duplicating the admin.
+- Upgrade continues to preserve a site's `.env` and `APP_KEY`; the installer owns
+  only initial `.env` creation.
+
 ## [1.0.0-beta.7.1.20] — Composer TLS & Zero-CLI APP_KEY Hygiene (CORE-RELEASE-1-H2)
 
 Security/release hardening. No Core functionality changes.

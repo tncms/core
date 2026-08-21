@@ -1,12 +1,13 @@
 @extends('install.layout')
 
-@section('title', 'Database')
+@section('title', 'Configure')
 
 @section('content')
-    <h1>Database &amp; site configuration</h1>
+    <h1>Site &amp; database configuration</h1>
     <p class="lead">
-        Enter your database connection and a few site basics. We test the connection
-        before saving anything to <code>.env</code> — your password is never shown back.
+        Enter your database connection and a few site basics. We only test the
+        connection now — nothing is written to <code>.env</code> until you confirm on
+        the review step. Your password is never shown back.
     </p>
 
     @if (session('db_error'))

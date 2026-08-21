@@ -247,22 +247,36 @@ class InstallerManager
 
         try {
             $contents = is_file($path) ? (string) file_get_contents($path) : '';
-
-            foreach ($values as $key => $value) {
-                $line = $key.'='.$this->formatEnvValue((string) $value);
-                $pattern = '/^'.preg_quote($key, '/').'=.*$/m';
-
-                if (preg_match($pattern, $contents) === 1) {
-                    $contents = (string) preg_replace($pattern, $line, $contents, 1);
-                } else {
-                    $contents = rtrim($contents, "\r\n").PHP_EOL.$line.PHP_EOL;
-                }
-            }
+            $contents = $this->applyEnvValues($contents, $values);
 
             return @file_put_contents($path, $contents) !== false;
         } catch (\Throwable) {
             return false;
         }
+    }
+
+    /**
+     * Return $contents with each key set — replaced in place, or appended when
+     * absent. Pure: builds the new env text in memory without touching the
+     * filesystem, so the in-place writeEnv() and the atomic commitEnvironment()
+     * share one formatting authority.
+     *
+     * @param  array<string, string>  $values
+     */
+    private function applyEnvValues(string $contents, array $values): string
+    {
+        foreach ($values as $key => $value) {
+            $line = $key.'='.$this->formatEnvValue((string) $value);
+            $pattern = '/^'.preg_quote($key, '/').'=.*$/m';
+
+            if (preg_match($pattern, $contents) === 1) {
+                $contents = (string) preg_replace($pattern, $line, $contents, 1);
+            } else {
+                $contents = rtrim($contents, "\r\n").PHP_EOL.$line.PHP_EOL;
+            }
+        }
+
+        return $contents;
     }
 
     private function formatEnvValue(string $value): string
@@ -271,7 +285,11 @@ class InstallerManager
             return '';
         }
 
-        if (preg_match('/[\s#"\'=]/', $value) === 1) {
+        // Quote only values that genuinely need it (whitespace, comment/quote
+        // chars). A bare '=' does NOT require quoting in dotenv — Laravel's own
+        // key:generate writes the base64 APP_KEY (with '=' padding) unquoted, so
+        // matching that keeps .env conventional and tool-compatible.
+        if (preg_match('/[\s#"\']/', $value) === 1) {
             return '"'.str_replace('"', '\"', $value).'"';
         }
 
@@ -404,6 +422,140 @@ class InstallerManager
     }
 
     // ---------------------------------------------------------------------
+    // Environment commit (CORE-INSTALLER-2)
+    // ---------------------------------------------------------------------
+
+    /**
+     * Atomically create the permanent .env at install-commit time and switch the
+     * running process to the permanent APP_KEY.
+     *
+     * This is the ONLY place a permanent .env is created. Before it runs the site
+     * has no .env (FRESH); after it succeeds the site is
+     * CONFIG_COMMITTED_NOT_INSTALLED (valid .env + permanent key, no install
+     * marker). A fresh commit generates the permanent key here; when a .env
+     * already exists (a resume after a partial install) its existing key is
+     * REUSED and never rotated (§32, §43).
+     *
+     * @param  array{app_name: string, app_url: string, app_timezone: string, default_language: string, admin_path: string, db: array{host: string, port: string, database: string, username: string, password: string}}  $config
+     *
+     * @throws \RuntimeException when the atomic write fails (leaves no partial .env).
+     */
+    public function commitEnvironment(array $config): void
+    {
+        $envPath = $this->envPath();
+
+        // Resume-safe: reuse an already-committed permanent key, never rotate it.
+        $existingKey = $this->existingEnvKey($envPath);
+        $key = $existingKey !== '' ? $existingKey : 'base64:'.base64_encode(random_bytes(32));
+
+        $contents = $this->buildEnvContents($config, $key);
+
+        // The atomic move is the commit point; on failure it throws and leaves no
+        // partial, secret-bearing .env.
+        app(AtomicEnvWriter::class)->write($envPath, $contents);
+
+        // Switch THIS runtime to the permanent key + configuration so migrations
+        // and seeders run against the committed environment. The ephemeral key is
+        // NOT forgotten yet — finalizeKeyTransition() does that only after the
+        // install is fully locked (§17, §35).
+        config([
+            'app.key' => $key,
+            'app.name' => $config['app_name'],
+            'app.url' => rtrim($config['app_url'], '/'),
+            'app.timezone' => $config['app_timezone'],
+            'app.locale' => $config['default_language'],
+            'cms.admin_path' => $config['admin_path'],
+        ]);
+        putenv('APP_KEY='.$key);
+        $_ENV['APP_KEY'] = $key;
+        $_SERVER['APP_KEY'] = $key;
+    }
+
+    /**
+     * True when a permanent .env with a non-empty APP_KEY already exists — i.e.
+     * the environment has been committed (CONFIG_COMMITTED_NOT_INSTALLED or
+     * INSTALLED). NEVER treated as "installed" on its own (§34).
+     */
+    public function hasCommittedEnv(): bool
+    {
+        return $this->existingEnvKey($this->envPath()) !== '';
+    }
+
+    /**
+     * The permanent .env location. Extracted so tests can target a temporary path
+     * (the running source test app legitimately has its own dev .env at
+     * base_path) — a test seam, never a production bypass.
+     */
+    protected function envPath(): string
+    {
+        return base_path('.env');
+    }
+
+    /**
+     * Finalize the key transition: drop the ephemeral bootstrap key now that the
+     * permanent .env is committed AND this runtime holds the permanent key. Called
+     * only after the install is fully locked, so a failure mid-install leaves the
+     * ephemeral key in place for a safe retry (§35, §43).
+     */
+    public function finalizeKeyTransition(): void
+    {
+        if ((string) config('app.key') !== '' && $this->hasCommittedEnv()) {
+            $this->bootstrapKey()->forget();
+        }
+    }
+
+    /**
+     * Build the full .env text from the shipped .env.example template with the
+     * installer-managed allowlist applied and production-safe defaults (§13).
+     *
+     * @param  array{app_name: string, app_url: string, app_timezone: string, default_language: string, admin_path: string, db: array{host: string, port: string, database: string, username: string, password: string}}  $config
+     */
+    private function buildEnvContents(array $config, string $key): string
+    {
+        $template = base_path('.env.example');
+        $base = is_file($template) ? (string) file_get_contents($template) : '';
+
+        $db = $config['db'];
+
+        return $this->applyEnvValues($base, [
+            'APP_NAME' => (string) $config['app_name'],
+            'APP_ENV' => 'production',
+            'APP_KEY' => $key,
+            'APP_DEBUG' => 'false',
+            'APP_URL' => rtrim((string) $config['app_url'], '/'),
+            'APP_LOCALE' => (string) $config['default_language'],
+            'APP_TIMEZONE' => (string) $config['app_timezone'],
+            'CMS_DEFAULT_LANGUAGE' => (string) $config['default_language'],
+            'ADMIN_PATH' => (string) $config['admin_path'],
+            'DB_CONNECTION' => 'mysql',
+            'DB_HOST' => (string) $db['host'],
+            'DB_PORT' => (string) $db['port'],
+            'DB_DATABASE' => (string) $db['database'],
+            'DB_USERNAME' => (string) $db['username'],
+            'DB_PASSWORD' => (string) $db['password'],
+        ]);
+    }
+
+    /**
+     * Read the APP_KEY from an existing .env by a line scan (no Dotenv boot).
+     * Empty string when the file or the key is absent.
+     */
+    private function existingEnvKey(string $envPath): string
+    {
+        if (! is_file($envPath)) {
+            return '';
+        }
+
+        foreach (file($envPath, FILE_IGNORE_NEW_LINES) ?: [] as $line) {
+            if (preg_match('/^\s*APP_KEY\s*=\s*(\S.*)$/', $line, $m) === 1) {
+                return trim(trim($m[1]), '"\'');
+            }
+        }
+
+        return '';
+    }
+
+    // ---------------------------------------------------------------------
     // Execution
     // ---------------------------------------------------------------------
 
@@ -421,15 +573,16 @@ class InstallerManager
     }
 
     /**
-     * Ensure a usable APP_KEY exists on the FIRST pre-install HTTP request.
+     * Apply a usable APP_KEY on a pre-install HTTP request WITHOUT writing .env.
      *
      * A fresh shared-hosting extract ships no .env and an empty APP_KEY, so cookie
      * and session encryption would throw MissingAppKeyException before the wizard
-     * can render — making the whole zero-CLI flow unreachable. This bootstraps .env
-     * from .env.example (once), generates a key WITHOUT shelling out to artisan
-     * (key:generate needs an existing .env), persists it, and applies it to the
-     * running request so the encrypter that resolves later in the middleware stack
-     * uses it. DB-free and idempotent: a no-op once a key is present.
+     * can render — making the whole zero-CLI flow unreachable. This applies the
+     * ephemeral InstallerBootstrapKey (storage/framework/tncms-installer.key) to
+     * the running request: a key scoped strictly to the pre-install runtime and
+     * never persisted as the permanent APP_KEY (CORE-INSTALLER-2 — no .env exists
+     * before the install commit). DB-free and idempotent: a no-op once any key is
+     * present.
      */
     public function ensureRuntimeAppKey(): void
     {
@@ -437,23 +590,12 @@ class InstallerManager
             return;
         }
 
-        $envPath = base_path('.env');
+        config(['app.key' => $this->bootstrapKey()->resolve()]);
+    }
 
-        if (! is_file($envPath)) {
-            $example = base_path('.env.example');
-            @copy(is_file($example) ? $example : $envPath, $envPath);
-            if (! is_file($envPath)) {
-                @file_put_contents($envPath, '');
-            }
-        }
-
-        $key = 'base64:'.base64_encode(random_bytes(32));
-
-        // Persist for subsequent requests (writeEnv replaces the APP_KEY= line
-        // seeded by .env.example) and apply to THIS request so the not-yet-resolved
-        // encrypter is built with it.
-        $this->writeEnv(['APP_KEY' => $key]);
-        config(['app.key' => $key]);
+    public function bootstrapKey(): InstallerBootstrapKey
+    {
+        return app(InstallerBootstrapKey::class);
     }
 
     public function runMigrations(): void

@@ -32,5 +32,8 @@ Route::middleware([InstallerSession::class, 'web'])
             Route::post('/database', [InstallController::class, 'storeDatabase'])->name('database.store');
             Route::get('/admin', [InstallController::class, 'admin'])->name('admin');
             Route::post('/admin', [InstallController::class, 'storeAdmin'])->name('admin.store');
+            Route::get('/review', [InstallController::class, 'review'])->name('review');
+            // The single install commit: atomic .env + permanent key + DB lifecycle.
+            Route::post('/run', [InstallController::class, 'run'])->name('run');
         });
     });

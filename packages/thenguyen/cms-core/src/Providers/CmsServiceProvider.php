@@ -458,6 +458,12 @@ class CmsServiceProvider extends ServiceProvider
         $this->app->alias('cms.maintenance', MaintenanceManager::class);
 
         // Web Installer Core (v1.0.0-beta.6).
+        // First-run environment bootstrap authorities (CORE-INSTALLER-2): the
+        // ephemeral pre-install key + the atomic .env writer. Registered as
+        // singletons so the installer resolves one instance per request (and tests
+        // can override the writer to inject an atomic-move failure).
+        $this->app->singleton(\TheNguyen\CMS\Services\InstallerBootstrapKey::class);
+        $this->app->singleton(\TheNguyen\CMS\Services\AtomicEnvWriter::class);
         $this->app->singleton('cms.installer', fn () => new InstallerManager);
         $this->app->alias('cms.installer', InstallerManager::class);
 
@@ -627,6 +633,14 @@ class CmsServiceProvider extends ServiceProvider
         // Prepend a key-bootstrap middleware to the "web" group so it runs ahead of
         // EncryptCookies. Registered ONLY while not installed — zero overhead after.
         if (! $installed) {
+            // Order matters: after both prepends the key bootstrap runs FIRST (so
+            // a redirect response can still set an encrypted session cookie), then
+            // the friendly first-run redirect leads any non-installer request to
+            // the wizard (§24).
+            $this->app['router']->prependMiddlewareToGroup(
+                'web',
+                \TheNguyen\CMS\Http\Middleware\RedirectToInstaller::class,
+            );
             $this->app['router']->prependMiddlewareToGroup(
                 'web',
                 \TheNguyen\CMS\Http\Middleware\EnsureInstallerAppKey::class,

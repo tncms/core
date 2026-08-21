@@ -173,7 +173,7 @@
     </div>
 
     <div class="card">
-        @php($labels = ['Welcome', 'Requirements', 'Database', 'Admin', 'Finish'])
+        @php($labels = ['Welcome', 'Requirements', 'Configure', 'Admin', 'Review', 'Finish'])
         <div class="steps">
             @foreach ($labels as $i => $name)
                 @php($n = $i + 1)
