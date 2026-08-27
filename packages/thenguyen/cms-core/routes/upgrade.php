@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Illuminate\Support\Facades\Route;
+use TheNguyen\CMS\Http\Controllers\RemoteUpdateController;
 use TheNguyen\CMS\Http\Controllers\UpgradeController;
 use TheNguyen\CMS\Http\Middleware\EnsureUpgradeAccess;
 
@@ -22,6 +23,10 @@ Route::middleware(['web', EnsureUpgradeAccess::class])
     ->group(function (): void {
         Route::get('/', [UpgradeController::class, 'index'])->name('index');
         Route::post('/package', [UpgradeController::class, 'uploadPackage'])->name('package');
+
+        // CORE-UPGRADE-2: read-only remote update discovery. GET only; no download
+        // or execution happens here — it links to the manual wizard above.
+        Route::get('/updates', [RemoteUpdateController::class, 'index'])->name('updates');
 
         Route::get('/system-check', [UpgradeController::class, 'systemCheck'])->name('systemCheck');
         Route::post('/system-check', [UpgradeController::class, 'runSystemCheck'])->name('systemCheck.run');

@@ -123,6 +123,11 @@ In-repository developer documentation lives under the Core package
 (`packages/thenguyen/cms-core`) and the shipped docs. Broader documentation is
 published at <https://tncms.org> as it becomes available.
 
+## Changelog
+
+See [CMS_CHANGELOG.md](CMS_CHANGELOG.md) for the canonical release history and
+notable changes.
+
 ## Security
 
 Please report vulnerabilities responsibly — see [SECURITY.md](SECURITY.md). Do

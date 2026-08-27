@@ -7,6 +7,7 @@ namespace App\Filament\Admin\Pages;
 use App\Filament\Admin\Components\MediaPicker;
 use App\Filament\Admin\Resources\PostResource;
 use BackedEnum;
+use Filament\Actions\Action;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
@@ -23,6 +24,7 @@ use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Illuminate\Support\HtmlString;
 use TheNguyen\CMS\Models\Content;
+use TheNguyen\CMS\Services\CmsOptimizationPolicy;
 use TheNguyen\CMS\Services\MaintenanceManager;
 use TheNguyen\CMS\Services\PermalinkManager;
 use TheNguyen\CMS\Services\SettingsManager;
@@ -126,6 +128,7 @@ class SettingsPage extends Page
                         $this->mediaTab(),
                         $this->seoTab(),
                         $this->permalinksTab(),
+                        $this->optimizeTab(),
                         $this->canManageMaintenance() ? $this->maintenanceTab() : null,
                     ]))),
             ])
@@ -343,6 +346,233 @@ class SettingsPage extends Page
                     ->regex('/^[a-z0-9-]*$/'),
             ])
             ->columns(1);
+    }
+
+    /**
+     * Optimize — CMS Cache health center (CORE-OPTIMIZE-1 · CORE-OPTIMIZE-2). One
+     * canonical toggle plus honest diagnostics over the single managed cache
+     * domain (public_content). Deliberately narrow: it governs reusable CMS
+     * performance caches only, never sessions, logins or Laravel infrastructure
+     * caches. Targeted invalidation and scoped warm-up live in the page header
+     * actions ({@see getHeaderActions()}).
+     */
+    private function optimizeTab(): Tab
+    {
+        return Tab::make('Optimize')
+            ->label(tn_trans('Optimize'))
+            ->icon('heroicon-o-bolt')
+            ->schema([
+                Placeholder::make('cms_cache_diagnostics')
+                    ->label(tn_trans('CMS Cache'))
+                    ->content(fn (): HtmlString => $this->renderCacheDiagnostics()),
+                Toggle::make('optimize_cache_enabled')
+                    ->label(tn_trans('Enable CMS Cache'))
+                    ->helperText(tn_trans('Cache reusable TNCMS application data for performance. Disabling this bypasses CMS optimization caches but does not disable sessions or Laravel infrastructure caches.')),
+                Placeholder::make('optimize_cache_note')
+                    ->hiddenLabel()
+                    ->content(new HtmlString(
+                        '<div style="font-size:.8rem;opacity:.7;line-height:1.5;">'
+                        .e(tn_trans('CMS Cache stores reusable application data (such as resolved public URLs) to speed up the site. It does not control sessions, logins, rate limiting, or Laravel config/route/view caches. Use “Clear CMS Cache” above to invalidate cached CMS data safely at any time.'))
+                        .'</div>'
+                    )),
+
+                // Frontend Optimization (CORE-OPTIMIZE-3). Safe browser response
+                // header semantics for anonymous public pages, plus read-only
+                // runtime diagnostics. Never applies to admin, logged-in, installer
+                // or upgrade responses.
+                Placeholder::make('optimize_runtime_diagnostics')
+                    ->label(tn_trans('Frontend Optimization'))
+                    ->content(fn (): HtmlString => $this->renderRuntimeDiagnostics()),
+                Toggle::make('optimize_response_enabled')
+                    ->label(tn_trans('Optimize public response headers'))
+                    ->helperText(tn_trans('Add safe browser cache headers to anonymous public pages. Logged-in, admin, installer and update responses are never made publicly cacheable.')),
+                TextInput::make('optimize_response_public_html_ttl')
+                    ->label(tn_trans('Public page browser cache (seconds)'))
+                    ->numeric()
+                    ->minValue(0)
+                    ->maxValue(CmsOptimizationPolicy::TTL_MAX)
+                    ->helperText(tn_trans('How long browsers may reuse an anonymous public page before revalidating. 0 means always revalidate. Applies only when public response optimization is on.')),
+                Placeholder::make('optimize_response_note')
+                    ->hiddenLabel()
+                    ->content(new HtmlString(
+                        '<div style="font-size:.8rem;opacity:.7;line-height:1.5;">'
+                        .e(tn_trans('Response optimization only sets browser (private) cache headers for anonymous pages; it never enables shared/CDN caching, never changes sessions or logins, and never caches admin, installer, or update pages. Long-term caching of fingerprinted assets is handled by your web server or CDN.'))
+                        .'</div>'
+                    )),
+            ])
+            ->columns(1);
+    }
+
+    /**
+     * Render the read-only runtime optimization diagnostics from the canonical
+     * runtime diagnostics authority (CORE-OPTIMIZE-3 §14). Recomputed on every
+     * Livewire render, so "Refresh Diagnostics" needs only to re-render — it never
+     * mutates. Exposes only safe values (status, TTL, capability flags); never a
+     * path, credential or secret.
+     */
+    private function renderRuntimeDiagnostics(): HtmlString
+    {
+        $snap = app('cms.runtime_diagnostics')->snapshot();
+        $response = $snap['response'] ?? [];
+        $assets = $snap['static_assets'] ?? [];
+        $media = $snap['media'] ?? [];
+
+        $statusLabels = [
+            'healthy' => tn_trans('Healthy'),
+            'disabled' => tn_trans('Disabled'),
+            'degraded' => tn_trans('Degraded'),
+            'unavailable' => tn_trans('Unavailable'),
+            'bypassed' => tn_trans('Bypassed'),
+        ];
+        $label = static fn (string $status): string => $statusLabels[$status] ?? $status;
+
+        $rows = [
+            [tn_trans('Response optimization'), $label((string) ($response['status'] ?? 'disabled'))],
+            [tn_trans('Public page browser cache'), ((int) ($response['public_html_ttl'] ?? 0)).' '.tn_trans('seconds')],
+            [tn_trans('Fingerprinted assets'), ($assets['fingerprinted'] ?? false) ? tn_trans('Detected') : tn_trans('Not detected')],
+            [tn_trans('Media hints'), $label((string) ($media['status'] ?? 'unavailable')).' ('.tn_trans('theme-managed').')'],
+        ];
+
+        $cells = '';
+        foreach ($rows as [$rowLabel, $value]) {
+            $cells .= '<div style="display:flex;justify-content:space-between;gap:1rem;padding:.35rem 0;border-bottom:1px solid rgba(120,120,120,.15);">'
+                .'<span style="opacity:.7;">'.e($rowLabel).'</span>'
+                .'<span style="font-weight:600;">'.e($value).'</span>'
+                .'</div>';
+        }
+
+        $warnings = (array) ($snap['environment']['warnings'] ?? []);
+        $warningLabels = [
+            'cache_store_non_persistent' => tn_trans('The active cache store is not persistent across requests, which limits CMS caching effectiveness.'),
+        ];
+        $notice = '';
+        foreach ($warnings as $warning) {
+            if (isset($warningLabels[$warning])) {
+                $notice .= '<div style="font-size:.8rem;color:#b45309;line-height:1.5;margin-top:.5rem;">'.e($warningLabels[$warning]).'</div>';
+            }
+        }
+
+        $scope = '<div style="font-size:.8rem;opacity:.7;line-height:1.5;margin-top:.6rem;">'
+            .e(tn_trans('These figures describe Core response and asset optimization only. They never affect sessions, logins, updates, installer state, or plugin caches.'))
+            .'</div>';
+
+        return new HtmlString('<div style="font-size:.85rem;max-width:32rem;">'.$cells.$notice.$scope.'</div>');
+    }
+
+    /**
+     * Render the read-only CMS Cache diagnostics table from the canonical
+     * diagnostics authority (CORE-OPTIMIZE-2 §28). Recomputed on every Livewire
+     * render, so "Refresh Diagnostics" needs only to re-render — it never mutates.
+     * Exposes only safe, administrator-friendly values (status, driver name, TTL,
+     * epoch, managed domain); never a path, credential or secret.
+     */
+    private function renderCacheDiagnostics(): HtmlString
+    {
+        $snap = app('cms.cache_diagnostics')->snapshot();
+        $pc = $snap['public_cache'];
+
+        $statusLabels = [
+            'healthy' => tn_trans('Healthy'),
+            'disabled' => tn_trans('Disabled'),
+            'degraded' => tn_trans('Degraded'),
+            'unavailable' => tn_trans('Unavailable'),
+            'bypassed' => tn_trans('Bypassed'),
+        ];
+        $status = (string) ($snap['status'] ?? 'unavailable');
+
+        $rows = [
+            [tn_trans('Status'), $statusLabels[$status] ?? $status],
+            [tn_trans('Effective state'), ($pc['effective_enabled'] ?? false) ? tn_trans('Active') : tn_trans('Bypassed')],
+            [tn_trans('Cache Driver'), (string) ($snap['driver'] ?? 'unknown')],
+            [tn_trans('Cache Lifetime'), ((int) ($pc['configured_ttl'] ?? 0)).' '.tn_trans('seconds')],
+            [tn_trans('Cache Version'), (string) ($pc['epoch'] ?? 0)],
+            [tn_trans('Managed Cache'), tn_trans('Public content')],
+        ];
+
+        $cells = '';
+        foreach ($rows as [$label, $value]) {
+            $cells .= '<div style="display:flex;justify-content:space-between;gap:1rem;padding:.35rem 0;border-bottom:1px solid rgba(120,120,120,.15);">'
+                .'<span style="opacity:.7;">'.e($label).'</span>'
+                .'<span style="font-weight:600;">'.e($value).'</span>'
+                .'</div>';
+        }
+
+        $scope = '<div style="font-size:.8rem;opacity:.7;line-height:1.5;margin-top:.6rem;">'
+            .e(tn_trans('These figures describe the TNCMS-managed public content cache only. Disabling or clearing it never affects sessions, logins, updates, installer state, or plugin caches.'))
+            .'</div>';
+
+        return new HtmlString('<div style="font-size:.85rem;max-width:32rem;">'.$cells.$scope.'</div>');
+    }
+
+    /**
+     * Page header actions. "Clear CMS Cache" performs a targeted invalidation of
+     * TNCMS optimization caches (a cache-version epoch bump), never a global
+     * Cache::flush(). Authorized by the page's settings.manage gate and
+     * CSRF-protected by Livewire; safe and idempotent whether the toggle is
+     * ON or OFF.
+     */
+    protected function getHeaderActions(): array
+    {
+        return [
+            Action::make('refreshCmsCacheDiagnostics')
+                ->label(tn_trans('Refresh Diagnostics'))
+                ->icon('heroicon-o-arrow-path')
+                ->color('gray')
+                ->action(function (): void {
+                    // Diagnostics recompute on every render; this action only
+                    // re-renders and confirms. It never clears, rebuilds or mutates.
+                    Notification::make()->title(tn_trans('Diagnostics refreshed'))->success()->send();
+                }),
+
+            Action::make('clearCmsCache')
+                ->label(tn_trans('Clear CMS Cache'))
+                ->icon('heroicon-o-trash')
+                ->color('gray')
+                ->requiresConfirmation()
+                ->modalHeading(tn_trans('Clear CMS Cache'))
+                ->modalDescription(tn_trans('Invalidate cached TNCMS application data. This does not affect sessions, logins, or Laravel infrastructure caches.'))
+                ->action(function (): void {
+                    $result = app('cms.cache_policy')->clearResult();
+
+                    if ($result->success) {
+                        Notification::make()->title(tn_trans('CMS cache cleared'))->success()->send();
+
+                        return;
+                    }
+
+                    Notification::make()->title(tn_trans('Could not clear CMS cache'))->danger()->send();
+                }),
+
+            Action::make('rebuildCmsCache')
+                ->label(tn_trans('Rebuild CMS Cache'))
+                ->icon('heroicon-o-bolt')
+                ->color('gray')
+                // Only offered when a warm can do real, safe work (§32): never a
+                // fake success. Hidden when CMS Cache is OFF or there is no corpus.
+                ->visible(fn (): bool => app('cms.cache_policy')->rebuildSupported())
+                ->requiresConfirmation()
+                ->modalHeading(tn_trans('Rebuild CMS Cache'))
+                ->modalDescription(tn_trans('Warms supported TNCMS public content cache entries from canonical CMS content. It does not affect search, plugins, sessions, or CDN caches.'))
+                ->action(function (): void {
+                    $result = app('cms.cache_policy')->rebuild();
+
+                    if ($result->success) {
+                        Notification::make()
+                            ->title(tn_trans('CMS cache rebuilt'))
+                            ->body(tn_trans(':count entries warmed.', ['count' => $result->processedCount]))
+                            ->success()
+                            ->send();
+
+                        return;
+                    }
+
+                    Notification::make()
+                        ->title(tn_trans('CMS cache rebuild incomplete'))
+                        ->body(tn_trans(':ok warmed, :failed failed.', ['ok' => $result->processedCount, 'failed' => $result->failedCount]))
+                        ->warning()
+                        ->send();
+                }),
+        ];
     }
 
     private function maintenanceTab(): Tab
@@ -610,6 +840,16 @@ class SettingsPage extends Page
             ['permalink_post_base', 'permalink.post_base', 'string', PermalinkManager::DEFAULT_POST_BASE],
             ['permalink_category_base', 'permalink.category_base', 'string', PermalinkManager::DEFAULT_CATEGORY_BASE],
             ['permalink_tag_base', 'permalink.tag_base', 'string', PermalinkManager::DEFAULT_TAG_BASE],
+
+            // Optimize — canonical CMS Cache toggle (CORE-OPTIMIZE-1). Default
+            // enabled so existing sites keep caching until an admin opts out.
+            ['optimize_cache_enabled', 'optimize.cache_enabled', 'boolean', true],
+
+            // Frontend response optimization (CORE-OPTIMIZE-3). Default OFF and TTL
+            // 0 (revalidate) so an upgraded site keeps its existing response
+            // headers until an admin opts in.
+            ['optimize_response_enabled', 'optimize.response.enabled', 'boolean', false],
+            ['optimize_response_public_html_ttl', 'optimize.response.public_html_ttl', 'integer', 0],
         ];
 
         // Maintenance keys are only loaded/persisted when the user may manage

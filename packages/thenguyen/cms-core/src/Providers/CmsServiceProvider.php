@@ -84,6 +84,7 @@ use TheNguyen\CMS\Services\PresetRepository;
 use TheNguyen\CMS\Services\LocalizedContentUrlService;
 use TheNguyen\CMS\Services\PreviewManager;
 use TheNguyen\CMS\Services\PreviewUrlService;
+use TheNguyen\CMS\Services\CmsCachePolicy;
 use TheNguyen\CMS\Services\PublicContentCacheManager;
 use TheNguyen\CMS\Services\ScriptManager;
 use TheNguyen\CMS\Services\ScriptSettingsRegistrar;
@@ -149,6 +150,14 @@ class CmsServiceProvider extends ServiceProvider
         $this->app->singleton('cms.settings', fn () => new SettingsManager);
         $this->app->alias('cms.settings', SettingsManager::class);
 
+        // Canonical CMS Cache policy (CORE-OPTIMIZE-1). Single authority for
+        // "is TNCMS application optimization caching enabled?" — read by
+        // audited Core optimization caches (e.g. cms.public_cache) and the
+        // future plugin seam. Governs application caches only; never sessions,
+        // auth, locks, rate limiting or framework build caches.
+        $this->app->singleton('cms.cache_policy', fn () => new CmsCachePolicy);
+        $this->app->alias('cms.cache_policy', CmsCachePolicy::class);
+
         // Core Mail Platform (CORE-MAIL-1 · ADR-CORE-MAIL-001/002/003). One resolver, one
         // settings authority (cms_settings via SettingsManager), one secret authority
         // (Laravel Crypt). Laravel Mail remains the transport; these auto-wire SettingsManager.
@@ -164,6 +173,38 @@ class CmsServiceProvider extends ServiceProvider
         // Public content resolution cache (v1.0.0-beta.6.3).
         $this->app->singleton('cms.public_cache', fn () => new PublicContentCacheManager);
         $this->app->alias('cms.public_cache', PublicContentCacheManager::class);
+
+        // CMS Cache operations & diagnostics (CORE-OPTIMIZE-2). The warmer is the
+        // bounded, single-flight warm mechanism for the one managed domain
+        // (public_content); diagnostics is the read-only aggregator over the
+        // existing policy + public-cache authorities. Neither is a second policy
+        // or cache authority.
+        $this->app->singleton('cms.cache_warmer', fn ($app) => new \TheNguyen\CMS\Services\Cache\PublicContentCacheWarmer(
+            $app->make('cms.public_cache'),
+            $app->make('cms.slug'),
+        ));
+        $this->app->alias('cms.cache_warmer', \TheNguyen\CMS\Services\Cache\PublicContentCacheWarmer::class);
+
+        $this->app->singleton('cms.cache_diagnostics', fn ($app) => new \TheNguyen\CMS\Services\Cache\CmsCacheDiagnostics(
+            $app->make('cms.cache_policy'),
+            $app->make('cms.public_cache'),
+            $app->make('cms.cache_warmer'),
+        ));
+        $this->app->alias('cms.cache_diagnostics', \TheNguyen\CMS\Services\Cache\CmsCacheDiagnostics::class);
+
+        // Frontend/runtime optimization (CORE-OPTIMIZE-3). The policy is the
+        // response/runtime settings authority (optimize.response.*) — NOT a second
+        // cache authority; cms.cache_policy still owns CMS caching. Runtime
+        // diagnostics is the read-only aggregator over the response policy + the
+        // existing cache diagnostics, plus a bounded static-asset capability probe.
+        $this->app->singleton('cms.optimization_policy', fn () => new \TheNguyen\CMS\Services\CmsOptimizationPolicy);
+        $this->app->alias('cms.optimization_policy', \TheNguyen\CMS\Services\CmsOptimizationPolicy::class);
+
+        $this->app->singleton('cms.runtime_diagnostics', fn ($app) => new \TheNguyen\CMS\Services\Cache\CmsRuntimeDiagnostics(
+            $app->make('cms.optimization_policy'),
+            $app->make('cms.cache_diagnostics'),
+        ));
+        $this->app->alias('cms.runtime_diagnostics', \TheNguyen\CMS\Services\Cache\CmsRuntimeDiagnostics::class);
 
         // Preview infrastructure (v1.0.0-beta.7.1.16): secure temporary signed
         // previews of unpublished content for core + plugin content types.
@@ -471,6 +512,13 @@ class CmsServiceProvider extends ServiceProvider
         // `cms.upgrade` authority: durable state + lock + backup + apply/recovery.
         $this->app->singleton('cms.upgrade', fn () => new \TheNguyen\CMS\Upgrade\UpgradeManager);
         $this->app->alias('cms.upgrade', \TheNguyen\CMS\Upgrade\UpgradeManager::class);
+
+        // Remote update layer (CORE-UPGRADE-2). The `cms.update` facade: HTTPS
+        // discovery + secure download + verification + verified handoff into the
+        // `cms.upgrade` engine above. Read-only discovery only from the admin;
+        // it never applies an upgrade.
+        $this->app->singleton('cms.update', fn () => new \TheNguyen\CMS\Update\UpdateService);
+        $this->app->alias('cms.update', \TheNguyen\CMS\Update\UpdateService::class);
 
         // Extension Translation Framework (v1.0.0-beta.5): JSON interface
         // translations for core + active theme + active plugins.

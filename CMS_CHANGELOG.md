@@ -16,6 +16,58 @@ this project adheres to [Semantic Versioning](https://semver.org).
 
 ---
 
+## [1.0.0-beta.7.1.22] — CMS Optimize & Cache Controls (CORE-OPTIMIZE-1/2/3)
+
+Integrated release of the CMS cache and frontend optimization foundation. New
+optimization controls are operable from the Admin UI so common cache operations no
+longer require shell access on shared hosting.
+
+### Added
+
+- **Settings → Optimize.** A dedicated Admin settings surface (EN/VI) that exposes the
+  CMS cache and frontend optimization controls without any CLI access.
+- **CMS Cache enable/disable.** A single control turns the CMS-owned public content
+  cache on or off. When off, CMS public cache reads and writes bypass cleanly and the
+  site keeps serving from source (`CmsCachePolicy`).
+- **Targeted cache clear.** Clearing the CMS cache advances only the CMS cache epoch for
+  CMS-owned public content; unrelated application caches are left untouched (no global
+  `Cache::flush()`).
+- **Cache diagnostics & effective-state reporting.** The Optimize surface reports the
+  configured vs. effective cache state and health so operators can see what is actually
+  active (`CmsCacheDiagnostics`, `CmsRuntimeDiagnostics`).
+- **Scoped rebuild / warm-up.** A bounded, single-flight rebuild warms only supported
+  CMS-owned public content (e.g. published slugs); it does not crawl admin, auth,
+  search, or plugin surfaces (`PublicContentCacheManager`, `PublicContentCacheWarmer`).
+- **Frontend response optimization.** Opt-in response-header controls for the frontend
+  route group with read-only runtime diagnostics. Anonymous responses may be marked
+  cacheable within policy, authenticated responses stay `no-store`, and public /
+  shared-cache directives are never emitted by default (`CmsOptimizationPolicy`,
+  `OptimizeResponseHeaders`).
+
+### Changed
+
+- **Cache isolation.** CMS cache operations are isolated from sessions, authentication,
+  the installer, update state, and plugin-owned caches, so enabling, clearing, or
+  rebuilding the CMS cache never disturbs those subsystems.
+- **Shared-hosting operability.** Common optimization operations — enable/disable, clear,
+  diagnostics, and scoped rebuild — can now be performed entirely from the Admin UI,
+  without CLI access.
+
+### Removed
+
+- **Certification-only upgrade-probe migrations.** The `cms_upgrade_probe` and
+  `cms_upgrade_probe2` migrations — which existed solely to exercise the `/upgrade`
+  migration stage during release certification — are removed from the production
+  migration corpus. They created two functionless tables on real installations and had
+  no runtime owner; the upgrade test suite builds its own fixtures and does not depend
+  on them.
+
+### Notes
+
+- Scope is limited to CMS-owned public content caching and frontend response headers.
+  This release does **not** add ETag/304 revalidation, CDN integration, full-page
+  caching, image optimization, or an update/marketplace feed.
+
 ## [1.0.0-beta.7.1.21] — First-Run Environment Bootstrap (CORE-INSTALLER-2)
 
 Shared-hosting first-run redesign. `.env` is now an explicit **result** of a

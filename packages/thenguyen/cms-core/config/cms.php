@@ -195,4 +195,23 @@ return [
         // networks change IPs; the user-agent hash is the primary signal).
         'ip_prefix_octets' => 0,
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Remote Updates (CORE-UPGRADE-2)
+    |--------------------------------------------------------------------------
+    | Read-only remote update discovery. When enabled with a configured HTTPS
+    | feed URL, the admin "Software updates" page reports the latest available
+    | Core release for the chosen channel. Discovery never downloads or applies
+    | anything — upgrades stay manual via the /upgrade wizard.
+    |
+    | Channels: stable | beta | development. The site's channel is set here and
+    | is never changed by the remote feed.
+    */
+    'update' => [
+        'enabled' => env('CMS_UPDATE_ENABLED', false),
+        'channel' => env('CMS_UPDATE_CHANNEL', 'stable'),
+        // HTTPS-only feed serving the tncms.update/v1 metadata contract.
+        'feed_url' => env('CMS_UPDATE_FEED_URL', ''),
+    ],
 ];

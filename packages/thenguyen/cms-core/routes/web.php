@@ -489,6 +489,22 @@ Route::get('/cms-health', static function (): JsonResponse {
         $settingsHotPathOptimized = false;
     }
 
+    // Frontend runtime optimization (CORE-OPTIMIZE-3). Path-, credential-, token-
+    // and driver-free public subset (booleans, a bounded TTL, status strings).
+    $runtimeOptimization = [
+        'response_optimization' => false,
+        'response_public_html_ttl' => 0,
+        'response_status' => 'disabled',
+        'static_assets_fingerprinted' => false,
+        'static_assets_status' => 'unavailable',
+    ];
+
+    try {
+        $runtimeOptimization = app('cms.runtime_diagnostics')->publicSnapshot();
+    } catch (\Throwable $e) {
+        report($e);
+    }
+
     // Health Output Cleanup (v1.0.0-beta.5.2). Absolute filesystem paths are
     // NEVER exposed by default — not even when APP_DEBUG is on. An operator must
     // explicitly opt in with CMS_HEALTH_SHOW_PATHS=true (config cms.health.show_paths)
@@ -902,6 +918,14 @@ Route::get('/cms-health', static function (): JsonResponse {
         'public_cache_ttl' => $publicCache['ttl'],
         'public_cache_version' => $publicCache['version'],
         'settings_hot_path_optimized' => $settingsHotPathOptimized,
+
+        // Frontend runtime optimization (CORE-OPTIMIZE-3) — booleans / bounded
+        // TTL / status only; no driver, path, credential, token or package location.
+        'response_optimization' => $runtimeOptimization['response_optimization'],
+        'response_public_html_ttl' => $runtimeOptimization['response_public_html_ttl'],
+        'response_optimization_status' => $runtimeOptimization['response_status'],
+        'static_assets_fingerprinted' => $runtimeOptimization['static_assets_fingerprinted'],
+        'static_assets_status' => $runtimeOptimization['static_assets_status'],
 
         // Security posture (v1.0.0-beta.6.4) — booleans only.
         'storage_secure' => $storageSecure,
