@@ -16,57 +16,47 @@ this project adheres to [Semantic Versioning](https://semver.org).
 
 ---
 
-## [1.0.0-beta.7.1.22] — CMS Optimize & Cache Controls (CORE-OPTIMIZE-1/2/3)
+## [1.0.0-beta.7.1.23] — Page Title Visibility Contract (CORE-RELEASE-4-A)
 
-Integrated release of the CMS cache and frontend optimization foundation. New
-optimization controls are operable from the Admin UI so common cache operations no
-longer require shell access on shared hosting.
+A generic, Core-owned presentation contract that lets an editor decide whether the
+visible page title (the document primary heading) is rendered above the content,
+plus the bundled Default Theme adapter that honors it. This closes the release-order
+dependency for the Page Builder Free Library Show/Hide consumer. Follows the public
+`1.0.0-beta.7.1.22` release; the intervening `7.1.22` train identifier was published
+from the separate core-release line.
 
 ### Added
 
-- **Settings → Optimize.** A dedicated Admin settings surface (EN/VI) that exposes the
-  CMS cache and frontend optimization controls without any CLI access.
-- **CMS Cache enable/disable.** A single control turns the CMS-owned public content
-  cache on or off. When off, CMS public cache reads and writes bypass cleanly and the
-  site keeps serving from source (`CmsCachePolicy`).
-- **Targeted cache clear.** Clearing the CMS cache advances only the CMS cache epoch for
-  CMS-owned public content; unrelated application caches are left untouched (no global
-  `Cache::flush()`).
-- **Cache diagnostics & effective-state reporting.** The Optimize surface reports the
-  configured vs. effective cache state and health so operators can see what is actually
-  active (`CmsCacheDiagnostics`, `CmsRuntimeDiagnostics`).
-- **Scoped rebuild / warm-up.** A bounded, single-flight rebuild warms only supported
-  CMS-owned public content (e.g. published slugs); it does not crawl admin, auth,
-  search, or plugin surfaces (`PublicContentCacheManager`, `PublicContentCacheWarmer`).
-- **Frontend response optimization.** Opt-in response-header controls for the frontend
-  route group with read-only runtime diagnostics. Anonymous responses may be marked
-  cacheable within policy, authenticated responses stay `no-store`, and public /
-  shared-cache directives are never emitted by default (`CmsOptimizationPolicy`,
-  `OptimizeResponseHeaders`).
-
-### Changed
-
-- **Cache isolation.** CMS cache operations are isolated from sessions, authentication,
-  the installer, update state, and plugin-owned caches, so enabling, clearing, or
-  rebuilding the CMS cache never disturbs those subsystems.
-- **Shared-hosting operability.** Common optimization operations — enable/disable, clear,
-  diagnostics, and scoped rebuild — can now be performed entirely from the Admin UI,
-  without CLI access.
+- **`cms_contents.show_page_title`** — an additive, `NOT NULL`, default-`true` boolean
+  column (idempotent migration; rollback drops only the column it owns). Existing rows
+  and fresh installs keep showing their title (pre-contract behaviour) with no backfill.
+- **Model + service contract.** `Content` casts `show_page_title` to boolean and
+  allowlists it; `ContentManager` preserves the stored value when the field is omitted
+  from an unrelated update, and an explicit `false` is never coerced to “missing”.
+- **Admin control.** A bounded page-form toggle (**Show page title** / **Hiển thị tiêu
+  đề trang**) injected through the `cms.form.schema.page` hook immediately after the
+  editing-language selector — no host/Filament resource edit; present even without
+  Page Builder. Defaults to Show.
+- **Core→Theme presentation contract.** The page render context exposes a boolean
+  `showPageTitle` (safe `?? true` fallback), consumed by the bundled Default Theme
+  page template via `@if ($showPageTitle ?? true)`. Show renders the existing
+  `<h1 class="entry-title">` wrapper; Hide omits the wrapper entirely.
 
 ### Removed
 
-- **Certification-only upgrade-probe migrations.** The `cms_upgrade_probe` and
-  `cms_upgrade_probe2` migrations — which existed solely to exercise the `/upgrade`
-  migration stage during release certification — are removed from the production
-  migration corpus. They created two functionless tables on real installations and had
-  no runtime owner; the upgrade test suite builds its own fixtures and does not depend
-  on them.
+- The two certification-only upgrade-probe migrations (`cms_upgrade_probe`,
+  `cms_upgrade_probe2`) — never part of the public `1.0.0-beta.7.1.22` release, with no
+  production/updater/manifest/test dependency.
 
 ### Notes
 
-- Scope is limited to CMS-owned public content caching and frontend response headers.
-  This release does **not** add ETag/304 revalidation, CDN integration, full-page
-  caching, image optimization, or an update/marketplace feed.
+- Hiding the visible title is a **presentation** preference only: the SEO `<title>`,
+  canonical URL, hreflang, slug, stored content title, navigation label, Admin label,
+  and Page Builder layout identity are all unchanged.
+- The Page Builder consumer already reads this contract read-only. The built-in
+  `hero-basic` starter template supplies its own `<h1>` heading, so with the title
+  shown it composes two `<h1>` elements; that is a Page-Builder-owned limitation to be
+  addressed in a later Page Builder release, not by this Core/Theme contract.
 
 ## [1.0.0-beta.7.1.21] — First-Run Environment Bootstrap (CORE-INSTALLER-2)
 

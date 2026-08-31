@@ -523,6 +523,13 @@ class FrontendController
             'excerpt' => $excerpt,
             'featuredImage' => $content->featured_image,
             'publishedAt' => $content->published_at,
+            // Page-title visibility contract (PB-FREE-LIBRARY-DESIGN-1-E-H1). A
+            // generic presentation flag the theme consumes to decide whether the
+            // visible entry title (the document primary heading) is rendered. It
+            // never affects the SEO <title>, canonical URL, navigation, or the
+            // stored title — only the visible heading. Defaults to Show for
+            // backward compatibility (legacy rows and non-page types).
+            'showPageTitle' => (bool) ($content->show_page_title ?? true),
         ];
 
         // Post-only meta consumed by the single-post layout (Phase 8A). Provided

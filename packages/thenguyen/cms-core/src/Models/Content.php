@@ -30,6 +30,7 @@ use TheNguyen\CMS\Revision\Contracts\RevisionableInterface;
  * @property int $views_count
  * @property int $comments_count
  * @property bool $is_featured
+ * @property bool $show_page_title
  * @property \Illuminate\Support\Carbon|null $published_at
  */
 class Content extends Model implements Previewable, RevisionableInterface
@@ -50,6 +51,7 @@ class Content extends Model implements Previewable, RevisionableInterface
         'views_count',
         'comments_count',
         'is_featured',
+        'show_page_title',
         'published_at',
     ];
 
@@ -59,6 +61,7 @@ class Content extends Model implements Previewable, RevisionableInterface
         'views_count' => 'integer',
         'comments_count' => 'integer',
         'is_featured' => 'boolean',
+        'show_page_title' => 'boolean',
     ];
 
     /**

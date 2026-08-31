@@ -130,6 +130,11 @@ class ContentManager
             'views_count' => (int) ($data['views_count'] ?? ($current->views_count ?? 0)),
             'comments_count' => (int) ($data['comments_count'] ?? ($current->comments_count ?? 0)),
             'is_featured' => (bool) ($data['is_featured'] ?? ($current->is_featured ?? false)),
+            // Page-title visibility invariant (PB-FREE-LIBRARY-DESIGN-1-E-H1).
+            // Base-entity presentation flag, default true for backward
+            // compatibility; only overwritten when the form actually submits it,
+            // so an update that omits it preserves the stored value.
+            'show_page_title' => (bool) ($data['show_page_title'] ?? ($current->show_page_title ?? true)),
             'published_at' => $publishedAt,
         ];
     }

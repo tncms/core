@@ -525,5 +525,7 @@
     "CMS cache rebuilt": "Đã dựng lại bộ nhớ đệm CMS",
     ":count entries warmed.": "Đã làm nóng :count mục.",
     "CMS cache rebuild incomplete": "Dựng lại bộ nhớ đệm CMS chưa hoàn tất",
-    ":ok warmed, :failed failed.": "Đã làm nóng :ok, thất bại :failed."
+    ":ok warmed, :failed failed.": "Đã làm nóng :ok, thất bại :failed.",
+    "Show page title": "Hiển thị tiêu đề trang",
+    "Display the page title above the page content. Turn this off for layouts that provide their own primary heading.": "Hiển thị tiêu đề trang phía trên nội dung. Tắt tùy chọn này khi bố cục đã có tiêu đề chính riêng."
 }

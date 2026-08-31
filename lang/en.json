@@ -525,5 +525,7 @@
     "CMS cache rebuilt": "CMS cache rebuilt",
     ":count entries warmed.": ":count entries warmed.",
     "CMS cache rebuild incomplete": "CMS cache rebuild incomplete",
-    ":ok warmed, :failed failed.": ":ok warmed, :failed failed."
+    ":ok warmed, :failed failed.": ":ok warmed, :failed failed.",
+    "Show page title": "Show page title",
+    "Display the page title above the page content. Turn this off for layouts that provide their own primary heading.": "Display the page title above the page content. Turn this off for layouts that provide their own primary heading."
 }

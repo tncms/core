@@ -715,6 +715,7 @@ class CmsServiceProvider extends ServiceProvider
         $this->registerCoreHookDefinitions();
         $this->registerCorePreviewTypes();
         $this->registerScriptSettingsRendering();
+        $this->registerPageTitleFormField();
 
         $this->loadRoutes($installed);
 
@@ -737,6 +738,34 @@ class CmsServiceProvider extends ServiceProvider
 
         $this->registerCommands();
         $this->registerPublicCacheInvalidation();
+    }
+
+    /**
+     * Register the generic page-title visibility toggle on the page admin form
+     * (PB-FREE-LIBRARY-DESIGN-1-E-H1). Uses the core Admin Form Hook Bridge
+     * (`cms.form.schema.page`) so no host/app resource is touched; the control is
+     * inserted immediately after the editing-language selector. Guarded so a
+     * missing hook layer (isolated unit tests) degrades to a no-op, and DB-free
+     * so it is safe to register on every boot regardless of install state.
+     */
+    private function registerPageTitleFormField(): void
+    {
+        if (! function_exists('add_filter')) {
+            return;
+        }
+
+        add_filter(
+            'cms.form.schema.page',
+            static function (mixed $components): array {
+                $components = is_array($components) ? $components : [];
+
+                return \TheNguyen\CMS\Filament\Forms\PageTitleVisibilityFormField::inject($components);
+            },
+            // After plugin panels that prepend top-level components (e.g. Page
+            // Builder at 20/21); this filter reshapes the nested locale row.
+            30,
+            1,
+        );
     }
 
     /**
