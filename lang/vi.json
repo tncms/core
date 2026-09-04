@@ -527,5 +527,19 @@
     "CMS cache rebuild incomplete": "Dựng lại bộ nhớ đệm CMS chưa hoàn tất",
     ":ok warmed, :failed failed.": "Đã làm nóng :ok, thất bại :failed.",
     "Show page title": "Hiển thị tiêu đề trang",
-    "Display the page title above the page content. Turn this off for layouts that provide their own primary heading.": "Hiển thị tiêu đề trang phía trên nội dung. Tắt tùy chọn này khi bố cục đã có tiêu đề chính riêng."
+    "Display the page title above the page content. Turn this off for layouts that provide their own primary heading.": "Hiển thị tiêu đề trang phía trên nội dung. Tắt tùy chọn này khi bố cục đã có tiêu đề chính riêng.",
+    "Access denied": "Truy cập bị từ chối",
+    "Page not found": "Không tìm thấy trang",
+    "Page expired": "Trang đã hết hạn",
+    "Too many requests": "Quá nhiều yêu cầu",
+    "Service unavailable": "Dịch vụ tạm thời không khả dụng",
+    "Server error": "Lỗi máy chủ",
+    "You do not have permission to view this page.": "Bạn không có quyền xem trang này.",
+    "The page you are looking for does not exist or has moved.": "Trang bạn đang tìm không tồn tại hoặc đã được chuyển.",
+    "Your session has expired. Please refresh the page and try again.": "Phiên của bạn đã hết hạn. Vui lòng tải lại trang và thử lại.",
+    "You have made too many requests. Please slow down and try again shortly.": "Bạn đã gửi quá nhiều yêu cầu. Vui lòng chậm lại và thử lại sau giây lát.",
+    "The site is temporarily unavailable. Please check back soon.": "Trang web tạm thời không khả dụng. Vui lòng quay lại sau.",
+    "Something went wrong on our end. Please try again later.": "Đã xảy ra sự cố từ phía chúng tôi. Vui lòng thử lại sau.",
+    "Go to homepage": "Về trang chủ",
+    "Search this site": "Tìm kiếm trên trang này"
 }

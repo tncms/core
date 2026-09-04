@@ -157,6 +157,201 @@ class ThemeAssetPublisher
     }
 
     /**
+     * Atomically (re)publish a theme's assets (EG-6 staged publication, §21).
+     *
+     * Instead of copying straight into the live public/themes/{slug} — which
+     * leaves a half-written directory if a copy fails mid-way — this stages the
+     * whole tree into a sibling temp directory, verifies every staged file, then
+     * promotes it with a Windows/shared-hosting-safe swap:
+     *
+     *   validate → stage → verify staged → snapshot live → promote → verify live
+     *
+     * The previous live assets are moved aside (not destroyed) until the new
+     * tree is in place, and are restored on any promotion failure, so activation
+     * can roll back with no partial or mixed asset authority. Never throws.
+     */
+    public function publishAtomic(string $slug): PublishResult
+    {
+        if (! $this->isSafeSlug($slug)) {
+            return new PublishResult(
+                theme: $slug, source: '', destination: '',
+                errors: ['Invalid theme slug: '.$slug], hasAssets: false,
+            );
+        }
+
+        $source = $this->themes->themeAssetsPath($slug);
+        $destination = $this->publicThemePath($slug);
+
+        // No assets to publish → treat as a clean success (nothing staged).
+        if (! File::isDirectory($source)) {
+            return new PublishResult(
+                theme: $slug, source: $source, destination: $destination, hasAssets: false,
+            );
+        }
+
+        $base = dirname($destination);
+        $token = bin2hex(random_bytes(6));
+        $staging = $base.DIRECTORY_SEPARATOR.'.staging-'.$slug.'-'.$token;
+        $backup = $base.DIRECTORY_SEPARATOR.'.backup-'.$slug.'-'.$token;
+
+        try {
+            // 1. Stage into a fresh temp directory.
+            $this->resetDirectory($staging);
+            [$copied, $skipped, $errors] = $this->copyAllowed($source, $staging);
+
+            if ($errors !== []) {
+                File::deleteDirectory($staging);
+
+                return new PublishResult(
+                    theme: $slug, source: $source, destination: $destination,
+                    copied: $copied, skipped: $skipped, errors: $errors, hasAssets: true,
+                );
+            }
+
+            // 2. Verify staged bytes — every allowlisted source file must be present.
+            if (! $this->verifyStaged($source, $staging)) {
+                File::deleteDirectory($staging);
+
+                return new PublishResult(
+                    theme: $slug, source: $source, destination: $destination,
+                    copied: $copied, skipped: $skipped,
+                    errors: ['Staged asset verification failed for '.$slug], hasAssets: true,
+                );
+            }
+
+            // 3. Promote: snapshot live aside, swap staging in, restore on failure.
+            $hadLive = File::isDirectory($destination);
+
+            if ($hadLive && ! @rename($destination, $backup)) {
+                File::deleteDirectory($staging);
+
+                return new PublishResult(
+                    theme: $slug, source: $source, destination: $destination,
+                    copied: $copied, skipped: $skipped,
+                    errors: ['Could not snapshot current assets for '.$slug], hasAssets: true,
+                );
+            }
+
+            if (! @rename($staging, $destination)) {
+                // Restore the previous live tree — no mixed authority.
+                if ($hadLive) {
+                    @rename($backup, $destination);
+                }
+
+                File::deleteDirectory($staging);
+
+                return new PublishResult(
+                    theme: $slug, source: $source, destination: $destination,
+                    copied: $copied, skipped: $skipped,
+                    errors: ['Could not promote staged assets for '.$slug], hasAssets: true,
+                );
+            }
+
+            // 4. Success — discard the previous snapshot.
+            if ($hadLive) {
+                File::deleteDirectory($backup);
+            }
+
+            return new PublishResult(
+                theme: $slug, source: $source, destination: $destination,
+                copied: $copied, skipped: $skipped, hasAssets: true,
+            );
+        } catch (\Throwable $e) {
+            // Best-effort cleanup; the live tree was never touched before promote.
+            File::deleteDirectory($staging);
+
+            if (isset($backup) && File::isDirectory($backup) && ! File::isDirectory($destination)) {
+                @rename($backup, $destination);
+            }
+
+            return new PublishResult(
+                theme: $slug, source: $source, destination: $destination,
+                errors: ['Atomic publish failed for '.$slug.': '.$e->getMessage()], hasAssets: true,
+            );
+        }
+    }
+
+    /**
+     * Copy allowlisted, non-symlinked files from a source tree into a
+     * destination, mirroring publish()'s safety rules.
+     *
+     * @return array{0: int, 1: int, 2: list<string>} [copied, skipped, errors]
+     */
+    private function copyAllowed(string $source, string $destination): array
+    {
+        $copied = 0;
+        $skipped = 0;
+        $errors = [];
+
+        foreach (File::allFiles($source) as $file) {
+            $pathname = $file->getPathname();
+
+            if (is_link($pathname) || is_link($file->getPath())) {
+                $skipped++;
+
+                continue;
+            }
+
+            if (! in_array(strtolower($file->getExtension()), self::ALLOWED_EXTENSIONS, true)) {
+                $skipped++;
+
+                continue;
+            }
+
+            $relative = $file->getRelativePathname();
+            $target = $destination.DIRECTORY_SEPARATOR.$relative;
+
+            try {
+                $dir = dirname($target);
+
+                if (! File::isDirectory($dir)) {
+                    File::makeDirectory($dir, 0755, true, true);
+                }
+
+                File::copy($pathname, $target);
+                $copied++;
+            } catch (\Throwable $e) {
+                $errors[] = $relative.': '.$e->getMessage();
+            }
+        }
+
+        return [$copied, $skipped, $errors];
+    }
+
+    /**
+     * Every allowlisted, non-symlinked source file must exist in the staged tree.
+     */
+    private function verifyStaged(string $source, string $staging): bool
+    {
+        foreach (File::allFiles($source) as $file) {
+            if (is_link($file->getPathname()) || is_link($file->getPath())) {
+                continue;
+            }
+
+            if (! in_array(strtolower($file->getExtension()), self::ALLOWED_EXTENSIONS, true)) {
+                continue;
+            }
+
+            $staged = $staging.DIRECTORY_SEPARATOR.$file->getRelativePathname();
+
+            if (! File::isFile($staged)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function resetDirectory(string $dir): void
+    {
+        if (File::isDirectory($dir)) {
+            File::deleteDirectory($dir);
+        }
+
+        File::makeDirectory($dir, 0755, true, true);
+    }
+
+    /**
      * Delete public/themes/{slug} before publishing — but only after asserting
      * the destination is exactly that path, so public/themes, public/uploads,
      * and public itself can never be removed. Returns the number of files that

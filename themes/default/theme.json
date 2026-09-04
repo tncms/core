@@ -20,6 +20,13 @@
         "widgets": true,
         "sections": true
     },
+    "assets": [
+        { "handle": "default-tokens", "src": "css/tokens.css" },
+        { "handle": "default-app", "src": "css/app.css", "deps": ["default-tokens"], "primary": true },
+        { "handle": "default-sections", "src": "css/sections.css", "deps": ["default-tokens"] },
+        { "handle": "default-app-js", "src": "js/app.js", "defer": true },
+        { "handle": "default-accordion-js", "src": "js/accordion.js", "defer": true }
+    ],
     "homepage_modes": [
         "sections",
         "latest_posts",

@@ -527,5 +527,19 @@
     "CMS cache rebuild incomplete": "CMS cache rebuild incomplete",
     ":ok warmed, :failed failed.": ":ok warmed, :failed failed.",
     "Show page title": "Show page title",
-    "Display the page title above the page content. Turn this off for layouts that provide their own primary heading.": "Display the page title above the page content. Turn this off for layouts that provide their own primary heading."
+    "Display the page title above the page content. Turn this off for layouts that provide their own primary heading.": "Display the page title above the page content. Turn this off for layouts that provide their own primary heading.",
+    "Access denied": "Access denied",
+    "Page not found": "Page not found",
+    "Page expired": "Page expired",
+    "Too many requests": "Too many requests",
+    "Service unavailable": "Service unavailable",
+    "Server error": "Server error",
+    "You do not have permission to view this page.": "You do not have permission to view this page.",
+    "The page you are looking for does not exist or has moved.": "The page you are looking for does not exist or has moved.",
+    "Your session has expired. Please refresh the page and try again.": "Your session has expired. Please refresh the page and try again.",
+    "You have made too many requests. Please slow down and try again shortly.": "You have made too many requests. Please slow down and try again shortly.",
+    "The site is temporarily unavailable. Please check back soon.": "The site is temporarily unavailable. Please check back soon.",
+    "Something went wrong on our end. Please try again later.": "Something went wrong on our end. Please try again later.",
+    "Go to homepage": "Go to homepage",
+    "Search this site": "Search this site"
 }

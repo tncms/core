@@ -47,6 +47,13 @@ THEME_SYNC_REPORT.md
 themes/*.zip
 themes/*.rar
 
+# External theme Git authority (WORKTREE_AND_REPOSITORY_POLICY.md): independently
+# developed themes own their own repositories and are linked/installed into
+# themes/<slug> at runtime — Core must not track them. Ignore all runtime themes
+/themes/*
+!/themes/.gitkeep
+!/themes/default/
+
 # Local published assets
 public/themes/
 

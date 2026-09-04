@@ -16,6 +16,63 @@ this project adheres to [Semantic Versioning](https://semver.org).
 
 ---
 
+## [1.0.0-beta.7.1.24] — Active Theme Authority & Theme Lifecycle (EG-6)
+
+The active theme becomes the single presentation authority: `theme.json` gains a
+declarative asset manifest and explicit parent/child semantics, and theme asset
+publication and activation are atomic with fail-closed validation and rollback.
+Also ships the CORE-FRONTEND-1 frontend contracts (theme-aware error pages and
+search noindex) on top of the public `1.0.0-beta.7.1.23` floor.
+
+### Added
+
+- **Declarative theme asset manifest.** `theme.json` may declare an `assets`
+  array (handle, src, type, position, deps, primary, defer/async, media,
+  version, replaces). A resolver produces an owner-aware, dependency-ordered
+  plan fed to the Asset Registry and rendered via
+  `render_frontend_styles()` / `render_frontend_scripts()`. Strict validation
+  (unique handle, safe normalized path, single primary, dependency DAG, no
+  impossible head→footer ordering) makes an invalid manifest fail activation
+  closed. The imperative `theme_asset()` path remains supported.
+- **Explicit parent/child themes.** `theme.json "parent"` (never inferred)
+  drives deterministic, cycle- and depth-guarded child→parent resolution for
+  views (child overrides, parent supplies, no implicit Default mix) and assets
+  (inheritance, `replaces` semantics, owner-aware URLs). Active-child parent
+  lifecycle protection prevents deleting a parent an active child depends on.
+- **Atomic theme asset publication** (`ThemeAssetPublisher::publishAtomic`):
+  validate → stage → verify → snapshot → promote → verify, with rollback of the
+  previous live assets on failure (Windows/shared-hosting-safe swap).
+- **Theme-aware frontend error pages** (CORE-FRONTEND-1). Frontend exceptions
+  render through the active theme (`theme::errors.{status}` →
+  `theme::errors.error` → Core-owned fallback) with the real HTTP status
+  preserved — a genuine 404 is never a redirect. JSON/API, admin, installer,
+  upgrade and Livewire surfaces, authentication and validation responses are
+  never themed, and production 500s leak no exception internals.
+- **Search noindex policy** (CORE-FRONTEND-1). The search surface emits
+  `noindex, follow` through the new `SeoManager::noindex()` seam; localized
+  search routes keep their canonical behaviour.
+
+### Changed
+
+- **Active theme is the single presentation authority (EG-6).** `theme::` view
+  namespace resolves to the active theme (standalone) or child→parent chain,
+  never a per-view Default fallback; Default participates only as a whole-
+  authority fallback or when itself active. `ThemeManager::activate()` validates
+  the manifest + required views across the chain and publishes the chain
+  atomically before committing the active-theme pointer.
+- **Default theme** now declares its assets in `theme.json` and renders them
+  through the Asset Registry instead of hard-coded tags (no behaviour change to
+  the served output or asset URLs).
+
+### Notes
+
+- Reconciles the public `1.0.0-beta.7.1.23` authority with the previously
+  unreleased CORE-FRONTEND-1 (themed errors + search noindex) and EG-6
+  view-authority fix into a single release lineage.
+- Independently developed standalone themes are compliant under the corrected
+  contract and require no migration; the public Core release continues to bundle
+  the Default theme only.
+
 ## [1.0.0-beta.7.1.23] — Page Title Visibility Contract (CORE-RELEASE-4-A)
 
 A generic, Core-owned presentation contract that lets an editor decide whether the

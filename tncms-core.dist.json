@@ -1,9 +1,9 @@
 {
     "product": "TNCMS Core",
     "profile": "source",
-    "version": "1.0.0-beta.7.1.23",
-    "source_commit": "2fac8f9812a46cff1629759b69e27426564bbe94",
-    "exported_at": "2026-08-31T05:24:13+00:00",
+    "version": "1.0.0-beta.7.1.24",
+    "source_commit": "4c0e15154a6a9a97922b4a7caa671b30ad5708e1",
+    "exported_at": "2026-09-04T06:39:34+00:00",
     "plugin_count": 1,
     "theme_count": 1,
     "demo_plugin": "plugins/hello-world",
@@ -13,6 +13,6 @@
     "sanitized": {
         "resources/css/filament/admin/theme.css": 2,
         "app/Providers/Filament/AdminPanelProvider.php": 12,
-        ".gitignore": 5
+        ".gitignore": 7
     }
 }

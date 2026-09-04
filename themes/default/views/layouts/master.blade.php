@@ -11,19 +11,19 @@
         <link rel="icon" href="{{ $favicon }}">
     @endif
     @include('theme::partials.seo')
-    <link rel="stylesheet" href="{{ theme_asset('css/tokens.css') }}">
-    <link rel="stylesheet" href="{{ theme_asset('css/app.css') }}">
-    <link rel="stylesheet" href="{{ theme_asset('css/sections.css') }}">
+    {{-- Core theme stylesheets are declared in theme.json "assets" and rendered
+         here through the Asset Registry in dependency order (tokens → app →
+         sections), alongside enqueued plugin/theme styles (EG-6 declarative
+         manifest, v1.0.0-beta.7.1.24). Empty only when nothing is enqueued. --}}
+    {!! render_frontend_styles() !!}
     @php($primaryColor = theme_option('primary_color', '#2563eb'))
     @php($primaryColor = is_string($primaryColor) && preg_match('/^#[0-9a-fA-F]{3,8}$/', $primaryColor) ? $primaryColor : '#2563eb')
     @php($secondaryColor = theme_option('secondary_color', '#0ea5e9'))
     @php($secondaryColor = is_string($secondaryColor) && preg_match('/^#[0-9a-fA-F]{3,8}$/', $secondaryColor) ? $secondaryColor : '#0ea5e9')
     @php($sidebarWidth = tn_sidebar_width(theme_option('sidebar_width', 320)))
+    {{-- Theme Option overrides come AFTER the core stylesheets so the admin's
+         primary/secondary colour and sidebar width win over tokens.css defaults. --}}
     <style>:root { --tncms-primary: {{ $primaryColor }}; --tncms-secondary: {{ $secondaryColor }}; --tn-sidebar-width: {{ $sidebarWidth }}px; }</style>
-    {{-- Asset Registry (v1.0.0-beta.7.1.13.1): enqueued frontend stylesheets +
-         head inline styles, in dependency order. Rendered after core theme
-         styles so plugin/theme styles can override. Empty when none enqueued. --}}
-    {!! render_frontend_styles() !!}
     {{-- Global Script Manager (v1.0.0-beta.7.1.13): meta, verification, JSON-LD,
          head scripts + embeds. Registered via Script::head() / register_meta()
          etc. Empty when nothing is registered. --}}
@@ -43,11 +43,10 @@
     @include('theme::partials.footer')
     {!! render_hook('cms.theme.footer') !!}
 
-    <script src="{{ theme_asset('js/app.js') }}" defer></script>
-    <script src="{{ theme_asset('js/accordion.js') }}" defer></script>
-    {{-- Asset Registry (v1.0.0-beta.7.1.13.1): enqueued frontend footer
-         scripts/modules + footer inline scripts, in dependency order. Placed
-         after core theme JS so plugin scripts can rely on it. Empty when none. --}}
+    {{-- Core theme scripts (js/app.js, js/accordion.js) are declared in
+         theme.json "assets" (deferred, footer) and rendered here through the
+         Asset Registry in dependency order, alongside enqueued plugin/theme
+         footer scripts (EG-6 declarative manifest). Empty when none enqueued. --}}
     {!! render_frontend_scripts() !!}
     {{-- Global Script Manager (v1.0.0-beta.7.1.13): footer scripts + embeds.
          Placed after core theme JS so registered analytics/tag scripts load

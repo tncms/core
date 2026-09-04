@@ -96,6 +96,7 @@ use TheNguyen\CMS\Services\SettingsManager;
 use TheNguyen\CMS\Services\ShortcodeManager;
 use TheNguyen\CMS\Services\SlugManager;
 use TheNguyen\CMS\Services\TaxonomyManager;
+use TheNguyen\CMS\Services\ThemeAssetManifestResolver;
 use TheNguyen\CMS\Services\ThemeAssetPublisher;
 use TheNguyen\CMS\Services\ThemeManager;
 use TheNguyen\CMS\Services\ThemeCustomCssManager;
@@ -292,9 +293,16 @@ class CmsServiceProvider extends ServiceProvider
         $this->app->alias('cms.theme', ThemeManager::class);
 
         // Theme asset publisher: copies themes/{slug}/assets into
-        // public/themes/{slug} via `php artisan theme:publish` (v1.0.0-beta.7.1.12).
+        // public/themes/{slug} via `php artisan theme:publish` (v1.0.0-beta.7.1.12);
+        // the atomic staged path (EG-6, v1.0.0-beta.7.1.24) backs activation.
         $this->app->singleton('cms.theme_publisher', fn ($app) => new ThemeAssetPublisher($app->make('cms.theme')));
         $this->app->alias('cms.theme_publisher', ThemeAssetPublisher::class);
+
+        // Declarative theme asset manifest resolver (EG-6, v1.0.0-beta.7.1.24):
+        // resolves theme.json "assets" (+ parent chain) into an owner-aware,
+        // dependency-ordered plan applied to the Asset Registry.
+        $this->app->singleton('cms.theme_assets', fn ($app) => new ThemeAssetManifestResolver($app->make('cms.theme')));
+        $this->app->alias('cms.theme_assets', ThemeAssetManifestResolver::class);
 
         // Theme Options framework: schema from the active theme, values in
         // cms_settings (v0.9.9).
@@ -722,6 +730,7 @@ class CmsServiceProvider extends ServiceProvider
         if ($installed) {
             $this->registerExtensionTranslations();
             $this->registerThemeWidgets();
+            $this->registerThemeManifestAssets();
             $this->registerThemeCustomCss();
 
             // Core Mail Platform: bridge persisted mail settings into Laravel Mail once, at
@@ -1020,6 +1029,29 @@ class CmsServiceProvider extends ServiceProvider
             $this->app->make('cms.theme_custom_css')->apply($this->app->make('cms.assets'));
         } catch (\Throwable) {
             // Custom CSS is optional decoration; never break boot for it.
+        }
+    }
+
+    /**
+     * Register the active theme's declarative asset manifest (theme.json
+     * "assets", EG-6 v1.0.0-beta.7.1.24) into the Asset Registry at boot. The
+     * resolver produces an owner-aware, dependency-ordered plan (standalone or
+     * child + parent chain); an invalid manifest registers nothing (fail closed).
+     * Best-effort — a failure must never break boot or rendering.
+     */
+    private function registerThemeManifestAssets(): void
+    {
+        try {
+            $slug = $this->app->make('cms.theme')->active()?->slug;
+
+            if ($slug === null) {
+                return;
+            }
+
+            $this->app->make('cms.theme_assets')->resolve($slug)
+                ->applyTo($this->app->make('cms.assets'));
+        } catch (\Throwable) {
+            // Declarative theme assets are best-effort at boot.
         }
     }
 

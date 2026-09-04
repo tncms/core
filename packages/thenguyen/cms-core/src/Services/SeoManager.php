@@ -52,6 +52,8 @@ class SeoManager
 
     private ?string $customDescription = null;
 
+    private ?string $robotsOverride = null;
+
     /**
      * Reset to a neutral (site-default) context.
      */
@@ -66,6 +68,7 @@ class SeoManager
         $this->canonical = null;
         $this->customTitle = null;
         $this->customDescription = null;
+        $this->robotsOverride = null;
 
         return $this;
     }
@@ -128,6 +131,20 @@ class SeoManager
         // longer writes the current-resource authority at all (P3.3B): the render
         // boundary owns publication, so a resource a plugin controller already
         // published (e.g. a Product) is never touched here.
+        return $this;
+    }
+
+    /**
+     * Force a non-indexable robots policy for the current context — utility
+     * frontend pages such as search results and error pages that must not be
+     * indexed while their links stay followable (CORE-FRONTEND-1). Chain after a
+     * context setter, e.g. forCustom(...)->noindex(). The site-wide "discourage
+     * search engines" toggle in robots() still wins over this override.
+     */
+    public function noindex(bool $follow = true): self
+    {
+        $this->robotsOverride = $follow ? 'noindex,follow' : 'noindex,nofollow';
+
         return $this;
     }
 
@@ -197,6 +214,12 @@ class SeoManager
         // Site-wide "discourage search engines" wins over any default.
         if ((bool) settings('seo.noindex_site', false)) {
             return 'noindex,nofollow';
+        }
+
+        // A per-context override (search/error utility pages) wins over the
+        // configured site default but not the site-wide discourage toggle above.
+        if ($this->robotsOverride !== null) {
+            return $this->robotsOverride;
         }
 
         // Prefer the v0.9.6 key, then the legacy seo.robots, then the default.

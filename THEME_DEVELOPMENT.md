@@ -133,6 +133,14 @@ with a missing/invalid manifest is **skipped** (not rendered) and listed under
   and `noindex` headers are set by the CMS, but the shipped views also include a
   `<meta name="robots" content="noindex,nofollow">` â€” keep that in your own.
 
+- `search/index.blade.php` - overrides the platform search page
+  (`theme::search.index`). Omit it and the Core-owned search page renders inside
+  your `layouts/master`. See section 14 (Frontend Search) below.
+- `errors/404.blade.php`, `errors/error.blade.php` - themed error pages
+  (specialized then generic). Optional: the Core ships a safe fallback that keeps
+  the site functional even if a theme provides neither. See section 15 (Error
+  pages) below.
+
 > Missing-view safety: the `theme::` namespace resolves the active theme first,
 > then falls back to the `default` theme, so a partially-overridden theme
 > inherits any view it does not define. If a required view is missing from both,
@@ -694,3 +702,202 @@ they never change what renders.
 ---
 
 _TN CMS Â· <https://tncms.org> Â· support@tncms.org Â· The Nguyen Media._
+
+---
+
+## 14. Frontend Search (CORE-FRONTEND-1)
+
+TN CMS Core owns the frontend **search contract** — the route, query parsing,
+content scope, publication/locale filtering, ordering, pagination, and SEO
+policy. A theme only styles the result page; it never queries the database or
+reimplements routing.
+
+### Route and query
+
+- Canonical route: `cms.search` at `/search`, query parameter **`q`**
+  (`/search?q=tncms`). Always use `route('cms.search')` — never hard-code `/search`.
+- Localized route: generated from the Route Segment Dictionary, so the non-default
+  locale URL is `/{locale}/{segment}` (e.g. `/vi/tim-kiem`), named
+  `cms.search.localized.{locale}`. `route('cms.search')` resolves to the correct
+  localized URL for the active locale.
+- Optional scope selector: `?scope={type}` (defaults to all registered types);
+  pagination: `?page=N`. The current `q`/`scope` persist across pages.
+- The empty query (`/search` or `/search?q=`) renders a valid HTTP **200** search
+  page with the form and prompt — never a 404, never a full-corpus scan.
+- No results is still HTTP **200** — never a 404.
+
+### SEO
+
+The search page is a utility page: Core sets `robots=noindex,follow` (the
+site-wide "discourage search engines" toggle still wins). Do **not** override the
+robots meta in your search view; keep `@include('theme::partials.seo')` in your
+`layouts/master`.
+
+### Overriding the search page
+
+Ship `search/index.blade.php` to override `theme::search.index`; otherwise the
+Core-owned page renders inside your `layouts/master`. The view receives a single
+`$page` view model — expose only presentation data from it, never new queries:
+
+| `$page` property | Meaning |
+| --- | --- |
+| `keyword` | the sanitized, escaped query string |
+| `scopes` | selectable scopes (`key`, `label`) from the registry |
+| `selectedScope` | the active scope key |
+| `results` | result rows (`title`, `url`, `excerpt`, `typeLabel`) |
+| `total`, `page`, `totalPages` | pagination state |
+| `searched`, `tooShort`, `warnings` | render-state flags |
+
+Use semantic HTML5 and escape everything: a `<form role="search">` with a named
+input, a results `<section>`/`<ul>`, and a `<nav aria-label="...">` for
+pagination. Do not add a second `<main>` — `layouts/master` owns it.
+
+---
+
+## 15. Error pages (CORE-FRONTEND-1)
+
+Core brands public frontend HTML error responses (404 / 403 / 419 / 429 / 500 /
+503) through the active theme, with a recursion-safe Core fallback. A missing
+content URL stays a real HTTP **404** (never "404 content with status 200", never
+a homepage redirect); the correct status is always preserved.
+
+### Template hierarchy
+
+For each branded status the responder resolves, in order:
+
+```
+theme::errors.{status}   (theme specialized, e.g. errors/404.blade.php)
+        ↓
+theme::errors.error      (theme generic)
+        ↓
+Core safe fallback       (self-contained, no theme dependency)
+```
+
+A theme 404/error template is **RECOMMENDED, not required** — the Core fallback
+keeps the site functional if a theme ships neither, so existing themes remain
+valid. If a theme error view throws while rendering (e.g. a broken layout), the
+responder falls through to the Core fallback rather than looping.
+
+### Error view data
+
+Error views receive only sanitized, localized fields — never the exception,
+stack trace, paths, SQL, or env detail:
+
+| Variable | Meaning |
+| --- | --- |
+| `$status` | HTTP status code (int) |
+| `$title` | localized status title |
+| `$message` | localized, safe message |
+| `$homeUrl`, `$homeLabel` | canonical home link |
+| `$searchUrl`, `$searchLabel` | canonical search action (null if unavailable) |
+
+A theme error view typically `@extends('theme::layouts.master')` and sets a
+`@section('content')` with an `<h1>`, the message, an optional search form, and a
+home link. Core sets `robots=noindex,follow` on themed error pages.
+
+### Boundaries (never themed by a theme)
+
+The responder deliberately does **not** theme — and a theme must never try to
+hijack — these responses, so their contracts stay intact:
+
+- `/admin/**` (Filament admin) — admin owns its own errors.
+- `/install/**`, `/upgrade/**` — installer/upgrade own their flow.
+- API / JSON / AJAX (`expectsJson`) — the framework returns a JSON error body.
+- Livewire and other protocol responses.
+- Authentication (login redirect / 401) and validation (422) flows.
+- In `APP_DEBUG`, server errors (>= 500) show the framework's diagnostics.
+
+### Maintenance mode
+
+Frontend **Maintenance Mode** (a separate CMS feature) still uses
+`theme::maintenance` — see section 3. It is unrelated to this error hierarchy.
+
+## 16. Declarative asset manifest, parent/child themes & activation (EG-6, v1.0.0-beta.7.1.24)
+
+The active theme is the single presentation authority. A frontend response never
+mixes views or assets from unrelated themes: the resolved Blade hierarchy, the
+resolved asset hierarchy, and the committed active-theme pointer are always the
+same theme (standalone) or the same child→parent chain.
+
+### Declarative asset manifest
+
+Declare a theme's CSS/JS in `theme.json` under `assets`. Core resolves the
+manifest into an owner-aware, dependency-ordered plan, registers it in the Asset
+Registry at boot, and your layout renders it with `render_frontend_styles()` /
+`render_frontend_scripts()` — no hard-coded `<link>`/`<script>` tags needed.
+
+```json
+{
+  "assets": [
+    { "handle": "tokens",  "src": "css/tokens.css" },
+    { "handle": "app",     "src": "css/app.css", "deps": ["tokens"], "primary": true },
+    { "handle": "app-js",  "src": "js/app.js",  "defer": true }
+  ]
+}
+```
+
+Per entry: `handle` (unique, required), `src` (required, theme-relative under
+`assets/`), optional `type` (`style`/`script`/`module`; inferred from extension),
+`position` (`head`/`footer`; styles default head, scripts default footer),
+`deps` (handles), `primary` (at most one stylesheet), `defer`/`async` (scripts),
+`media` (styles), `version` (cache-bust), and `replaces` (child themes only).
+
+Validation is strict — activation **fails closed** (previous theme preserved) on:
+a missing/duplicate handle, an unsafe `src` (path traversal, absolute, Windows
+drive, UNC, URL scheme, protocol-relative, null byte), a missing source file, a
+missing dependency, a dependency cycle, more than one primary, or an impossible
+ordering (a `head` asset depending on a `footer` asset). The imperative
+`theme_asset()` path remains fully supported for themes that do not adopt the
+manifest.
+
+### Owner-aware URLs
+
+Each resolved asset carries its **owner** theme, and its public URL is built from
+the owner's slug (`/themes/{owner}/{src}`) — never blindly from the active child
+slug. A child inheriting `parent.css` links to `/themes/{parent}/...`; its own
+`child.css` links to `/themes/{child}/...`.
+
+### Parent / child themes
+
+A child declares its parent **explicitly** in `theme.json` (never inferred from
+the directory name):
+
+```json
+{ "slug": "acme-child", "parent": "acme" }
+```
+
+Resolution is deterministic and bounded: `child → declared parent → … → Core
+fallback where allowed`; there is **no implicit Default-theme parent**. Views
+resolve child-first then up the parent chain (`theme::` hints = `[child, parent,
+…]`); a required view may live in the child or any ancestor. Assets are inherited
+(a child may `deps` on a parent handle) and a child may **replace** a parent asset
+by declaring `"replaces": "parent-handle"` — the parent asset is dropped and
+dependents are rewired to the replacement. Self-parent, cycles, a missing parent,
+and over-deep chains are rejected. A parent that the active child depends on
+cannot be deleted while the child is active.
+
+### Activation & rollback
+
+Activation is atomic and commits the active-theme pointer as late as safely
+possible:
+
+```
+validate manifest exists → required views resolvable across the chain (no Default
+fallback) → asset manifest resolves valid → atomically publish the whole chain
+(validate→stage→verify→snapshot→promote→verify) → commit pointer → invalidate
+scoped caches + re-register views
+```
+
+Any failure leaves the previous theme fully in authority — views, assets and the
+pointer unchanged. Asset publication is staged into a temporary directory and
+promoted with a Windows/shared-hosting-safe swap; the previous live assets are
+restored on any promotion failure (never a partial or mixed asset authority).
+
+### HTML-template conversion contract
+
+The active theme is the presentation authority. Converting a static HTML template
+to a theme preserves its source layout and identity — Semantic HTML5/accessibility
+is a technical conversion, not a redesign mandate. Core owns content, routing,
+SEO, sections, menus, localization and the asset lifecycle; it never substitutes
+the Default layout for an incomplete standalone theme (activation is rejected
+instead). A child inherits only its explicitly declared parent.

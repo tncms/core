@@ -90,6 +90,12 @@ final class SearchController extends Controller
             tooShort: $tooShort,
         );
 
+        // CORE-FRONTEND-1: search is a utility page — never indexed (noindex,
+        // follow) so result/query permutations stay out of the index while links
+        // remain followable. The site-wide "discourage search engines" SEO toggle
+        // still wins. A neutral "Search" document title replaces the site default.
+        seo()->forCustom(__('Search'), '')->noindex();
+
         // Theme override → host fallback. A theme may ship its own
         // "theme::search.index"; otherwise the platform view renders in the
         // active theme's layout. Themes are never edited by this phase.

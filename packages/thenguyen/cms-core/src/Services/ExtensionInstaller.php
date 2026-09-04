@@ -154,6 +154,18 @@ class ExtensionInstaller
                 if (count($this->themes->all()) <= 1) {
                     return InstallResult::failure($type, 'Cannot delete the only installed theme.', [], $slug);
                 }
+
+                // Active-child parent protection (EG-6, §24): refuse to delete a
+                // theme that the currently active child theme depends on as a
+                // parent — removing it would break the live hierarchy.
+                if ($this->themes->activeDependentsOf($slug) !== []) {
+                    return InstallResult::failure(
+                        $type,
+                        'The active theme depends on this theme as its parent. Switch themes before deleting it.',
+                        [],
+                        $slug,
+                    );
+                }
             }
 
             // 5. Remove the directory recursively.
