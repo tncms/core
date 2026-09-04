@@ -1,0 +1,6 @@
+/* Theme Example - single primary stylesheet (declared in theme.json "assets"). */
+:root { --example-accent: #2563eb; }
+body { margin: 0; font-family: system-ui, sans-serif; line-height: 1.6; }
+.site-main { max-width: 60rem; margin: 0 auto; padding: 1rem; }
+.entry-title { color: var(--example-accent); }
+.landing-hero { padding: 4rem 1rem; text-align: center; }

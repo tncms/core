@@ -1,0 +1,30 @@
+{
+    "menus": [
+        {
+            "key": "example.menu.header",
+            "location": "header",
+            "name": {
+                "en": "Header Menu",
+                "vi": "Menu đầu trang"
+            },
+            "items": [
+                {
+                    "key": "example.menu.header.home",
+                    "label": {
+                        "en": "Home",
+                        "vi": "Trang chủ"
+                    },
+                    "url": "/"
+                },
+                {
+                    "key": "example.menu.header.about",
+                    "label": {
+                        "en": "About",
+                        "vi": "Giới thiệu"
+                    },
+                    "url": "/about-the-example"
+                }
+            ]
+        }
+    ]
+}

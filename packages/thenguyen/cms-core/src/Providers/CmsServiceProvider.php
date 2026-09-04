@@ -39,6 +39,7 @@ use TheNguyen\CMS\Services\AssetRegistry;
 use TheNguyen\CMS\Services\ContentManager;
 use TheNguyen\CMS\Services\DemoImporter;
 use TheNguyen\CMS\Services\DemoMenuImporter;
+use TheNguyen\CMS\Services\DemoPageImporter;
 use TheNguyen\CMS\Services\ExtensionInstaller;
 use TheNguyen\CMS\Services\ExtensionManager;
 use TheNguyen\CMS\Services\ExtensionTranslationManager;
@@ -75,6 +76,7 @@ use TheNguyen\CMS\Services\MediaManager;
 use TheNguyen\CMS\Services\MenuManager;
 use TheNguyen\CMS\Services\MenuMegaDataProvider;
 use TheNguyen\CMS\Services\PermalinkManager;
+use TheNguyen\CMS\Services\PageTemplateRegistry;
 use TheNguyen\CMS\Services\PermissionManager;
 use TheNguyen\CMS\Services\PluginAssetPublisher;
 use TheNguyen\CMS\Services\PluginDatabaseManager;
@@ -303,6 +305,12 @@ class CmsServiceProvider extends ServiceProvider
         // dependency-ordered plan applied to the Asset Registry.
         $this->app->singleton('cms.theme_assets', fn ($app) => new ThemeAssetManifestResolver($app->make('cms.theme')));
         $this->app->alias('cms.theme_assets', ThemeAssetManifestResolver::class);
+
+        // Active-theme page-template registry (CORE-THEME-2): resolves
+        // theme.json "page_templates" (+ parent chain) into the allowlist that
+        // backs the Page editor selector and frontend template resolution.
+        $this->app->singleton('cms.page_templates', fn ($app) => new PageTemplateRegistry($app->make('cms.theme')));
+        $this->app->alias('cms.page_templates', PageTemplateRegistry::class);
 
         // Theme Options framework: schema from the active theme, values in
         // cms_settings (v0.9.9).
@@ -651,6 +659,15 @@ class CmsServiceProvider extends ServiceProvider
         ));
         $this->app->alias('cms.demo_menu_importer', DemoMenuImporter::class);
 
+        // Demo pages importer (CORE-THEME-2): Core-owned writes for the Pages a
+        // theme demo preset declares (incl. their page-template identifiers).
+        $this->app->singleton('cms.demo_page_importer', fn ($app) => new DemoPageImporter(
+            $app->make(ContentManager::class),
+            $app->make('cms.language'),
+            $app->make('cms.page_templates'),
+        ));
+        $this->app->alias('cms.demo_page_importer', DemoPageImporter::class);
+
         $this->app->singleton('cms.demo_importer', fn ($app) => new DemoImporter(
             $app->make('cms.settings'),
             $app->make('cms.theme_option'),
@@ -658,6 +675,7 @@ class CmsServiceProvider extends ServiceProvider
             $app->make('cms.media'),
             $app->make('cms.extension'),
             $app->make('cms.demo_menu_importer'),
+            $app->make('cms.demo_page_importer'),
         ));
         $this->app->alias('cms.demo_importer', DemoImporter::class);
     }

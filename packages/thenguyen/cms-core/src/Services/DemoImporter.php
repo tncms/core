@@ -27,6 +27,8 @@ use TheNguyen\CMS\Support\ImportResult;
  *   - `theme_options` → theme option values (theme packages only);
  *   - `homepage`      → theme.{owner}.homepage_layout, a validated pagebuilder/06
  *                       document with media import-key refs resolved (theme only);
+ *   - `pages`         → cms_contents Pages with localized translations and
+ *                       page-template identifiers (CORE-THEME-2, theme only);
  *   - any other file  → dispatched to the {@see DemoImportHandler} the manifest
  *                       declares in `handlers`; a missing/unimplemented handler is
  *                       skipped with a clear warning (never a hard failure).
@@ -39,7 +41,7 @@ use TheNguyen\CMS\Support\ImportResult;
 class DemoImporter
 {
     /** Logical files the core imports natively (everything else needs a handler). */
-    private const NATIVE_FILES = ['media', 'theme_options', 'homepage', 'menus'];
+    private const NATIVE_FILES = ['media', 'theme_options', 'homepage', 'menus', 'pages'];
 
     public function __construct(
         private readonly SettingsManager $settings,
@@ -48,6 +50,7 @@ class DemoImporter
         private readonly MediaManager $media,
         private readonly ExtensionManager $extensions,
         private readonly DemoMenuImporter $menus,
+        private readonly DemoPageImporter $pages,
     ) {}
 
     /**
@@ -128,6 +131,11 @@ class DemoImporter
         // Menus the previous import created — pruned if dropped from menus.json.
         $prevMenuIds = $isReimport && is_array($existing['imported_menu_ids'] ?? null)
             ? $existing['imported_menu_ids']
+            : [];
+
+        // Pages the previous import created — pruned if dropped from pages.json.
+        $prevPageIds = $isReimport && is_array($existing['imported_page_ids'] ?? null)
+            ? $existing['imported_page_ids']
             : [];
 
         // Snapshots: capture the true pre-import state once; reuse it on re-import
@@ -219,7 +227,53 @@ class DemoImporter
         }
 
         // --- Theme-only native files ---
+        $pageIds = [];
+
         if ($package->isTheme()) {
+            // 1c. pages (CORE-THEME-2) — create/update the declared Pages with
+            // their page-template identifiers; Core owns every write.
+            if ($package->fileName('pages') !== null) {
+                $handled['pages'] = true;
+                $pagesFile = $package->filePath('pages');
+
+                if ($pagesFile !== null) {
+                    $pagesData = $this->readJson($pagesFile);
+
+                    if (is_array($pagesData)) {
+                        [$pageKeyMap, $pageIds, $homepagePageId, $pageWarnings, $pagesImported] =
+                            $this->pages->import($pagesData, $existingKeys, $owner);
+
+                        foreach ($pageWarnings as $warning) {
+                            $warnings[] = 'pages: '.$warning;
+                        }
+                        $importedKeys = array_merge($importedKeys, $pageKeyMap);
+
+                        // Prune demo pages dropped from pages.json since the last import.
+                        $stalePageIds = array_values(array_diff(array_map('intval', $prevPageIds), $pageIds));
+                        if ($stalePageIds !== []) {
+                            $this->pages->deleteImported($stalePageIds);
+                        }
+
+                        // Static-homepage assignment (snapshot-captured → reset restores).
+                        if ($homepagePageId !== null) {
+                            $capture('reading.homepage_display');
+                            $capture('reading.homepage_page_id');
+                            $this->settings->set('reading.homepage_display', 'static_page');
+                            $this->settings->set('reading.homepage_page_id', $homepagePageId);
+                            $steps[] = 'homepage-page';
+                        }
+
+                        $pagesImported ? $steps[] = 'pages' : $skipped[] = 'pages';
+                    } else {
+                        $warnings[] = 'pages file is not valid JSON — skipped.';
+                        $skipped[] = 'pages';
+                    }
+                } else {
+                    $warnings[] = 'pages file is missing or unsafe — skipped.';
+                    $skipped[] = 'pages';
+                }
+            }
+
             // 2. theme_options (optional)
             if ($package->fileName('theme_options') !== null) {
                 $handled['theme_options'] = true;
@@ -379,6 +433,7 @@ class DemoImporter
             'layout_snapshot' => $layoutSnapshot,
             'imported_keys' => $importedKeys,
             'imported_menu_ids' => $menuIds,
+            'imported_page_ids' => $pageIds,
         ], 'array', [
             'is_public' => false,
             'autoload' => false,
@@ -444,6 +499,16 @@ class DemoImporter
             }
         }
 
+        // Remove only the pages this demo created (by provenance) — never user
+        // pages. The pre-import homepage settings are restored by the settings
+        // snapshot above.
+        $pageIds = is_array($provenance['imported_page_ids'] ?? null) ? $provenance['imported_page_ids'] : [];
+        if ($pageIds !== []) {
+            foreach ($this->pages->deleteImported($pageIds) as $deletedId) {
+                $restored[] = 'page:'.$deletedId;
+            }
+        }
+
         if (! empty($provenance['handler_ran'])) {
             $warnings[] = 'Data imported by a custom handler was not automatically reverted.';
         }
@@ -460,6 +525,131 @@ class DemoImporter
             [],
             $warnings,
         );
+    }
+
+    /**
+     * Read-only import preview (dry-run, CORE-THEME-2): reports what an import
+     * WOULD create, update, set or skip — without a single write. Covers the
+     * native files; a declared custom handler is listed as opaque.
+     *
+     * @return array{
+     *   ok: bool, reimport: bool,
+     *   preflight: array<int, string>,
+     *   actions: array<int, array{file: string, action: string, detail: string}>,
+     *   warnings: array<int, string>
+     * }
+     */
+    public function preview(DemoPackage $package): array
+    {
+        $owner = $package->owner;
+        $preflight = $this->preflight($package);
+
+        $existing = $this->settings->get($this->provenanceKey($owner, $package->slug));
+        $isReimport = is_array($existing);
+        $existingKeys = $isReimport && is_array($existing['imported_keys'] ?? null) ? $existing['imported_keys'] : [];
+
+        $actions = [];
+        $warnings = [];
+
+        // media — new rows vs reused rows per import key.
+        if ($package->fileName('media') !== null) {
+            $data = ($f = $package->filePath('media')) !== null ? $this->readJson($f) : null;
+            $items = is_array($data) ? (is_array($data['media'] ?? null) ? $data['media'] : (array_is_list($data) ? $data : [])) : [];
+
+            foreach ($items as $item) {
+                $key = is_array($item) && is_string($item['key'] ?? null) ? $item['key'] : null;
+                if ($key === null) {
+                    continue;
+                }
+                $actions[] = [
+                    'file' => 'media', 'detail' => $key,
+                    'action' => isset($existingKeys[$key]) ? 'update' : 'create',
+                ];
+            }
+        }
+
+        // menus — create vs update per menu key.
+        if ($package->fileName('menus') !== null) {
+            $data = ($f = $package->filePath('menus')) !== null ? $this->readJson($f) : null;
+            $items = is_array($data) && is_array($data['menus'] ?? null) ? $data['menus'] : [];
+
+            foreach ($items as $item) {
+                $key = is_array($item) && is_string($item['key'] ?? null) ? $item['key'] : null;
+                if ($key === null) {
+                    continue;
+                }
+                $actions[] = [
+                    'file' => 'menus', 'detail' => $key,
+                    'action' => isset($existingKeys[$key]) ? 'update' : 'create',
+                ];
+            }
+        }
+
+        if ($package->isTheme()) {
+            // pages — create vs update per page key; undeclared template = warning.
+            if ($package->fileName('pages') !== null) {
+                $data = ($f = $package->filePath('pages')) !== null ? $this->readJson($f) : null;
+                $items = is_array($data) && is_array($data['pages'] ?? null) ? $data['pages'] : [];
+                $declared = app('cms.page_templates')->templatesFor($owner);
+
+                foreach ($items as $item) {
+                    if (! is_array($item) || ! is_string($item['key'] ?? null)) {
+                        continue;
+                    }
+                    $key = $item['key'];
+                    $actions[] = [
+                        'file' => 'pages', 'detail' => $key,
+                        'action' => isset($existingKeys['page:'.$key]) ? 'update' : 'create',
+                    ];
+
+                    $template = $item['template'] ?? null;
+                    if (is_string($template) && trim($template) !== '' && ! isset($declared[trim($template)])) {
+                        $warnings[] = "pages: template '".trim($template)."' is not declared by theme '{$owner}' — page '{$key}' would import without a template.";
+                    }
+                    if (($item['homepage'] ?? false) === true) {
+                        $actions[] = ['file' => 'pages', 'action' => 'set', 'detail' => "homepage → '{$key}'"];
+                    }
+                }
+            }
+
+            if ($package->fileName('theme_options') !== null) {
+                $data = ($f = $package->filePath('theme_options')) !== null ? $this->readJson($f) : null;
+                $count = is_array($data) ? count(is_array($data['options'] ?? null) ? $data['options'] : []) : 0;
+                $actions[] = ['file' => 'theme_options', 'action' => 'set', 'detail' => $count.' option(s)'];
+            }
+
+            if ($package->preset !== null) {
+                $actions[] = ['file' => 'manifest', 'action' => 'set', 'detail' => "homepage preset '{$package->preset}'"];
+            }
+
+            if ($package->fileName('homepage') !== null) {
+                $actions[] = [
+                    'file' => 'homepage', 'action' => $this->settings->has($this->settingKey($owner, 'homepage_layout')) ? 'update' : 'set',
+                    'detail' => 'homepage layout',
+                ];
+            }
+        }
+
+        // Anything else → declared handler (opaque) or skip.
+        foreach ($package->files as $logical => $filename) {
+            if (in_array($logical, self::NATIVE_FILES, true)) {
+                continue;
+            }
+            $handler = $package->handlerClass($logical);
+            $actions[] = [
+                'file' => $logical,
+                'action' => $handler !== null ? 'handler' : 'skip',
+                'detail' => $handler !== null ? 'custom handler (changes not previewable)' : 'no importer/handler',
+            ];
+        }
+
+        return [
+            'ok' => $preflight === [],
+            'reimport' => $isReimport,
+            'preflight' => $preflight,
+            'actions' => $actions,
+            'warnings' => $warnings,
+        ];
     }
 
     /**

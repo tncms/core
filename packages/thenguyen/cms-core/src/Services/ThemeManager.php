@@ -321,6 +321,18 @@ class ThemeManager
             return false;
         }
 
+        // 3c. Validate the declarative page-template registry (CORE-THEME-2):
+        //     an invalid id, unsafe view identifier, duplicate declaration or a
+        //     view missing from the theme's own hierarchy fails closed here —
+        //     a theme never activates with a broken template allowlist.
+        try {
+            if (app('cms.page_templates')->errorsFor($slug) !== []) {
+                return false;
+            }
+        } catch (\Throwable) {
+            return false;
+        }
+
         // 4. Atomically publish the target theme's assets AND every declared
         //    parent's assets — each under public/themes/{owner} — so a child's
         //    owner-aware URLs to inherited parent files resolve. Staged +

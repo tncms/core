@@ -901,3 +901,86 @@ is a technical conversion, not a redesign mandate. Core owns content, routing,
 SEO, sections, menus, localization and the asset lifecycle; it never substitutes
 the Default layout for an incomplete standalone theme (activation is rejected
 instead). A child inherits only its explicitly declared parent.
+
+## 17. Active-theme page templates (CORE-THEME-2, v1.0.0-beta.7.1.25)
+
+A theme may declare a finite set of **page templates** — alternative page
+compositions (CV, Contact, Portfolio, Landing, …) an editor can pick per Page.
+This is how a converted HTML template preserves its real page layouts.
+
+### Declaration (`theme.json`)
+
+```json
+"page_templates": [
+    {
+        "id": "landing",
+        "label": "Landing",
+        "view": "pages/templates/landing",
+        "description": "Full-width landing layout."
+    }
+]
+```
+
+- `id` — stable machine identifier (`^[a-z0-9][a-z0-9_-]{0,63}$`), unique per
+  theme. This is what a Page stores (`cms_contents.template`); it survives
+  theme switches.
+- `label` — human label; run through `theme_trans()` in the admin, so add it to
+  the theme's `lang/{locale}.json` for every supported admin locale.
+- `view` — theme-relative view identifier (`/` or `.` separated) that must
+  exist inside the theme's own `views/` (or a declared parent's). Absolute
+  paths, traversal (`..`), backslashes, namespaces (`::`) and undeclared views
+  are rejected — **activation fails closed** on any invalid declaration.
+- `description` — optional, shown as help text.
+
+Parent/child: a child inherits the parent's declarations and deterministically
+overrides an `id` it re-declares (same rule as views and assets).
+
+### Behaviour
+
+- The Page editor shows a validated **Template** select: the Default choice
+  (the theme's canonical `pages/page`) plus the active theme's declarations —
+  never filesystem paths, never other themes' templates. With no declarations
+  the selector is hidden.
+- At render time Core resolves the stored id through the active theme's
+  validated allowlist to the declared view; the template renders inside the
+  normal shell (master layout, ViewModel data, SEO, hooks, assets).
+- An empty, undeclared or no-longer-available id renders the canonical
+  `pages/page` view (safe policy) and logs a `cms.page_template.unavailable`
+  diagnostic. Switching themes never destroys the stored id — the editor shows
+  it as *unavailable* so a valid replacement can be chosen.
+- Templates are presentation only: no database queries, no routes, no
+  persistence. Escape everything (`{{ }}`, `cms_html()` for stored HTML).
+
+See `examples/themes/example-theme` for a complete working declaration.
+
+## 18. Theme-scoped demo presets (CORE-THEME-2, v1.0.0-beta.7.1.25)
+
+Demo presets create optional starter content; they are separate from page
+templates (which only choose presentation). A theme ships zero or more presets
+under `demo/{slug}/` in the generic declarative format (see the `DemoPackage`
+manifest). Core owns every database write — a theme never imports directly.
+
+- **Active-theme scoping.** Appearance → Import Demo lists only the *active*
+  theme's presets (plus active-plugin packages). An inactive theme's already-
+  imported preset stays listed for **reset only**. A theme with no presets
+  exposes nothing.
+- **`pages` file (new).** A preset may declare Pages with localized
+  translations, a page-template id (validated against the owning theme's
+  declarations — undeclared ids import without a template and warn), a status,
+  `show_page_title`, and an optional `homepage: true` marker that assigns the
+  static homepage (snapshot-captured, restored on reset).
+- **Symbolic keys.** Records reference each other through stable keys
+  (`"key": "example.landing"`), never database ids; the import provenance maps
+  keys to created ids so re-import updates the same rows (idempotent).
+- **Preview.** The admin Preview action is a read-only dry-run listing what an
+  import would create/update/set/skip; custom handler files are listed as
+  opaque.
+- **Rollback.** Reset removes only importer-created pages/menus and restores
+  the captured pre-import settings/layout. Owner content is never touched;
+  nothing is imported automatically on activation, and slugs conflict-resolve
+  through the normal uniqueness authority instead of overwriting.
+
+Legacy note: the bundled Default theme's demo packages already use this
+generic format; Core contains only the generic importer. Existing
+installations keep their imported content — nothing is re-imported or
+duplicated on upgrade.

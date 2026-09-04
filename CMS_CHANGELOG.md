@@ -16,6 +16,63 @@ this project adheres to [Semantic Versioning](https://semver.org).
 
 ---
 
+## [1.0.0-beta.7.1.25] — Active-Theme Page Templates & Theme-Scoped Demo Import (CORE-THEME-2)
+
+Themes converted from real HTML templates can now preserve their genuine page
+compositions: a theme declares a finite set of page templates that editors pick
+per Page, and ships declarative demo presets that Core previews, imports and
+rolls back safely — always scoped to the active theme.
+
+### Added
+
+- **Active-theme page templates.** `theme.json` may declare a `page_templates`
+  list (stable `id`, translatable `label`, theme-relative `view`, optional
+  `description`). Declarations are strictly validated (id/view syntax, no
+  traversal/namespace/absolute paths, the view must exist inside the theme's
+  own hierarchy, child overrides parent deterministically) and an invalid
+  declaration fails theme activation closed. A Page stores only the stable
+  identifier (`cms_contents.template`); Core resolves it at render time
+  through the active theme's validated allowlist — never a raw Blade path and
+  never a per-view fallback to an inactive theme. An empty, undeclared or
+  unavailable identifier renders the theme's canonical page view with a logged
+  diagnostic.
+- **Validated Template selector.** The Page editor's free-text Template input
+  is replaced by a Select sourced from the active theme's declarations
+  (labels via `theme_trans()`, EN/VI admin strings included). A stored value
+  the current theme does not declare is shown as *unavailable* — preserved,
+  never silently destroyed — and server-side validation mirrors the allowlist.
+- **Demo preset `pages` file.** A theme demo preset may declare Pages with
+  localized translations, a page-template identifier (validated against the
+  owning theme's declarations), a publish status, `show_page_title`, and an
+  optional static-homepage assignment. Core owns every write (transactions,
+  slug uniqueness, revisions); symbolic keys map to created rows so re-import
+  is idempotent; reset removes only importer-created pages and restores the
+  captured pre-import homepage settings.
+- **Demo import preview.** A read-only dry-run action reporting what an import
+  would create, update, set or skip — including template-availability
+  warnings — before any write.
+- **Theme Example.** `examples/themes/example-theme` (shipped in the source
+  package) now demonstrates the full public theme contract: required views,
+  declarative assets, one custom page template (`landing`) with translated
+  labels, and a minimal theme-scoped starter preset (pages + menu) with
+  ownership/escaping documentation.
+
+### Changed
+
+- **Demo import is scoped to the active theme.** Appearance → Import Demo
+  lists the active theme's presets only (plus active-plugin packages); an
+  inactive theme's already-imported preset stays listed for reset only, and
+  importing an inactive theme's preset is refused server-side. A theme without
+  presets exposes none. Existing installations keep their imported content —
+  nothing is re-imported, duplicated or deleted on upgrade or theme switch.
+
+### Notes
+
+- Page templates choose presentation; demo presets create optional starter
+  content — the two contracts are deliberately independent.
+- The bundled Default theme already used the generic theme-owned demo format;
+  Core retains only generic importer infrastructure.
+
 ## [1.0.0-beta.7.1.24] — Active Theme Authority & Theme Lifecycle (EG-6)
 
 The active theme becomes the single presentation authority: `theme.json` gains a

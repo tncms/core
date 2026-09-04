@@ -75,7 +75,7 @@ class FrontendController
             $page = $this->findStaticHomePage();
 
             if ($page !== null && View::exists('theme::pages.page')) {
-                return response($this->renderContent('theme::pages.page', $page, $locale));
+                return response($this->renderContent($this->pageView($page), $page, $locale));
             }
         }
 
@@ -93,7 +93,7 @@ class FrontendController
         $page = $this->findHomeContent($locale);
 
         if ($page !== null && View::exists('theme::pages.page')) {
-            return response($this->renderContent('theme::pages.page', $page, $locale));
+            return response($this->renderContent($this->pageView($page), $page, $locale));
         }
 
         if (View::exists('theme::pages.home')) {
@@ -127,7 +127,21 @@ class FrontendController
             return $this->fallback($page->translatedTitle($locale), $locale);
         }
 
-        return response($this->renderContent('theme::pages.page', $page, $locale));
+        return response($this->renderContent($this->pageView($page), $page, $locale));
+    }
+
+    /**
+     * Resolve the view for a Page (CORE-THEME-2): the stored template
+     * identifier is mapped through the active theme's validated page-template
+     * allowlist; an empty, undeclared or unavailable identifier renders the
+     * canonical `theme::pages.page` (safe documented policy — never an
+     * arbitrary view, never a per-view fallback to another theme).
+     */
+    private function pageView(Content $page): string
+    {
+        $view = app('cms.page_templates')->viewForContent($page);
+
+        return $view !== null && View::exists($view) ? $view : 'theme::pages.page';
     }
 
     public function post(): Response
@@ -234,7 +248,7 @@ class FrontendController
                 return $this->fallback($page->translatedTitle($locale), $locale);
             }
 
-            return response($this->renderContent('theme::pages.page', $page, $locale));
+            return response($this->renderContent($this->pageView($page), $page, $locale));
         }
 
         abort(404);
@@ -305,6 +319,10 @@ class FrontendController
 
             if (! View::exists($view)) {
                 return $this->fallback($content->translatedTitle($locale), $locale);
+            }
+
+            if ($content->type !== 'post') {
+                $view = $this->pageView($content);
             }
 
             return response($this->renderContent($view, $content, $locale));
@@ -585,6 +603,10 @@ class FrontendController
 
         if (! View::exists($view)) {
             return $this->fallback($content->translatedTitle($locale), $locale);
+        }
+
+        if ($content->type !== 'post') {
+            $view = $this->pageView($content);
         }
 
         return response($this->renderContent($view, $content, $locale));

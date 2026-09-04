@@ -58,17 +58,32 @@
                 @endif
 
                 @php($confirmImport = trim(($package['warnings'] !== [] ? implode(' ', $package['warnings']) . ' ' : '') . tn_trans('Continue with the import?')))
-                @php($confirmReset = tn_trans('Reset restores the pre-import theme settings and homepage layout (content is not affected). Continue?'))
+                @php($confirmReset = tn_trans('Reset removes only the pages and menus this demo created and restores the pre-import theme settings and homepage layout. Your own content is not affected. Continue?'))
 
                 <div class="flex flex-wrap items-center gap-3">
-                    <x-filament::button
-                        wire:click="importPackage('{{ $package['id'] }}')"
-                        wire:confirm="{{ $confirmImport }}"
-                        wire:loading.attr="disabled"
-                        icon="heroicon-m-arrow-down-tray"
-                    >
-                        {{ $package['imported'] ? tn_trans('Re-import') : tn_trans('Import') }}
-                    </x-filament::button>
+                    @if ($package['inactive_theme'] ?? false)
+                        <x-filament::badge color="warning">
+                            {{ tn_trans('Theme not active — import disabled; reset remains available.') }}
+                        </x-filament::badge>
+                    @else
+                        <x-filament::button
+                            color="gray"
+                            wire:click="previewPackage('{{ $package['id'] }}')"
+                            wire:loading.attr="disabled"
+                            icon="heroicon-m-eye"
+                        >
+                            {{ tn_trans('Preview') }}
+                        </x-filament::button>
+
+                        <x-filament::button
+                            wire:click="importPackage('{{ $package['id'] }}')"
+                            wire:confirm="{{ $confirmImport }}"
+                            wire:loading.attr="disabled"
+                            icon="heroicon-m-arrow-down-tray"
+                        >
+                            {{ $package['imported'] ? tn_trans('Re-import') : tn_trans('Import') }}
+                        </x-filament::button>
+                    @endif
 
                     @if ($package['imported'] && $package['rollback'])
                         <x-filament::button

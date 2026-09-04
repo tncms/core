@@ -149,9 +149,39 @@ class PageResource extends Resource
                         DateTimePicker::make('published_at')
                             ->label(tn_trans('Publish date')),
 
-                        TextInput::make('template')
+                        // Active-theme page templates (CORE-THEME-2): a validated
+                        // Select over the active theme's declared allowlist. The
+                        // stored value is a stable identifier — never a Blade
+                        // path — and a legacy value from another theme is shown
+                        // as unavailable instead of being silently discarded.
+                        Select::make('template')
                             ->label(tn_trans('Template'))
-                            ->maxLength(255),
+                            ->options(fn (?Content $record) => static::pageTemplateOptions($record))
+                            ->placeholder(tn_trans('Default (theme page layout)'))
+                            ->nullable()
+                            ->visible(fn (?Content $record) => static::pageTemplateOptions($record) !== [])
+                            ->helperText(tn_trans('Layout provided by the active theme.'))
+                            ->rules([
+                                fn (?Content $record) => static function (string $attribute, mixed $value, \Closure $fail) use ($record): void {
+                                    $value = trim((string) $value);
+
+                                    if ($value === '') {
+                                        return;
+                                    }
+
+                                    if (isset(app('cms.page_templates')->templatesFor()[$value])) {
+                                        return;
+                                    }
+
+                                    // Preserve (don't destroy) a stored identifier
+                                    // that the current theme no longer declares.
+                                    if ($record !== null && trim((string) $record->template) === $value) {
+                                        return;
+                                    }
+
+                                    $fail(tn_trans('The selected template is not available in the active theme.'));
+                                },
+                            ]),
 
                         MediaPicker::make(),
                     ])
@@ -358,5 +388,31 @@ class PageResource extends Resource
             .e($note).($preview !== '' ? ' — '.e($preview) : '')
             .'</span>'
         );
+    }
+
+    /**
+     * Options for the Template select (CORE-THEME-2): the active theme's
+     * validated declarations only, plus — for an existing record — a stored
+     * identifier the current theme no longer declares, labelled as
+     * unavailable so the editor can pick a valid replacement without the
+     * value being silently destroyed. Never exposes filesystem paths.
+     *
+     * @return array<string, string>
+     */
+    protected static function pageTemplateOptions(?Content $record): array
+    {
+        $options = [];
+
+        foreach (app('cms.page_templates')->templatesFor() as $id => $template) {
+            $options[$id] = theme_trans($template->label);
+        }
+
+        $current = trim((string) ($record?->template ?? ''));
+
+        if ($current !== '' && ! isset($options[$current])) {
+            $options[$current] = $current.' — '.tn_trans('Unavailable in the active theme');
+        }
+
+        return $options;
     }
 }

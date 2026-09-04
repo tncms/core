@@ -1,0 +1,33 @@
+{
+    "name": "Theme Example",
+    "slug": "example-theme",
+    "version": "0.1.0",
+    "description": "Canonical example theme demonstrating the public TN CMS theme contracts: declarative assets, active-theme page templates, and a theme-scoped demo preset.",
+    "author": "TN CMS",
+    "requires": {
+        "cms": ">=1.0.0"
+    },
+    "supports": {
+        "menus": [
+            "header"
+        ],
+        "theme_options": false,
+        "widgets": false,
+        "sections": false
+    },
+    "assets": [
+        {
+            "handle": "example-main",
+            "src": "css/main.css",
+            "primary": true
+        }
+    ],
+    "page_templates": [
+        {
+            "id": "landing",
+            "label": "Landing",
+            "view": "pages/templates/landing",
+            "description": "Full-width landing layout without the visible page title."
+        }
+    ]
+}

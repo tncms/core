@@ -68,13 +68,24 @@ class ImportDemoPage extends Page
     public function packages(): array
     {
         $out = [];
+        $activeTheme = app('cms.theme')->activeSlug();
 
         foreach (app('cms.demo_importer')->discover() as $package) {
             /** @var DemoPackage $package */
             $provenance = settings()->get($this->provenanceKey($package->owner, $package->slug));
             $imported = is_array($provenance);
 
+            // Active-theme scoping (CORE-THEME-2): an inactive theme's presets
+            // are not importable here; one already imported stays listed (as
+            // inactive) so the owner can still reset it after a theme switch.
+            $inactiveTheme = $package->type === DemoPackage::TYPE_THEME && $package->owner !== $activeTheme;
+
+            if ($inactiveTheme && ! $imported) {
+                continue;
+            }
+
             $out[] = [
+                'inactive_theme' => $inactiveTheme,
                 'id' => $package->id(),
                 'type' => $package->type,
                 'owner' => $package->owner,
@@ -104,6 +115,63 @@ class ImportDemoPage extends Page
     }
 
     /**
+     * Read-only import preview (dry-run) for a discovered package: reports what
+     * an import would create/update/set/skip without performing any write.
+     */
+    public function previewPackage(string $id): void
+    {
+        if (! cms_can('themes.import')) {
+            abort(403);
+        }
+
+        $importer = app('cms.demo_importer');
+        $packages = $importer->discover();
+
+        if (! isset($packages[$id])) {
+            Notification::make()->title(tn_trans('Demo package not found.'))->danger()->send();
+
+            return;
+        }
+
+        $package = $packages[$id];
+
+        if ($this->inactiveThemePackage($package)) {
+            Notification::make()->title(tn_trans('Only the active theme\'s demo presets can be imported.'))->danger()->send();
+
+            return;
+        }
+
+        $plan = $importer->preview($package);
+
+        if (! $plan['ok']) {
+            Notification::make()
+                ->title(tn_trans('Demo requirements not met.'))
+                ->body(implode("\n", $plan['preflight']))
+                ->danger()
+                ->send();
+
+            return;
+        }
+
+        $lines = [];
+        foreach (array_slice($plan['actions'], 0, 14) as $action) {
+            $lines[] = strtoupper($action['action']).' — '.$action['file'].': '.$action['detail'];
+        }
+        if (count($plan['actions']) > 14) {
+            $lines[] = '… '.(count($plan['actions']) - 14).' '.tn_trans('more');
+        }
+        foreach (array_slice($plan['warnings'], 0, 4) as $warning) {
+            $lines[] = '⚠ '.$warning;
+        }
+
+        Notification::make()
+            ->title($plan['reimport'] ? tn_trans('Preview (re-import)') : tn_trans('Preview (first import)'))
+            ->body($lines !== [] ? implode("\n", $lines) : tn_trans('Nothing to import.'))
+            ->info()
+            ->send();
+    }
+
+    /**
      * Reset a previously imported package by its id ("type:owner:slug").
      */
     public function resetPackage(string $id): void
@@ -128,7 +196,22 @@ class ImportDemoPage extends Page
 
         $package = $packages[$id];
 
+        // Active-theme scoping (CORE-THEME-2): importing an inactive theme's
+        // preset is blocked; reset stays allowed so a prior import can always
+        // be cleaned up after a theme switch.
+        if (! $reset && $this->inactiveThemePackage($package)) {
+            Notification::make()->title(tn_trans('Only the active theme\'s demo presets can be imported.'))->danger()->send();
+
+            return;
+        }
+
         $this->notify($reset ? $importer->reset($package) : $importer->import($package));
+    }
+
+    private function inactiveThemePackage(DemoPackage $package): bool
+    {
+        return $package->type === DemoPackage::TYPE_THEME
+            && $package->owner !== app('cms.theme')->activeSlug();
     }
 
     private function notify(ImportResult $result): void

@@ -1,0 +1,16 @@
+{
+    "type": "theme",
+    "owner": "example-theme",
+    "slug": "starter",
+    "name": "Starter Content",
+    "description": "Minimal theme-scoped demo preset: one landing Page assigned to the custom \"landing\" page template (set as the static homepage) plus a small header menu.",
+    "version": "0.1.0",
+    "requires": {
+        "cms": ">=1.0.0"
+    },
+    "files": {
+        "pages": "pages.json",
+        "menus": "menus.json",
+        "theme_options": "theme-settings.json"
+    }
+}

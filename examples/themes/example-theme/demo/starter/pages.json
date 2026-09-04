@@ -1,0 +1,40 @@
+{
+    "_doc": "Declarative pages imported natively by Core (DemoPageImporter). Symbolic keys map to created content ids in the import provenance; re-import updates the same rows; reset removes only these importer-created pages. The template value must be an id declared in this theme's theme.json page_templates — undeclared ids import without a template (warning).",
+    "pages": [
+        {
+            "key": "example.landing",
+            "template": "landing",
+            "status": "published",
+            "homepage": true,
+            "show_page_title": true,
+            "translations": {
+                "en": {
+                    "title": "Welcome",
+                    "slug": "welcome",
+                    "content": "<p>This landing page was created by the Theme Example starter preset and is assigned to the custom <strong>landing</strong> page template.</p>"
+                },
+                "vi": {
+                    "title": "Chào mừng",
+                    "slug": "chao-mung",
+                    "content": "<p>Trang đích này được tạo bởi bộ khởi đầu của Theme Example và dùng mẫu trang <strong>landing</strong>.</p>"
+                }
+            }
+        },
+        {
+            "key": "example.about",
+            "status": "published",
+            "translations": {
+                "en": {
+                    "title": "About the example",
+                    "slug": "about-the-example",
+                    "content": "<p>A plain page using the theme's canonical page presentation (no template selected).</p>"
+                },
+                "vi": {
+                    "title": "Về ví dụ này",
+                    "slug": "ve-vi-du-nay",
+                    "content": "<p>Một trang thường dùng bố cục trang mặc định của giao diện.</p>"
+                }
+            }
+        }
+    ]
+}
