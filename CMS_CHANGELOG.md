@@ -16,6 +16,37 @@ this project adheres to [Semantic Versioning](https://semver.org).
 
 ---
 
+## [1.0.0-beta.7.1.26] — Active-Theme Diagnostics Authority Unification (CORE-THEME-3) — 2026-09-05
+
+Fixes the active-theme split-brain where the Dashboard environment summary
+reported `default` while the frontend, Themes page, Theme Options, Import Demo
+and the page-template registry all reported the committed active theme.
+
+### Fixed
+
+- **Dashboard diagnostics follow the committed active theme.**
+  `CmsInfo::activeTheme()` now resolves the single canonical authority
+  (`cms_settings` `theme.active` via `ThemeManager::active()`) instead of the
+  stale `config('cms.theme.active')` (== `env('CMS_ACTIVE_THEME')`), which is only
+  the install seed and is never updated on activation. The environment-summary
+  widget now shows `Name (slug)` (e.g. `Ngo Hoang Nguyen (ngohoangnguyen)`)
+  derived from that same authority. Config/`.env` is retained strictly as a
+  pre-install/recovery bootstrap fallback.
+
+### Notes
+
+- No new persisted state, cache key or config is introduced; the frontend theme
+  still never skins the Filament admin shell (diagnostics only *report* the
+  committed frontend theme). See
+  `docs/platform-runtime/ADR-CORE-THEME-003-ACTIVE-THEME-DIAGNOSTICS-AUTHORITY.md`.
+- `config:cache`/`optimize`/process restart no longer drift the reported theme,
+  because the authority is the DB pointer, not the compiled config.
+- Certified over real authenticated HTTP, process restart and an authentic
+  public `1.0.0-beta.7.1.25` → `1.0.0-beta.7.1.26` upgrade (committed non-Default
+  theme preserved; `.env`/APP_KEY/content/settings unchanged).
+
+---
+
 ## [1.0.0-beta.7.1.25] — Active-Theme Page Templates & Theme-Scoped Demo Import (CORE-THEME-2)
 
 Themes converted from real HTML templates can now preserve their genuine page

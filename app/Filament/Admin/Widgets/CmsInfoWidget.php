@@ -45,7 +45,7 @@ class CmsInfoWidget extends Widget
             'cmsVersion' => CmsInfo::version(),
             'laravelVersion' => app()->version(),
             'phpVersion' => PHP_VERSION,
-            'activeTheme' => CmsInfo::activeTheme(),
+            'activeTheme' => $this->activeThemeLabel(),
             'deploymentMode' => CmsInfo::deploymentMode(),
             'basePath' => CmsInfo::basePath(),
             'publicPath' => CmsInfo::publicPath(),
@@ -54,5 +54,28 @@ class CmsInfoWidget extends Widget
             'settingsAvailable' => $settingsAvailable,
             'settingsCached' => $settingsCached,
         ];
+    }
+
+    /**
+     * Human-friendly committed active theme for the environment summary, e.g.
+     * "Ngo Hoang Nguyen (ngohoangnguyen)". Both the name and the slug derive from
+     * the single canonical authority (ThemeManager). Falls back to the bare slug
+     * from {@see CmsInfo::activeTheme()} when the theme service is unavailable.
+     */
+    private function activeThemeLabel(): string
+    {
+        $slug = CmsInfo::activeTheme();
+
+        try {
+            $theme = app('cms.theme')->active();
+
+            if ($theme !== null) {
+                return $theme->name.' ('.$theme->slug.')';
+            }
+        } catch (Throwable) {
+            // Fall through to the bare slug below.
+        }
+
+        return $slug;
     }
 }
