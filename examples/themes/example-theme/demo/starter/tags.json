@@ -1,0 +1,12 @@
+{
+    "_doc": "EG-9 demo tags (flat `tag` taxonomy). `key` is the symbolic identity; slugs are content data.",
+    "tags": [
+        {
+            "key": "tncms",
+            "translations": {
+                "en": { "name": "TN CMS", "slug": "tncms" },
+                "vi": { "name": "TN CMS", "slug": "tncms-vi" }
+            }
+        }
+    ]
+}

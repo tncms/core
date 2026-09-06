@@ -1,0 +1,28 @@
+{
+    "_doc": "EG-9 demo posts (Content type=post). `key` is the symbolic identity; `author` is a safe strategy token (never a raw user id); featured_media/categories/tags are symbolic refs. Core owns every write via ContentManager.",
+    "posts": [
+        {
+            "key": "hello-tncms",
+            "status": "published",
+            "published_at": "2026-01-01T00:00:00Z",
+            "author": "first_super_admin",
+            "featured_media": "media:starter-post-cover",
+            "categories": ["category:news"],
+            "tags": ["tag:tncms"],
+            "translations": {
+                "en": {
+                    "title": "Hello, TN CMS",
+                    "slug": "hello-tncms",
+                    "excerpt": "The first post created by the Theme Example starter preset.",
+                    "content": "<p>This post was imported by the Theme Example demo preset. It links to the <em>News</em> category, the <em>TN CMS</em> tag, and a bundled featured image — all through symbolic references, never database ids.</p>"
+                },
+                "vi": {
+                    "title": "Xin chào, TN CMS",
+                    "slug": "xin-chao-tncms",
+                    "excerpt": "Bài viết đầu tiên do bộ khởi đầu của Theme Example tạo.",
+                    "content": "<p>Bài viết này được nhập bởi bộ demo của Theme Example. Nó liên kết tới danh mục <em>Tin tức</em>, thẻ <em>TN CMS</em>, và một ảnh đại diện đi kèm — tất cả qua tham chiếu tượng trưng, không dùng id cơ sở dữ liệu.</p>"
+                }
+            }
+        }
+    ]
+}

@@ -3,13 +3,17 @@
     "owner": "example-theme",
     "slug": "starter",
     "name": "Starter Content",
-    "description": "Minimal theme-scoped demo preset: one landing Page assigned to the custom \"landing\" page template (set as the static homepage) plus a small header menu.",
-    "version": "0.1.0",
+    "description": "Minimal theme-scoped demo preset: a landing Page on the custom \"landing\" template (static homepage), a small header menu, and an EG-9 blog graph — one category, one tag and one post (VI/EN) wired by symbolic references to a bundled featured image.",
+    "version": "0.2.0",
     "requires": {
         "cms": ">=1.0.0"
     },
     "files": {
+        "media": "media.json",
+        "categories": "categories.json",
+        "tags": "tags.json",
         "pages": "pages.json",
+        "posts": "posts.json",
         "menus": "menus.json",
         "theme_options": "theme-settings.json"
     }

@@ -1,0 +1,13 @@
+{
+    "_doc": "EG-9 demo categories (hierarchical `category` taxonomy). `key` is the symbolic identity; `parent` (optional) is a category:{key} ref; slugs are content data. Core owns the write and never overwrites a user term on a slug collision.",
+    "categories": [
+        {
+            "key": "news",
+            "sort_order": 1,
+            "translations": {
+                "en": { "name": "News", "slug": "news", "description": "<p>Example news category.</p>" },
+                "vi": { "name": "Tin tức", "slug": "tin-tuc", "description": "<p>Danh mục tin tức ví dụ.</p>" }
+            }
+        }
+    ]
+}

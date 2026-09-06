@@ -7,10 +7,10 @@ namespace TheNguyen\CMS\Providers;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\ServiceProvider;
 use TheNguyen\CMS\Console\Commands\ClearSettingsCacheCommand;
-use TheNguyen\CMS\Console\Commands\DiagnoseLocalizationCommand;
 use TheNguyen\CMS\Console\Commands\DemoImportCommand;
 use TheNguyen\CMS\Console\Commands\DemoListCommand;
 use TheNguyen\CMS\Console\Commands\DemoResetCommand;
+use TheNguyen\CMS\Console\Commands\DiagnoseLocalizationCommand;
 use TheNguyen\CMS\Console\Commands\MenuLocalizedUrlRepairCommand;
 use TheNguyen\CMS\Console\Commands\PluginActivateCommand;
 use TheNguyen\CMS\Console\Commands\PluginDeactivateCommand;
@@ -18,39 +18,6 @@ use TheNguyen\CMS\Console\Commands\PluginListCommand;
 use TheNguyen\CMS\Console\Commands\SlugRebuildCommand;
 use TheNguyen\CMS\Console\Commands\ThemePublishCommand;
 use TheNguyen\CMS\Http\Middleware\RedirectDefaultLocalePrefix;
-use TheNguyen\CMS\Models\Content;
-use TheNguyen\CMS\Models\ContentTranslation;
-use TheNguyen\CMS\Models\Menu;
-use TheNguyen\CMS\Models\MenuItem;
-use TheNguyen\CMS\Models\MenuItemTranslation;
-use TheNguyen\CMS\Models\MenuTranslation;
-use TheNguyen\CMS\Models\Setting;
-use TheNguyen\CMS\Models\SettingTranslation;
-use TheNguyen\CMS\Models\Slug;
-use TheNguyen\CMS\Models\Term;
-use TheNguyen\CMS\Models\TermTranslation;
-use TheNguyen\CMS\Models\Widget as WidgetModel;
-use TheNguyen\CMS\Models\WidgetArea;
-use TheNguyen\CMS\Models\WidgetTranslation;
-use TheNguyen\CMS\Registries\ComponentRegistry;
-use TheNguyen\CMS\Registries\SectionRegistry;
-use TheNguyen\CMS\Services\AccountManager;
-use TheNguyen\CMS\Services\AssetRegistry;
-use TheNguyen\CMS\Services\ContentManager;
-use TheNguyen\CMS\Services\DemoImporter;
-use TheNguyen\CMS\Services\DemoMenuImporter;
-use TheNguyen\CMS\Services\DemoPageImporter;
-use TheNguyen\CMS\Services\ExtensionInstaller;
-use TheNguyen\CMS\Services\ExtensionManager;
-use TheNguyen\CMS\Services\ExtensionTranslationManager;
-use TheNguyen\CMS\Services\FormHookBridge;
-use TheNguyen\CMS\Services\FrontendAuthManager;
-use TheNguyen\CMS\Services\HomepageResolver;
-use TheNguyen\CMS\Services\HookManager;
-use TheNguyen\CMS\Services\HtmlSanitizer;
-use TheNguyen\CMS\Services\InstallerManager;
-use TheNguyen\CMS\Services\LanguageManager;
-use TheNguyen\CMS\Services\LayoutEditor;
 use TheNguyen\CMS\Localization\Contracts\LanguageConfigurationContract;
 use TheNguyen\CMS\Localization\Contracts\LocalizationStrategyContract;
 use TheNguyen\CMS\Localization\Contracts\PublicLocaleContextContract;
@@ -70,23 +37,56 @@ use TheNguyen\CMS\Localization\Resolvers\PostResolver;
 use TheNguyen\CMS\Localization\Resolvers\TagResolver;
 use TheNguyen\CMS\Localization\Strategies\PrefixLocalizationStrategy;
 use TheNguyen\CMS\Localization\Strategies\SessionLocalizationStrategy;
+use TheNguyen\CMS\Models\Content;
+use TheNguyen\CMS\Models\ContentTranslation;
+use TheNguyen\CMS\Models\Menu;
+use TheNguyen\CMS\Models\MenuItem;
+use TheNguyen\CMS\Models\MenuItemTranslation;
+use TheNguyen\CMS\Models\MenuTranslation;
+use TheNguyen\CMS\Models\Setting;
+use TheNguyen\CMS\Models\SettingTranslation;
+use TheNguyen\CMS\Models\Slug;
+use TheNguyen\CMS\Models\Term;
+use TheNguyen\CMS\Models\TermTranslation;
+use TheNguyen\CMS\Models\Widget as WidgetModel;
+use TheNguyen\CMS\Models\WidgetArea;
+use TheNguyen\CMS\Models\WidgetTranslation;
+use TheNguyen\CMS\Registries\ComponentRegistry;
+use TheNguyen\CMS\Registries\SectionRegistry;
+use TheNguyen\CMS\Services\AccountManager;
+use TheNguyen\CMS\Services\AssetRegistry;
+use TheNguyen\CMS\Services\CmsCachePolicy;
+use TheNguyen\CMS\Services\ContentManager;
+use TheNguyen\CMS\Services\DemoImporter;
+use TheNguyen\CMS\Services\DemoMenuImporter;
+use TheNguyen\CMS\Services\DemoPageImporter;
+use TheNguyen\CMS\Services\ExtensionInstaller;
+use TheNguyen\CMS\Services\ExtensionManager;
+use TheNguyen\CMS\Services\ExtensionTranslationManager;
+use TheNguyen\CMS\Services\FormHookBridge;
+use TheNguyen\CMS\Services\FrontendAuthManager;
+use TheNguyen\CMS\Services\HomepageResolver;
+use TheNguyen\CMS\Services\HookManager;
+use TheNguyen\CMS\Services\HtmlSanitizer;
+use TheNguyen\CMS\Services\InstallerManager;
+use TheNguyen\CMS\Services\LanguageManager;
+use TheNguyen\CMS\Services\LayoutEditor;
 use TheNguyen\CMS\Services\LocalePreferenceManager;
+use TheNguyen\CMS\Services\LocalizedContentUrlService;
 use TheNguyen\CMS\Services\MaintenanceManager;
 use TheNguyen\CMS\Services\MediaManager;
 use TheNguyen\CMS\Services\MenuManager;
 use TheNguyen\CMS\Services\MenuMegaDataProvider;
-use TheNguyen\CMS\Services\PermalinkManager;
 use TheNguyen\CMS\Services\PageTemplateRegistry;
+use TheNguyen\CMS\Services\PermalinkManager;
 use TheNguyen\CMS\Services\PermissionManager;
 use TheNguyen\CMS\Services\PluginAssetPublisher;
 use TheNguyen\CMS\Services\PluginDatabaseManager;
 use TheNguyen\CMS\Services\PluginInstallationGuard;
 use TheNguyen\CMS\Services\PluginLifecycleManager;
 use TheNguyen\CMS\Services\PresetRepository;
-use TheNguyen\CMS\Services\LocalizedContentUrlService;
 use TheNguyen\CMS\Services\PreviewManager;
 use TheNguyen\CMS\Services\PreviewUrlService;
-use TheNguyen\CMS\Services\CmsCachePolicy;
 use TheNguyen\CMS\Services\PublicContentCacheManager;
 use TheNguyen\CMS\Services\ScriptManager;
 use TheNguyen\CMS\Services\ScriptSettingsRegistrar;
@@ -100,8 +100,8 @@ use TheNguyen\CMS\Services\SlugManager;
 use TheNguyen\CMS\Services\TaxonomyManager;
 use TheNguyen\CMS\Services\ThemeAssetManifestResolver;
 use TheNguyen\CMS\Services\ThemeAssetPublisher;
-use TheNguyen\CMS\Services\ThemeManager;
 use TheNguyen\CMS\Services\ThemeCustomCssManager;
+use TheNguyen\CMS\Services\ThemeManager;
 use TheNguyen\CMS\Services\ThemeOptionManager;
 use TheNguyen\CMS\Services\WidgetManager;
 use TheNguyen\CMS\Support\Hooks\HookContext;
@@ -551,7 +551,7 @@ class CmsServiceProvider extends ServiceProvider
 
         // Generic opt-in plugin public-asset provisioning (v1.0.0). Reusable by ANY plugin; holds no
         // plugin-specific logic. Copies a plugin's declared built assets into public/vendor/<slug>.
-        $this->app->singleton('cms.plugin_asset_publisher', fn () => new PluginAssetPublisher());
+        $this->app->singleton('cms.plugin_asset_publisher', fn () => new PluginAssetPublisher);
         $this->app->alias('cms.plugin_asset_publisher', PluginAssetPublisher::class);
 
         // Theme/Plugin ZIP Installer (v1.0.0-beta.2).
@@ -668,6 +668,33 @@ class CmsServiceProvider extends ServiceProvider
         ));
         $this->app->alias('cms.demo_page_importer', DemoPageImporter::class);
 
+        // EG-9 — native taxonomy/post importers + safe author resolver. Core owns
+        // every write through TaxonomyManager/ContentManager; the theme ships only
+        // declarative JSON.
+        $this->app->singleton('cms.demo_author_resolver', fn ($app) => new \TheNguyen\CMS\Services\DemoAuthorResolver(
+            $app->make('cms.permission'),
+        ));
+        $this->app->alias('cms.demo_author_resolver', \TheNguyen\CMS\Services\DemoAuthorResolver::class);
+
+        $this->app->singleton('cms.demo_category_importer', fn ($app) => new \TheNguyen\CMS\Services\DemoCategoryImporter(
+            $app->make(\TheNguyen\CMS\Services\TaxonomyManager::class),
+            $app->make('cms.language'),
+        ));
+        $this->app->alias('cms.demo_category_importer', \TheNguyen\CMS\Services\DemoCategoryImporter::class);
+
+        $this->app->singleton('cms.demo_tag_importer', fn ($app) => new \TheNguyen\CMS\Services\DemoTagImporter(
+            $app->make(\TheNguyen\CMS\Services\TaxonomyManager::class),
+            $app->make('cms.language'),
+        ));
+        $this->app->alias('cms.demo_tag_importer', \TheNguyen\CMS\Services\DemoTagImporter::class);
+
+        $this->app->singleton('cms.demo_post_importer', fn ($app) => new \TheNguyen\CMS\Services\DemoPostImporter(
+            $app->make(ContentManager::class),
+            $app->make('cms.language'),
+            $app->make('cms.demo_author_resolver'),
+        ));
+        $this->app->alias('cms.demo_post_importer', \TheNguyen\CMS\Services\DemoPostImporter::class);
+
         $this->app->singleton('cms.demo_importer', fn ($app) => new DemoImporter(
             $app->make('cms.settings'),
             $app->make('cms.theme_option'),
@@ -676,6 +703,9 @@ class CmsServiceProvider extends ServiceProvider
             $app->make('cms.extension'),
             $app->make('cms.demo_menu_importer'),
             $app->make('cms.demo_page_importer'),
+            $app->make('cms.demo_category_importer'),
+            $app->make('cms.demo_tag_importer'),
+            $app->make('cms.demo_post_importer'),
         ));
         $this->app->alias('cms.demo_importer', DemoImporter::class);
     }

@@ -41,7 +41,7 @@ use TheNguyen\CMS\Support\ImportResult;
 class DemoImporter
 {
     /** Logical files the core imports natively (everything else needs a handler). */
-    private const NATIVE_FILES = ['media', 'theme_options', 'homepage', 'menus', 'pages'];
+    private const NATIVE_FILES = ['media', 'theme_options', 'homepage', 'menus', 'pages', 'categories', 'tags', 'posts'];
 
     public function __construct(
         private readonly SettingsManager $settings,
@@ -51,6 +51,9 @@ class DemoImporter
         private readonly ExtensionManager $extensions,
         private readonly DemoMenuImporter $menus,
         private readonly DemoPageImporter $pages,
+        private readonly DemoCategoryImporter $categories,
+        private readonly DemoTagImporter $tags,
+        private readonly DemoPostImporter $posts,
     ) {}
 
     /**
@@ -172,6 +175,15 @@ class DemoImporter
         $warnings = [];
         $handled = [];
 
+        // EG-9 — one coherent symbol resolver per import run; media registers now,
+        // categories/tags/posts register themselves as they import. Deterministic
+        // source fingerprints and per-type id lists roll into provenance.
+        $resolver = new DemoSymbolResolver;
+        $fingerprints = [];
+        $categoryIds = [];
+        $tagIds = [];
+        $postIds = [];
+
         // --- 1. media (both package types) — import bundled assets, map keys → ids ---
         $existingKeys = $isReimport && is_array($existing['imported_keys'] ?? null) ? $existing['imported_keys'] : [];
         $importedKeys = [];
@@ -189,6 +201,14 @@ class DemoImporter
             } else {
                 $warnings[] = 'media file is missing or unsafe — skipped.';
                 $skipped[] = 'media';
+            }
+        }
+
+        // EG-9 — register imported media under the `media` namespace so
+        // categories/tags/posts can resolve `media:{key}` refs (no path guessing).
+        foreach ($importedKeys as $mediaKey => $mediaId) {
+            if (is_string($mediaKey) && (is_int($mediaId) || (is_string($mediaId) && ctype_digit($mediaId)))) {
+                $resolver->register('media', $mediaKey, (int) $mediaId);
             }
         }
 
@@ -230,6 +250,43 @@ class DemoImporter
         $pageIds = [];
 
         if ($package->isTheme()) {
+            // EG-9 dependency order: media → categories → tags → pages → posts.
+            // 1a. categories — hierarchical taxonomy terms (symbolic parents).
+            if ($package->fileName('categories') !== null) {
+                $handled['categories'] = true;
+                $file = $package->filePath('categories');
+                $data = $file !== null ? $this->readJson($file) : null;
+
+                if (is_array($data)) {
+                    [$map, $categoryIds, $fp, $w, $conflicts, $imported] = $this->categories->import($data, $resolver, $existingKeys);
+                    $importedKeys = array_merge($importedKeys, $map);
+                    $fingerprints = array_merge($fingerprints, $fp);
+                    $this->collect($warnings, 'categories', $w, $conflicts);
+                    $imported ? $steps[] = 'categories' : $skipped[] = 'categories';
+                } else {
+                    $warnings[] = 'categories file is missing or not valid JSON — skipped.';
+                    $skipped[] = 'categories';
+                }
+            }
+
+            // 1b. tags — flat taxonomy terms.
+            if ($package->fileName('tags') !== null) {
+                $handled['tags'] = true;
+                $file = $package->filePath('tags');
+                $data = $file !== null ? $this->readJson($file) : null;
+
+                if (is_array($data)) {
+                    [$map, $tagIds, $fp, $w, $conflicts, $imported] = $this->tags->import($data, $resolver, $existingKeys);
+                    $importedKeys = array_merge($importedKeys, $map);
+                    $fingerprints = array_merge($fingerprints, $fp);
+                    $this->collect($warnings, 'tags', $w, $conflicts);
+                    $imported ? $steps[] = 'tags' : $skipped[] = 'tags';
+                } else {
+                    $warnings[] = 'tags file is missing or not valid JSON — skipped.';
+                    $skipped[] = 'tags';
+                }
+            }
+
             // 1c. pages (CORE-THEME-2) — create/update the declared Pages with
             // their page-template identifiers; Core owns every write.
             if ($package->fileName('pages') !== null) {
@@ -271,6 +328,25 @@ class DemoImporter
                 } else {
                     $warnings[] = 'pages file is missing or unsafe — skipped.';
                     $skipped[] = 'pages';
+                }
+            }
+
+            // 1e. posts — Content(type=post) with taxonomy refs, featured media
+            // and safe author mapping (imported last so all refs resolve).
+            if ($package->fileName('posts') !== null) {
+                $handled['posts'] = true;
+                $file = $package->filePath('posts');
+                $data = $file !== null ? $this->readJson($file) : null;
+
+                if (is_array($data)) {
+                    [$map, $postIds, $fp, $w, $conflicts, $imported] = $this->posts->import($data, $resolver, $existingKeys);
+                    $importedKeys = array_merge($importedKeys, $map);
+                    $fingerprints = array_merge($fingerprints, $fp);
+                    $this->collect($warnings, 'posts', $w, $conflicts);
+                    $imported ? $steps[] = 'posts' : $skipped[] = 'posts';
+                } else {
+                    $warnings[] = 'posts file is missing or not valid JSON — skipped.';
+                    $skipped[] = 'posts';
                 }
             }
 
@@ -434,6 +510,14 @@ class DemoImporter
             'imported_keys' => $importedKeys,
             'imported_menu_ids' => $menuIds,
             'imported_page_ids' => $pageIds,
+            // EG-9 — per-type imported ids + deterministic source fingerprints
+            // (symbolic key => sha256 of normalized declarative source). These
+            // identify created vs safely-reused objects and owned-unchanged vs
+            // owned-source-changed; provenance-driven rollback lands in a later phase.
+            'imported_category_ids' => $categoryIds,
+            'imported_tag_ids' => $tagIds,
+            'imported_post_ids' => $postIds,
+            'fingerprints' => $fingerprints,
         ], 'array', [
             'is_public' => false,
             'autoload' => false,
@@ -509,6 +593,40 @@ class DemoImporter
             }
         }
 
+        // EG-9 — remove importer-owned posts FIRST (their post↔term relations
+        // cascade), so any taxonomy still referenced afterwards is external (user)
+        // content preserved by the shared-taxonomy guard below.
+        $postIds = is_array($provenance['imported_post_ids'] ?? null) ? $provenance['imported_post_ids'] : [];
+        if ($postIds !== []) {
+            foreach ($this->posts->deleteImported($postIds) as $deletedId) {
+                $restored[] = 'post:'.$deletedId;
+            }
+        }
+
+        // EG-9 — remove importer-owned categories/tags by provenance id, but never
+        // a term a user object still references (shared-taxonomy safety).
+        $categoryIds = is_array($provenance['imported_category_ids'] ?? null) ? $provenance['imported_category_ids'] : [];
+        if ($categoryIds !== []) {
+            [$deletedCats, $preservedCats] = $this->categories->deleteImported($categoryIds);
+            foreach ($deletedCats as $deletedId) {
+                $restored[] = 'category:'.$deletedId;
+            }
+            foreach ($preservedCats as $preservedId) {
+                $warnings[] = "category #{$preservedId} is still referenced by other content — preserved (not deleted).";
+            }
+        }
+
+        $tagIds = is_array($provenance['imported_tag_ids'] ?? null) ? $provenance['imported_tag_ids'] : [];
+        if ($tagIds !== []) {
+            [$deletedTags, $preservedTags] = $this->tags->deleteImported($tagIds);
+            foreach ($deletedTags as $deletedId) {
+                $restored[] = 'tag:'.$deletedId;
+            }
+            foreach ($preservedTags as $preservedId) {
+                $warnings[] = "tag #{$preservedId} is still referenced by other content — preserved (not deleted).";
+            }
+        }
+
         if (! empty($provenance['handler_ran'])) {
             $warnings[] = 'Data imported by a custom handler was not automatically reverted.';
         }
@@ -547,9 +665,11 @@ class DemoImporter
         $existing = $this->settings->get($this->provenanceKey($owner, $package->slug));
         $isReimport = is_array($existing);
         $existingKeys = $isReimport && is_array($existing['imported_keys'] ?? null) ? $existing['imported_keys'] : [];
+        $priorFingerprints = $isReimport && is_array($existing['fingerprints'] ?? null) ? $existing['fingerprints'] : [];
 
         $actions = [];
         $warnings = [];
+        $conflicts = [];
 
         // media — new rows vs reused rows per import key.
         if ($package->fileName('media') !== null) {
@@ -612,6 +732,29 @@ class DemoImporter
                 }
             }
 
+            // EG-9 — categories / tags / posts forecast (zero writes). A plan
+            // resolver seeded from prior imported keys + this run's declared keys
+            // lets forward/cross refs resolve during planning.
+            $planResolver = $this->buildPlanResolver($package, $existingKeys);
+
+            if ($package->fileName('categories') !== null && ($f = $package->filePath('categories')) !== null && is_array($d = $this->readJson($f))) {
+                [$a, $c] = $this->categories->plan($d, $planResolver, $existingKeys, $priorFingerprints);
+                $actions = array_merge($actions, $a);
+                $conflicts = array_merge($conflicts, $c);
+            }
+
+            if ($package->fileName('tags') !== null && ($f = $package->filePath('tags')) !== null && is_array($d = $this->readJson($f))) {
+                [$a, $c] = $this->tags->plan($d, $existingKeys, $priorFingerprints);
+                $actions = array_merge($actions, $a);
+                $conflicts = array_merge($conflicts, $c);
+            }
+
+            if ($package->fileName('posts') !== null && ($f = $package->filePath('posts')) !== null && is_array($d = $this->readJson($f))) {
+                [$a, $c] = $this->posts->plan($d, $planResolver, $existingKeys, $priorFingerprints);
+                $actions = array_merge($actions, $a);
+                $conflicts = array_merge($conflicts, $c);
+            }
+
             if ($package->fileName('theme_options') !== null) {
                 $data = ($f = $package->filePath('theme_options')) !== null ? $this->readJson($f) : null;
                 $count = is_array($data) ? count(is_array($data['options'] ?? null) ? $data['options'] : []) : 0;
@@ -649,7 +792,53 @@ class DemoImporter
             'preflight' => $preflight,
             'actions' => $actions,
             'warnings' => $warnings,
+            'conflicts' => $conflicts,
         ];
+    }
+
+    /**
+     * Build a read-only plan resolver: prior imported symbolic keys plus every
+     * symbolic key DECLARED in this run's media/categories/tags/posts files
+     * (registered with a sentinel id) so preview can classify cross/forward refs
+     * as resolvable vs missing without importing anything.
+     *
+     * @param  array<string, int|string>  $existingKeys
+     */
+    private function buildPlanResolver(DemoPackage $package, array $existingKeys): DemoSymbolResolver
+    {
+        $resolver = DemoSymbolResolver::fromImportedKeys($existingKeys);
+
+        $sources = [
+            'media' => ['media', 'media'],
+            'categories' => ['categories', 'category'],
+            'tags' => ['tags', 'tag'],
+            'posts' => ['posts', 'post'],
+        ];
+
+        foreach ($sources as $logical => [$listKey, $namespace]) {
+            if ($package->fileName($logical) === null) {
+                continue;
+            }
+
+            $file = $package->filePath($logical);
+            $data = $file !== null ? $this->readJson($file) : null;
+
+            if (! is_array($data)) {
+                continue;
+            }
+
+            $items = is_array($data[$listKey] ?? null) ? $data[$listKey] : (array_is_list($data) ? $data : []);
+
+            foreach ($items as $item) {
+                if (is_array($item) && is_string($item['key'] ?? null) && trim($item['key']) !== '') {
+                    // Sentinel id (1): "would exist after apply"; a real prior id is
+                    // never overwritten (register() keeps the first registration).
+                    $resolver->register($namespace, trim($item['key']), 1);
+                }
+            }
+        }
+
+        return $resolver;
     }
 
     /**
@@ -681,6 +870,26 @@ class DemoImporter
             }
 
             $out[$package->id()] = $package;
+        }
+    }
+
+    /**
+     * Roll an EG-9 importer's warnings and classified conflicts into the shared
+     * warnings list under a logical prefix. Conflicts keep their class + symbolic
+     * key so the outcome is never a flat "already exists".
+     *
+     * @param  array<int, string>  $warnings  (by reference) the shared list
+     * @param  array<int, string>  $importerWarnings
+     * @param  array<int, array{key: string, class: string}>  $conflicts
+     */
+    private function collect(array &$warnings, string $prefix, array $importerWarnings, array $conflicts): void
+    {
+        foreach ($importerWarnings as $warning) {
+            $warnings[] = $prefix.': '.$warning;
+        }
+
+        foreach ($conflicts as $conflict) {
+            $warnings[] = $prefix.': ['.$conflict['class'].'] '.$conflict['key'];
         }
     }
 

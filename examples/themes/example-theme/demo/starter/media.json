@@ -1,0 +1,13 @@
+{
+    "_doc": "EG-9 demo media. Each item maps a symbolic key to a bundled asset; posts/categories reference it as media:{key}. Never a numeric id.",
+    "media": [
+        {
+            "key": "starter-post-cover",
+            "file": "post-cover.png",
+            "type": "image/png",
+            "width": 1,
+            "height": 1,
+            "alt": "Starter post cover"
+        }
+    ]
+}

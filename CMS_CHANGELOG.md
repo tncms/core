@@ -16,6 +16,81 @@ this project adheres to [Semantic Versioning](https://semver.org).
 
 ---
 
+## [1.0.0-beta.7.1.27] — Native Theme Demo Posts & Taxonomy Import (EG-9) — 2026-09-06
+
+Extends the native demo importer beyond media/menus/pages so a theme demo preset
+can also declare **categories, tags and posts** as declarative JSON — imported
+through the existing Core write authorities (`TaxonomyManager`, `ContentManager`),
+never arbitrary theme PHP or raw database ids.
+
+### Added
+
+- **Native taxonomy/post importers** (`DemoCategoryImporter`, `DemoTagImporter`,
+  `DemoPostImporter`) wired into `DemoImporter` in a deterministic dependency
+  order: `media → categories → tags → pages → posts`.
+- **Symbolic references** (`DemoSymbolResolver`): one coherent resolver for the
+  `media:` `category:` `tag:` `page:` `post:` namespaces. Symbolic keys are the
+  demo's import identity — never database ids, never localized slugs — and the
+  resolver distinguishes resolved / unresolved / wrong-namespace / malformed /
+  duplicate declarations.
+- **Deterministic source fingerprints** (`DemoFingerprint`): a normalized SHA-256
+  of the declarative object, independent of ids/timestamps, recorded per symbolic
+  key in provenance to tell owned-unchanged from owned-source-changed.
+- **Conflict classification model** (`DemoConflict`): importer outcomes are
+  classified (e.g. `UNOWNED_SAME_SLUG`, `SYMBOL_DUPLICATE`, `AUTHOR_UNRESOLVED`,
+  `MEDIA_UNRESOLVED`, `TAXONOMY_UNRESOLVED`) rather than a flat "already exists".
+- **Safe author mapping** (`DemoAuthorResolver`): strategy tokens only
+  (`current_admin`, `first_super_admin`, `configured_fallback`); an unresolved
+  author fails closed (the post is skipped), never auto-creating a privileged user.
+- **Featured media by symbolic ref**: `featured_media: media:{key}` resolves only
+  through imported/reused media provenance (no filename/path guessing).
+- **Provenance extension**: `demo.imports.{owner}.{slug}` now also records
+  `imported_category_ids`, `imported_tag_ids`, `imported_post_ids` and
+  `fingerprints` (surgical extension of the existing ledger).
+- **Preview / dry-run (zero-write)**: the demo plan forecasts every
+  media/category/tag/page/post outcome — including symbol resolution, conflict
+  class, author and featured-media resolution — with **zero** database, provenance
+  or media mutation.
+- **Conflict classification model** (`DemoConflict`): the certified runtime set is
+  `OWNED_MATCH`, `OWNED_CHANGED`, `UNOWNED_SAME_SLUG`,
+  `UNOWNED_SAME_TRANSLATED_SLUG`, `SYMBOL_DUPLICATE`, `AUTHOR_UNRESOLVED`,
+  `MEDIA_UNRESOLVED`, `TAXONOMY_UNRESOLVED` — default-locale vs translated-locale
+  slug collisions are distinguished. (`UNOWNED_SAME_TITLE` / `SYMBOL_MISSING`
+  remain documentary; Core has no title-uniqueness constraint.)
+- **Idempotent retry**: re-importing the same preset creates zero duplicate
+  categories, tags, posts, translations, slugs or post↔term relations.
+- **Ownership-safe rollback**: reset is driven only by the provenance ledger
+  (never slug/title lookup) — importer-owned posts and safe importer-owned
+  relations are removed while unrelated user content and any shared taxonomy a
+  user object still references are preserved.
+- **Theme Example**: the `example-theme` starter preset gains a generic blog graph
+  (`media:starter-post-cover → category:news → tag:tncms → post:hello-tncms`;
+  VI/EN) proving the schema end-to-end. Source-package-only (never shipped in the
+  runtime install/upgrade packages).
+
+### Notes
+
+- **Architecture**: the theme owns the declarative demo corpus; Core owns
+  validation, symbol resolution, persistence, conflict classification,
+  fingerprints, provenance, idempotency, rollback and security. No arbitrary
+  executable theme PHP; no raw database ids in demo data.
+- Ownership is provenance-derived; a slug/title collision never claims a user
+  object. A user term/post colliding on a slug is preserved and the demo row takes
+  a distinct (suffixed) slug from the Core slug authority. There is **no ownership
+  backfill** of pre-existing user rows on upgrade.
+- **EG-9 has no migration**: it overlays Core source only; a `.26 → .27` upgrade
+  reports "Nothing to migrate" and preserves `.env`, `APP_KEY`, active theme and
+  all user content byte-for-byte.
+- **Active-theme scope**: preview/import are scoped to the committed active theme
+  (`settings('theme.active')` / `ThemeManager`); a non-active theme's preset is
+  rejected server-side. `config('cms.theme.active')` / `CMS_ACTIVE_THEME` carry no
+  runtime authority once committed state exists (CORE-THEME-3 preserved).
+- **EG-8**: audited — existing Core presentation data is sufficient; themes render
+  demo posts/archives with no theme-side model query, so no EG-8 production seam
+  was added. **EG-7** external synchronous `theme-mode-boot.js` contract preserved.
+
+---
+
 ## [1.0.0-beta.7.1.26] — Active-Theme Diagnostics Authority Unification (CORE-THEME-3) — 2026-09-05
 
 Fixes the active-theme split-brain where the Dashboard environment summary
