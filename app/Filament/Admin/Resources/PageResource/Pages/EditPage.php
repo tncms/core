@@ -65,6 +65,13 @@ class EditPage extends EditRecord
         $data['type'] = 'page';
         $data['locale'] = $this->selectedLocale();
 
+        // The Classic Editor field dehydrates a cleared editor as null, but a
+        // null body means "not provided" to ContentManager (its null-merge
+        // keeps the existing translation body). The form always submits the
+        // content field, so an explicit empty save must persist empty instead
+        // of resurrecting the old body (CORE-EDITOR-1B).
+        $data['content'] = (string) ($data['content'] ?? '');
+
         /** @var Content $record */
         return $contents->update($record, $data);
     }

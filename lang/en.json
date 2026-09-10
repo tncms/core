@@ -368,6 +368,7 @@
     "The plugin is missing or has an invalid manifest. It remains inactive.": "The plugin is missing or has an invalid manifest. It remains inactive.",
     "The plugin was not active. It remains unchanged.": "The plugin was not active. It remains unchanged.",
     "The published page rendered as the maintenance page.": "The published page rendered as the maintenance page.",
+    "The rich text editor failed to load. You are editing the raw HTML directly; your changes will still be saved.": "The rich text editor failed to load. You are editing the raw HTML directly; your changes will still be saved.",
     "The theme is missing, has an invalid manifest, lacks required views, or its assets could not be published. The current active theme is unchanged.": "The theme is missing, has an invalid manifest, lacks required views, or its assets could not be published. The current active theme is unchanged.",
     "Theme \":slug\" activated": "Theme \":slug\" activated",
     "Theme \":slug\" could not be activated": "Theme \":slug\" could not be activated",

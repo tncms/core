@@ -368,6 +368,7 @@
     "The plugin is missing or has an invalid manifest. It remains inactive.": "Tiện ích bị thiếu hoặc có manifest không hợp lệ. Nó vẫn ở trạng thái không hoạt động.",
     "The plugin was not active. It remains unchanged.": "Tiện ích không ở trạng thái hoạt động. Nó được giữ nguyên.",
     "The published page rendered as the maintenance page.": "Trang đã xuất bản được dùng làm trang bảo trì.",
+    "The rich text editor failed to load. You are editing the raw HTML directly; your changes will still be saved.": "Trình soạn thảo văn bản không tải được. Bạn đang chỉnh sửa trực tiếp mã HTML; các thay đổi vẫn sẽ được lưu.",
     "The theme is missing, has an invalid manifest, lacks required views, or its assets could not be published. The current active theme is unchanged.": "Giao diện bị thiếu, có manifest không hợp lệ, thiếu các view bắt buộc, hoặc không thể xuất bản tài nguyên của nó. Giao diện đang dùng hiện tại được giữ nguyên.",
     "Theme \":slug\" activated": "Đã kích hoạt giao diện \":slug\"",
     "Theme \":slug\" could not be activated": "Không thể kích hoạt giao diện \":slug\"",

@@ -9,7 +9,13 @@
         wire:ignore
         x-data="cmsRichEditor('{{ $getStatePath() }}', {{ $getEditorHeight() }}, @js($getMediaItems()))"
     >
-        <textarea x-ref="input" style="width:100%;min-height:{{ $getEditorHeight() }}px;">{{ $getState() }}</textarea>
+        <textarea x-ref="input" x-on:input="syncFallback()" style="width:100%;min-height:{{ $getEditorHeight() }}px;">{{ $getState() }}</textarea>
+
+        {{-- Writable-fallback notice (CORE-EDITOR-1B): shown only when TinyMCE
+             failed to load and the plain textarea is the live editor. --}}
+        <p x-show="fallbackMode" x-cloak class="cms-re-fallback-note" role="status">
+            {{ tn_trans('The rich text editor failed to load. You are editing the raw HTML directly; your changes will still be saved.') }}
+        </p>
 
         {{-- Insert Media modal (teleported to body so it sits above the editor). --}}
         <template x-teleport="body">
@@ -150,6 +156,7 @@
 @assets
 <style>
     [x-cloak]{display:none!important;}
+    .cms-re-fallback-note{margin:.5rem 0 0;font-size:.8rem;color:#b45309;}
 
     /* ---- Insert Media modal (cms-mm-*) ---- */
     .cms-mm-overlay{position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;padding:1rem;}
@@ -240,6 +247,7 @@
             height: height || 500,
             editor: null,
             dark: false,
+            fallbackMode: false,
 
             // Media modal state (per editor instance).
             media: Array.isArray(mediaItems) ? mediaItems : [],
@@ -260,7 +268,11 @@
                 window.cmsLoadTinyMce().then(function () {
                     self.boot();
                 }).catch(function () {
-                    // Assets unavailable: leave the plain textarea as a fallback.
+                    // Assets unavailable: the plain textarea becomes the real
+                    // editor (CORE-EDITOR-1B). It has no wire:model, so without
+                    // syncFallback() a save would silently persist the stale
+                    // server-side state while notifying success.
+                    self.fallbackMode = true;
                 });
                 document.addEventListener('livewire:navigating', function () {
                     if (self.editor) {
@@ -268,6 +280,16 @@
                         self.editor = null;
                     }
                 }, { once: true });
+            },
+
+            // Sync textarea edits to Livewire whenever TinyMCE is not managing
+            // the field — the load-failure fallback, and the window before a
+            // slow TinyMCE boot takes over (its init setContent reads the
+            // synced state, so nothing typed early is lost either way).
+            syncFallback: function () {
+                if (this.editor === null) {
+                    this.$wire.set(statePath, this.$refs.input.value, false);
+                }
             },
 
             filteredMedia: function () {

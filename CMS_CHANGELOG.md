@@ -16,6 +16,63 @@ this project adheres to [Semantic Versioning](https://semver.org).
 
 ---
 
+## [1.0.0-beta.7.1.28] — Classic Editor TinyMCE Distribution & Content Persistence (CORE-EDITOR-1) — 2026-09-09
+
+Repairs the Classic Editor regression present in **every** public package since
+the distribution split (`.21`–`.27`): no released source/install/upgrade ZIP
+ever contained the self-hosted TinyMCE runtime, so `/vendor/tinymce/tinymce.min.js`
+returned 404 on real installs, the editor fell back to a plain textarea — and,
+because that fallback had no Livewire binding, **Save reported success while
+persisting the old content** (false success, reproduced on authentic public `.27`).
+
+### Fixed
+
+- **Classic Editor TinyMCE runtime restored in distribution** (CORE-EDITOR-1A).
+  `public/vendor/tinymce` (git-tracked, TinyMCE 8.5.1 GPL, Core-owned per
+  `core_ownership`) now ships in the source, install and upgrade profiles. The
+  blanket `public/vendor/` exclusion was the root cause: it stripped an asset
+  no build/publish step regenerates. Only non-Core plugin-published vendor
+  assets (`public/vendor/page-builder/`) remain excluded.
+- **Upgrade delivers/restores TinyMCE**: `public/vendor/tinymce` was already a
+  `replace_dirs` entry, but the package never carried it so the apply engine
+  skipped it. With the payload present, a `.27 → .28` upgrade materialises the
+  editor runtime on sites that never had it.
+- **Classic Editor writable fallback** (CORE-EDITOR-1B). When TinyMCE cannot
+  load, the plain textarea now syncs its edits into Livewire state
+  (`syncFallback()`) and announces fallback mode (EN/VI). Previously the
+  textarea was a dead end: edits never reached the server, Save re-persisted
+  the stale state and notified success.
+- **Cleared content no longer resurrects the old body.** Filament dehydrates an
+  emptied editor as `null`, which `ContentManager` treats as "not provided"
+  (null-merge keeps the existing translation body). The Post/Page create/edit
+  pages now submit an explicit empty string, so non-empty → empty saves persist.
+
+### Added
+
+- **Package gate for editor assets**: `install_required`/`upgrade_required` now
+  hard-require the exact TinyMCE member set the editor loads at runtime
+  (core, silver theme, dom model, icons, oxide/oxide-dark skins, content CSS,
+  lists/link/table/code/image/autolink plugins) — a package missing the editor
+  can never verify again (same pattern as the published-theme asset gate).
+- **Regression tests**: distribution contract
+  (`EditorRuntimeAssetDistributionTest`, monorepo-only), writable-fallback
+  contract (`RichEditorFallbackContractTest`) and a Livewire persistence matrix
+  (`ClassicEditorPersistenceTest`: Posts/Pages × create/edit × EN/VI,
+  HTML preservation, empty/legacy-null semantics, locale isolation,
+  unrelated-field preservation).
+
+### Notes
+
+- The user-visible history ("worked on `.25`, broke on `.27`") is a deployment
+  artifact: no public package ever shipped TinyMCE, so a working `.25` editor
+  means the runtime was delivered outside official packaging (e.g. monorepo
+  deploy or manual copy). Upgrades neither removed nor restored it before this
+  release (the dir was skipped when absent from the payload).
+- Multilingual save semantics are unchanged: a save writes only the selected
+  editing locale's translation; other locales are untouched.
+
+---
+
 ## [1.0.0-beta.7.1.27] — Native Theme Demo Posts & Taxonomy Import (EG-9) — 2026-09-06
 
 Extends the native demo importer beyond media/menus/pages so a theme demo preset

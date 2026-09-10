@@ -72,6 +72,13 @@ class EditPost extends EditRecord
         $data['type'] = 'post';
         $data['locale'] = $locale;
 
+        // The Classic Editor field dehydrates a cleared editor as null, but a
+        // null body means "not provided" to ContentManager (its null-merge
+        // keeps the existing translation body). The form always submits the
+        // content field, so an explicit empty save must persist empty instead
+        // of resurrecting the old body (CORE-EDITOR-1B).
+        $data['content'] = (string) ($data['content'] ?? '');
+
         // Preserve assignments the editing locale cannot see, so a strict-locale
         // save does not drop a foreign-locale term during the full term sync.
         $preserved = PostResource::termsForForm($record, $locale)['preserved'];
