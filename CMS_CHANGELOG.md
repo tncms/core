@@ -16,6 +16,64 @@ this project adheres to [Semantic Versioning](https://semver.org).
 
 ---
 
+## [1.0.0-beta.7.1.29] — Secure Post-Detail Presentation Contracts (CORE-BLOG-1) — 2026-10-02
+
+Adds a secure, query-free presentation contract for the single post-detail view
+so themes render blog pages from safe value objects instead of raw Eloquent
+models. Purely additive: every existing post-detail variable is preserved and no
+data migration or backfill is required. The bundled default theme and the Page
+Builder related block both consume the new contracts.
+
+### Added
+
+- **Secure post-detail ViewModels** (`TheNguyen\CMS\View`): `BreadcrumbItemViewModel`,
+  `TaxonomyLinkViewModel`, `AdjacentPostViewModel`, `PublicAuthorViewModel`,
+  `PostCardViewModel` — all `final readonly`, model-free, with a safe `toArray()`,
+  reusing `MediaViewModel` where applicable.
+- **Locale-aware breadcrumbs** (`$breadcrumbs`): Home → first resolvable category →
+  current post, via `DefaultPostBreadcrumbResolver`. Current item is non-link; the
+  category segment is omitted when the post has no category. JSON-LD ownership is
+  unchanged.
+- **Safe category projection** (`$categories = TaxonomyLinkViewModel[]`) with
+  locale-aware URLs. Themes no longer need the raw category term.
+- **Previous/next contracts** (`$previousPost` / `$nextPost = AdjacentPostViewModel|null`):
+  previous = older, next = newer, same type and locale, published only,
+  deterministic by `(published_at, id)`, null at the first/last boundary. No
+  theme-owned adjacency queries.
+- **Public-author privacy contract** (`$publicAuthor = PublicAuthorViewModel|null`,
+  and `$author` as the same safe alias): exposes only name, avatar, bio and URL.
+  Email, phone, login, roles, permissions, account state and the raw
+  `App\Models\User` never reach the post-detail view. Missing, deleted or unnamed
+  authors degrade safely.
+- **Related posts** (`$relatedPosts = PostCardViewModel[]`): shared category or tag,
+  self excluded, published only, same locale, newest-first by `(published_at, id)`,
+  default limit 3 (hard-bounded ≤24). When the current post has no terms it falls
+  back to the latest posts excluding self.
+- **Shared related selector** (`TheNguyen\CMS\Services\Blog\RelatedContentSelector`):
+  the frontend resolver and the Page Builder `source_type=related` section now
+  share one selection algorithm — identical IDs and order for an equivalent
+  current-post context.
+
+### Changed
+
+- The post-detail view receives `$author` as a `PublicAuthorViewModel` instead of a
+  raw `App\Models\User`. Existing variables — `title`, `body`, `excerpt`,
+  `featuredImage`, `publishedAt`, `showPageTitle` — are unchanged.
+- The whole certified post-detail request stays within a bounded query plan
+  (≤60 queries); related translations, terms, taxonomies and media are batched —
+  no per-card N+1 as related cardinality grows.
+
+### Notes
+
+- Backward compatibility: the legacy `$tags` (array of `Term`) and legacy `$content`
+  remain for this release and are not changed.
+- Popular Posts is **not** supported in this release. No view/comment/term-count
+  ranking, view tracking or related popularity signal is introduced; dormant
+  counters remain unused.
+- The new contracts impose a **zero** theme-owned query requirement: a theme can
+  render breadcrumbs, categories, adjacent posts, the public author and related
+  posts without issuing its own Post/Content, media, taxonomy, user or DB queries.
+
 ## [1.0.0-beta.7.1.28] — Classic Editor TinyMCE Distribution & Content Persistence (CORE-EDITOR-1) — 2026-09-09
 
 Repairs the Classic Editor regression present in **every** public package since

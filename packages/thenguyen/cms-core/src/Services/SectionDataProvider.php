@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schema;
 use TheNguyen\CMS\Models\Content;
+use TheNguyen\CMS\Services\Blog\RelatedContentSelector;
 
 /**
  * Section data source (theme-implementation; Phase 9B).
@@ -67,7 +68,10 @@ class SectionDataProvider
         // no flat list and is placeholder/manual-only.
     ];
 
-    public function __construct(private readonly ThemeManager $themes) {}
+    public function __construct(
+        private readonly ThemeManager $themes,
+        private readonly RelatedContentSelector $relatedSelector,
+    ) {}
 
     /**
      * Raw repeater values to inject for a section, or null to leave the authored
@@ -577,6 +581,10 @@ class SectionDataProvider
      * homepage) or the chosen relation has nothing to match on. Never queries
      * from Blade — the current post is threaded in by the SectionResolver.
      *
+     * The relation algorithm itself lives in the shared {@see RelatedContentSelector}
+     * (CORE-BLOG-1) so the Page Builder related source and the frontend
+     * post-detail related resolver use one identical implementation.
+     *
      * @param  \Illuminate\Database\Eloquent\Builder<Content>  $query
      * @param  array<string, mixed>  $settings
      */
@@ -588,66 +596,7 @@ class SectionDataProvider
 
         $mode = $this->stringSetting($settings, 'related_mode') ?? 'automatic';
 
-        if ($mode === 'current_post_only') {
-            $query->whereKey([$currentPost->getKey()]);
-
-            return true;
-        }
-
-        // A post is never "related" to itself.
-        $query->whereKeyNot($currentPost->getKey());
-
-        $categoryIds = $this->postTermIds($currentPost, 'category');
-        $tagIds = $this->postTermIds($currentPost, 'tag');
-
-        switch ($mode) {
-            case 'same_category':
-                if ($categoryIds === []) {
-                    return false;
-                }
-                $this->whereInTaxonomy($query, 'category', $categoryIds);
-
-                return true;
-
-            case 'same_tags':
-                if ($tagIds === []) {
-                    return false;
-                }
-                $this->whereInTaxonomy($query, 'tag', $tagIds);
-
-                return true;
-
-            case 'same_author':
-                if ($currentPost->author_id === null) {
-                    return false;
-                }
-                $query->where('author_id', $currentPost->author_id);
-
-                return true;
-
-            case 'automatic':
-            default:
-                // Posts sharing any category OR tag with the current post.
-                if ($categoryIds === [] && $tagIds === []) {
-                    return true; // degrade to "latest excluding self"
-                }
-
-                $query->where(function ($q) use ($categoryIds, $tagIds): void {
-                    if ($categoryIds !== []) {
-                        $q->orWhereHas('terms', static fn ($t) => $t
-                            ->whereHas('taxonomy', static fn ($x) => $x->where('type', 'category'))
-                            ->whereIn('cms_terms.id', $categoryIds));
-                    }
-
-                    if ($tagIds !== []) {
-                        $q->orWhereHas('terms', static fn ($t) => $t
-                            ->whereHas('taxonomy', static fn ($x) => $x->where('type', 'tag'))
-                            ->whereIn('cms_terms.id', $tagIds));
-                    }
-                });
-
-                return true;
-        }
+        return $this->relatedSelector->apply($query, $currentPost, $mode);
     }
 
     /**
@@ -674,20 +623,6 @@ class SectionDataProvider
         $query->whereDoesntHave('terms', static fn ($q) => $q
             ->whereHas('taxonomy', static fn ($t) => $t->where('type', $type))
             ->whereIn('cms_terms.id', $termIds));
-    }
-
-    /**
-     * The current post's term ids for a taxonomy type (used by `related`).
-     *
-     * @return array<int, int>
-     */
-    private function postTermIds(Content $post, string $type): array
-    {
-        return $post->terms()
-            ->whereHas('taxonomy', static fn ($t) => $t->where('type', $type))
-            ->pluck('cms_terms.id')
-            ->map(static fn ($id) => (int) $id)
-            ->all();
     }
 
     /**

@@ -58,7 +58,7 @@
                             <ul class="post-list">
                                 @foreach (collect($relatedPosts)->take($relatedCount) as $related)
                                     <li class="post-list__item">
-                                        <a class="post-list__link" href="{{ content_url($related) }}">{{ $related->translatedTitle() }}</a>
+                                        <a class="post-list__link" href="{{ $related->url }}">{{ $related->title }}</a>
                                     </li>
                                 @endforeach
                             </ul>

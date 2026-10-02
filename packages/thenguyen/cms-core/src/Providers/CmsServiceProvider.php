@@ -17,6 +17,10 @@ use TheNguyen\CMS\Console\Commands\PluginDeactivateCommand;
 use TheNguyen\CMS\Console\Commands\PluginListCommand;
 use TheNguyen\CMS\Console\Commands\SlugRebuildCommand;
 use TheNguyen\CMS\Console\Commands\ThemePublishCommand;
+use TheNguyen\CMS\Contracts\AdjacentPostResolver;
+use TheNguyen\CMS\Contracts\PostBreadcrumbResolver;
+use TheNguyen\CMS\Contracts\PublicAuthorResolver;
+use TheNguyen\CMS\Contracts\RelatedPostResolver;
 use TheNguyen\CMS\Http\Middleware\RedirectDefaultLocalePrefix;
 use TheNguyen\CMS\Localization\Contracts\LanguageConfigurationContract;
 use TheNguyen\CMS\Localization\Contracts\LocalizationStrategyContract;
@@ -55,6 +59,12 @@ use TheNguyen\CMS\Registries\ComponentRegistry;
 use TheNguyen\CMS\Registries\SectionRegistry;
 use TheNguyen\CMS\Services\AccountManager;
 use TheNguyen\CMS\Services\AssetRegistry;
+use TheNguyen\CMS\Services\Blog\DefaultAdjacentPostResolver;
+use TheNguyen\CMS\Services\Blog\DefaultPostBreadcrumbResolver;
+use TheNguyen\CMS\Services\Blog\DefaultPublicAuthorResolver;
+use TheNguyen\CMS\Services\Blog\DefaultRelatedPostResolver;
+use TheNguyen\CMS\Services\Blog\PostTaxonomyProjector;
+use TheNguyen\CMS\Services\Blog\RelatedContentSelector;
 use TheNguyen\CMS\Services\CmsCachePolicy;
 use TheNguyen\CMS\Services\ContentManager;
 use TheNguyen\CMS\Services\DemoImporter;
@@ -617,6 +627,7 @@ class CmsServiceProvider extends ServiceProvider
 
         $this->app->singleton('cms.section_data', fn ($app) => new SectionDataProvider(
             $app->make('cms.theme'),
+            $app->make(RelatedContentSelector::class),
         ));
         $this->app->alias('cms.section_data', SectionDataProvider::class);
 
@@ -627,6 +638,22 @@ class CmsServiceProvider extends ServiceProvider
             $app->make('cms.section_data'),
         ));
         $this->app->alias('cms.section_resolver', SectionResolver::class);
+
+        // CORE-BLOG-1: secure post-detail presentation resolvers. Each is an
+        // additive, independently testable contract (Option B). The related
+        // selector is shared with the Page Builder related source above.
+        $this->app->singleton(RelatedContentSelector::class);
+        $this->app->singleton(PostTaxonomyProjector::class);
+        $this->app->singleton(PostBreadcrumbResolver::class, fn ($app) => new DefaultPostBreadcrumbResolver(
+            $app->make('cms.language'),
+            $app->make(PostTaxonomyProjector::class),
+        ));
+        $this->app->singleton(AdjacentPostResolver::class, DefaultAdjacentPostResolver::class);
+        $this->app->singleton(PublicAuthorResolver::class, DefaultPublicAuthorResolver::class);
+        $this->app->singleton(RelatedPostResolver::class, fn ($app) => new DefaultRelatedPostResolver(
+            $app->make(RelatedContentSelector::class),
+            $app->make(PostTaxonomyProjector::class),
+        ));
 
         $this->app->singleton('cms.preset', fn ($app) => new PresetRepository($app->make('cms.theme')));
         $this->app->alias('cms.preset', PresetRepository::class);

@@ -6,9 +6,14 @@ namespace TheNguyen\CMS\Http\Controllers;
 
 use Illuminate\Support\Facades\View;
 use Symfony\Component\HttpFoundation\Response;
+use TheNguyen\CMS\Contracts\AdjacentPostResolver;
+use TheNguyen\CMS\Contracts\PostBreadcrumbResolver;
+use TheNguyen\CMS\Contracts\PublicAuthorResolver;
+use TheNguyen\CMS\Contracts\RelatedPostResolver;
 use TheNguyen\CMS\Localization\CurrentResourcePublisher;
 use TheNguyen\CMS\Models\Content;
 use TheNguyen\CMS\Models\Term;
+use TheNguyen\CMS\Services\Blog\PostTaxonomyProjector;
 use TheNguyen\CMS\Services\ContentManager;
 use TheNguyen\CMS\Services\HomepageResolver;
 use TheNguyen\CMS\Services\LanguageManager;
@@ -554,7 +559,10 @@ class FrontendController
         // here (controller layer) so the theme never queries the database; the
         // theme toggles visibility via show_post_author / show_post_tags.
         if ($content->type === 'post') {
-            $data['author'] = $content->author;
+            // CORE-BLOG-1: the raw App\Models\User author is NO LONGER exposed to
+            // the theme. A privacy-safe PublicAuthorViewModel is attached below via
+            // postPresentationData() (as both $publicAuthor and the legacy $author).
+            //
             // Strictly per-locale tags: only tags that actually have a
             // translation (name + slug) in the CURRENT locale are exposed to the
             // theme. Foreign-locale tags kept attached for preservation
@@ -567,6 +575,11 @@ class FrontendController
                     ->whereNotNull('name')->where('name', '!=', ''))
                 ->with(['taxonomy', 'translations' => fn ($q) => $q->where('locale', $locale)])
                 ->get();
+
+            // CORE-BLOG-1: secure, model-free post-detail presentation contracts
+            // (breadcrumbs, categories, previous/next, public author, related).
+            // array_merge so $author/$publicAuthor resolve to the safe ViewModel.
+            $data = array_merge($data, $this->postPresentationData($content, $locale));
         }
 
         $html = View::make($view, $data)->render();
@@ -576,6 +589,35 @@ class FrontendController
         do_action($content->type === 'post' ? 'cms.post.rendered' : 'cms.page.rendered', $content, $ctx);
 
         return $html;
+    }
+
+    /**
+     * Build the CORE-BLOG-1 secure post-detail presentation contracts. Every
+     * value is a presentation-safe ViewModel (or a collection/array of them); no
+     * raw Eloquent model is handed to the theme. Resolvers are pulled from the
+     * container so a site/plugin can rebind any contract.
+     *
+     * @return array<string, mixed>
+     */
+    private function postPresentationData(Content $content, string $locale): array
+    {
+        // Eager-load everything the resolvers read so the post-detail render stays
+        // query-bounded (no per-item lazy loads from the ViewModels or Blade).
+        $content->loadMissing(['translations', 'terms.taxonomy', 'terms.translations', 'author']);
+
+        $author = app(PublicAuthorResolver::class)->forContent($content, $locale);
+
+        return [
+            // Canonical safe author + legacy alias — both point at the SAME safe
+            // ViewModel; the raw App\Models\User is never exposed to the theme.
+            'publicAuthor' => $author,
+            'author' => $author,
+            'breadcrumbs' => app(PostBreadcrumbResolver::class)->forPost($content, $locale),
+            'categories' => app(PostTaxonomyProjector::class)->categories($content, $locale),
+            'previousPost' => app(AdjacentPostResolver::class)->previous($content, $locale),
+            'nextPost' => app(AdjacentPostResolver::class)->next($content, $locale),
+            'relatedPosts' => app(RelatedPostResolver::class)->forPost($content, $locale),
+        ];
     }
 
     /**
