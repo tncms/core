@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace TheNguyen\CMS\Services;
 
+use TheNguyen\CMS\Support\MenuUrlPolicy;
 use TheNguyen\CMS\View\MediaViewModel;
 
 /**
@@ -104,7 +105,10 @@ class MenuMegaDataProvider
 
         return [
             'title' => (string) ($item['title'] ?? ''),
-            'url' => (string) ($item['url'] ?? ''),
+            // CORE-MENU-URL-1 — mega cards are entity-derived (route URLs) and so
+            // already safe, but the public card URL passes the canonical policy too
+            // so no card can ever carry an unsafe scheme into a theme href sink.
+            'url' => (string) (MenuUrlPolicy::sanitize((string) ($item['url'] ?? '')) ?? ''),
             'excerpt' => (string) ($item['excerpt'] ?? ''),
             'date' => (string) ($item['date'] ?? ''),
             'category' => (string) ($item['category'] ?? ''),

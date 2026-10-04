@@ -8,14 +8,24 @@
 @php($icon = (is_string($meta['icon'] ?? null) && trim($meta['icon']) !== '') ? trim($meta['icon']) : null)
 @php($description = (is_string($meta['description'] ?? null) && trim($meta['description']) !== '') ? trim($meta['description']) : null)
 <li class="menu__mega-item">
-    <a href="{{ $node['url'] }}"
-       class="menu__link"
-       @if ($exact) aria-current="page" @endif
-       @if (($node['item']->target ?? '_self') === '_blank') target="_blank" rel="noopener" @endif>
-        @if ($icon)<span class="menu__icon {{ $icon }}" aria-hidden="true"></span>@endif
-        <span class="menu__label">{{ $node['title'] }}</span>
-        @if ($badge)<span class="menu__badge">{{ $badge }}</span>@endif
-    </a>
+    {{-- CORE-MENU-URL-1: non-linkable (rejected unsafe URL) renders as a label. --}}
+    @php($nodeLinkable = ($node['linkable'] ?? true) && ($node['url'] ?? '') !== '')
+    @if ($nodeLinkable)
+        <a href="{{ $node['url'] }}"
+           class="menu__link"
+           @if ($exact) aria-current="page" @endif
+           @if (($node['item']->target ?? '_self') === '_blank') target="_blank" rel="noopener" @endif>
+            @if ($icon)<span class="menu__icon {{ $icon }}" aria-hidden="true"></span>@endif
+            <span class="menu__label">{{ $node['title'] }}</span>
+            @if ($badge)<span class="menu__badge">{{ $badge }}</span>@endif
+        </a>
+    @else
+        <span class="menu__link menu__link--nolink">
+            @if ($icon)<span class="menu__icon {{ $icon }}" aria-hidden="true"></span>@endif
+            <span class="menu__label">{{ $node['title'] }}</span>
+            @if ($badge)<span class="menu__badge">{{ $badge }}</span>@endif
+        </span>
+    @endif
     @if ($description)<p class="menu__mega-desc">{{ $description }}</p>@endif
 
     @if ($hasChildren)

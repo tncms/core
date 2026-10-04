@@ -10,14 +10,24 @@
 @php($icon = (is_string($meta['icon'] ?? null) && trim($meta['icon']) !== '') ? trim($meta['icon']) : null)
 @php($description = (is_string($meta['description'] ?? null) && trim($meta['description']) !== '') ? trim($meta['description']) : null)
 <li class="menu__mega-col">
-    <a href="{{ $column['url'] }}"
-       class="menu__mega-heading"
-       @if ($exact) aria-current="page" @endif
-       @if (($column['item']->target ?? '_self') === '_blank') target="_blank" rel="noopener" @endif>
-        @if ($icon)<span class="menu__icon {{ $icon }}" aria-hidden="true"></span>@endif
-        <span class="menu__label">{{ $column['title'] }}</span>
-        @if ($badge)<span class="menu__badge">{{ $badge }}</span>@endif
-    </a>
+    {{-- CORE-MENU-URL-1: rejected unsafe URL → heading label, never an executable href. --}}
+    @php($columnLinkable = ($column['linkable'] ?? true) && ($column['url'] ?? '') !== '')
+    @if ($columnLinkable)
+        <a href="{{ $column['url'] }}"
+           class="menu__mega-heading"
+           @if ($exact) aria-current="page" @endif
+           @if (($column['item']->target ?? '_self') === '_blank') target="_blank" rel="noopener" @endif>
+            @if ($icon)<span class="menu__icon {{ $icon }}" aria-hidden="true"></span>@endif
+            <span class="menu__label">{{ $column['title'] }}</span>
+            @if ($badge)<span class="menu__badge">{{ $badge }}</span>@endif
+        </a>
+    @else
+        <span class="menu__mega-heading menu__link--nolink">
+            @if ($icon)<span class="menu__icon {{ $icon }}" aria-hidden="true"></span>@endif
+            <span class="menu__label">{{ $column['title'] }}</span>
+            @if ($badge)<span class="menu__badge">{{ $badge }}</span>@endif
+        </span>
+    @endif
     @if ($description)<p class="menu__mega-desc">{{ $description }}</p>@endif
 
     @if ($hasChildren)

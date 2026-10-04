@@ -16,6 +16,58 @@ this project adheres to [Semantic Versioning](https://semver.org).
 
 ---
 
+## [1.0.0-beta.7.1.30] — Safe Public Menu URL Contract (CORE-MENU-URL-1) — 2026-10-04
+
+Security hardening for the public menu system. Core now classifies every menu
+navigation URL through one canonical authority and fails closed at the public
+hydration boundary, so a stored custom URL carrying an executable scheme (for
+example `javascript:`, `data:`, `vbscript:`) can no longer be emitted as an
+executable navigation `href` by the public menu contract or the bundled default
+theme. The change is additive and requires no data migration: existing legacy or
+imported menu rows are preserved byte-for-byte in the database and are
+re-classified on every public render, so an unsafe stored value is simply
+rendered inert rather than rewritten.
+
+### Added
+
+- **`TheNguyen\CMS\Support\MenuUrlPolicy`** — the single canonical menu-URL safety
+  authority. Allows relative/root-relative/query/fragment/protocol-relative URLs
+  plus the `http`, `https`, `mailto`, and `tel` schemes; rejects every other
+  explicit scheme (including `javascript:`, `data:`, `vbscript:`, `file:`,
+  `blob:`, and unknown schemes). Control and whitespace bytes are stripped before
+  the scheme test so mixed-case and whitespace/control-byte obfuscation cannot
+  smuggle a dangerous scheme past the check. The policy performs no network/DNS
+  lookup and never decodes-and-re-emits a transformed URL.
+
+### Changed
+
+- **Public menu contract** (`MenuManager::tree()` / `frontend_menu()`): each node
+  now carries an additive `linkable` flag, and its `url` is guaranteed to be
+  safe-or-empty. A rejected URL is hydrated as `url=''` with `linkable=false`;
+  `#` dropdown parents remain linkable. Existing consumers that read only
+  `url`/`title`/`children`/`meta` keep working — a rejected item simply has an
+  empty, non-executable URL, so even a theme that ignores `linkable` cannot
+  recover the dangerous original value from the hydrated `url` field.
+- **Default theme** menu partials (`menu-item`, `menu-mega-link`,
+  `menu-mega-column`, `footer`) fail closed: a non-linkable node renders as an
+  inert `<span>` instead of an anchor. `MenuMegaDataProvider` revalidates dynamic
+  card URLs through the same policy (defense in depth).
+- **Admin menu editor**: the custom-URL field rejects unsafe schemes at write
+  time using the same `MenuUrlPolicy`, with a localized error message. Safe
+  relative/`http`/`https`/`mailto`/`tel` URLs remain accepted.
+
+### Notes
+
+- No destructive migration. Unsafe legacy/imported/direct-DB menu values are
+  preserved in storage and neutralized only at the public hydration/render
+  boundary, so upgrading immediately removes their public executability without
+  touching stored data.
+- Localized (per-locale) menu URLs are classified independently; entity-linked
+  menu items continue to resolve through their canonical routing authority.
+- No CVE has been assigned.
+
+---
+
 ## [1.0.0-beta.7.1.29] — Secure Post-Detail Presentation Contracts (CORE-BLOG-1) — 2026-10-02
 
 Adds a secure, query-free presentation contract for the single post-detail view

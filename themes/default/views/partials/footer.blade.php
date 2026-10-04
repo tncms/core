@@ -42,20 +42,30 @@
                                     <ul class="footer-col__links menu menu--footer">
                                         @foreach ($node['children'] as $child)
                                             <li class="menu__item">
-                                                <a href="{{ $child['url'] }}"
-                                                   @if (($child['item']->target ?? '_self') === '_blank') target="_blank" rel="noopener" @endif>
-                                                    {{ $child['title'] }}
-                                                </a>
+                                                {{-- CORE-MENU-URL-1: rejected unsafe URL → label, never an executable href. --}}
+                                                @if (($child['linkable'] ?? true) && ($child['url'] ?? '') !== '')
+                                                    <a href="{{ $child['url'] }}"
+                                                       @if (($child['item']->target ?? '_self') === '_blank') target="_blank" rel="noopener" @endif>
+                                                        {{ $child['title'] }}
+                                                    </a>
+                                                @else
+                                                    <span class="menu__link--nolink">{{ $child['title'] }}</span>
+                                                @endif
                                             </li>
                                         @endforeach
                                     </ul>
                                 @else
                                     <ul class="footer-col__links menu menu--footer">
                                         <li class="menu__item">
-                                            <a href="{{ $node['url'] }}"
-                                               @if (($node['item']->target ?? '_self') === '_blank') target="_blank" rel="noopener" @endif>
-                                                {{ $node['title'] }}
-                                            </a>
+                                            {{-- CORE-MENU-URL-1: rejected unsafe URL → label, never an executable href. --}}
+                                            @if (($node['linkable'] ?? true) && ($node['url'] ?? '') !== '')
+                                                <a href="{{ $node['url'] }}"
+                                                   @if (($node['item']->target ?? '_self') === '_blank') target="_blank" rel="noopener" @endif>
+                                                    {{ $node['title'] }}
+                                                </a>
+                                            @else
+                                                <span class="menu__link--nolink">{{ $node['title'] }}</span>
+                                            @endif
                                         </li>
                                     </ul>
                                 @endif

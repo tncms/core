@@ -40,14 +40,27 @@
     'menu__item--mega' => $isMega,
     'is-active' => $active,
 ])>
-    <a href="{{ $node['url'] }}"
-       class="menu__link"
-       @if ($exact) aria-current="page" @endif
-       @if (($node['item']->target ?? '_self') === '_blank') target="_blank" rel="noopener" @endif>
-        @if ($icon)<span class="menu__icon {{ $icon }}" aria-hidden="true"></span>@endif
-        <span class="menu__label">{{ $node['title'] }}</span>
-        @if ($badge)<span class="menu__badge">{{ $badge }}</span>@endif
-    </a>
+    {{-- CORE-MENU-URL-1: Core hydration marks items whose URL failed the safe-URL
+         policy as non-linkable (url dropped to ''). Render a non-interactive label
+         for those so an unsafe/rejected URL can never become an executable href;
+         safe items (incl. '#' dropdown parents) keep their anchor. --}}
+    @php($nodeLinkable = ($node['linkable'] ?? true) && ($node['url'] ?? '') !== '')
+    @if ($nodeLinkable)
+        <a href="{{ $node['url'] }}"
+           class="menu__link"
+           @if ($exact) aria-current="page" @endif
+           @if (($node['item']->target ?? '_self') === '_blank') target="_blank" rel="noopener" @endif>
+            @if ($icon)<span class="menu__icon {{ $icon }}" aria-hidden="true"></span>@endif
+            <span class="menu__label">{{ $node['title'] }}</span>
+            @if ($badge)<span class="menu__badge">{{ $badge }}</span>@endif
+        </a>
+    @else
+        <span class="menu__link menu__link--nolink">
+            @if ($icon)<span class="menu__icon {{ $icon }}" aria-hidden="true"></span>@endif
+            <span class="menu__label">{{ $node['title'] }}</span>
+            @if ($badge)<span class="menu__badge">{{ $badge }}</span>@endif
+        </span>
+    @endif
 
     @if ($hasPanel)
         @php($submenuId = 'submenu-' . $node['item']->id)

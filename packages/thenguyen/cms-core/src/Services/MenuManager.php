@@ -7,6 +7,7 @@ namespace TheNguyen\CMS\Services;
 use Illuminate\Support\Facades\DB;
 use TheNguyen\CMS\Models\Menu;
 use TheNguyen\CMS\Models\MenuItem;
+use TheNguyen\CMS\Support\MenuUrlPolicy;
 
 class MenuManager
 {
@@ -145,7 +146,7 @@ class MenuManager
     /**
      * Build a nested array tree of the menu's active items for the locale.
      *
-     * @return array<int, array{item: MenuItem, title: string, url: string, children: array, meta: array<string, mixed>}>
+     * @return array<int, array{item: MenuItem, title: string, url: string, linkable: bool, children: array, meta: array<string, mixed>}>
      */
     public function tree(Menu $menu, string $locale = 'vi'): array
     {
@@ -181,7 +182,7 @@ class MenuManager
 
     /**
      * @param  array<int, array<int, MenuItem>>  $byParent
-     * @return array<int, array{item: MenuItem, title: string, url: string, children: array, meta: array<string, mixed>}>
+     * @return array<int, array{item: MenuItem, title: string, url: string, linkable: bool, children: array, meta: array<string, mixed>}>
      */
     private function buildTree(array $byParent, int $parentId, string $locale): array
     {
@@ -190,10 +191,20 @@ class MenuManager
         foreach ($byParent[$parentId] ?? [] as $item) {
             $meta = $item->resolvedMeta($locale);
 
+            // CORE-MENU-URL-1 — the public hydration boundary revalidates every
+            // resolved URL (custom, legacy shared-column, imported, or entity-derived)
+            // through the canonical policy BEFORE it reaches any theme href sink. An
+            // unsafe scheme is dropped to an empty, non-executable URL and marked
+            // non-linkable; the stored row is never rewritten. `#` placeholders
+            // (non-navigating dropdown parents) stay linkable so their anchor/keyboard
+            // semantics are preserved.
+            $safeUrl = MenuUrlPolicy::sanitize($item->resolvedUrl($locale));
+
             $node = [
                 'item' => $item,
                 'title' => $item->displayTitle($locale),
-                'url' => $item->resolvedUrl($locale),
+                'url' => $safeUrl ?? '',
+                'linkable' => $safeUrl !== null,
                 'children' => $this->buildTree($byParent, $item->id, $locale),
                 'meta' => $meta,
             ];

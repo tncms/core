@@ -28,6 +28,7 @@ use TheNguyen\CMS\Models\MenuItem;
 use TheNguyen\CMS\Models\Taxonomy;
 use TheNguyen\CMS\Models\Term;
 use TheNguyen\CMS\Services\EditorialOptions;
+use TheNguyen\CMS\Support\MenuUrlPolicy;
 
 class MenuItemsRelationManager extends RelationManager
 {
@@ -103,7 +104,18 @@ class MenuItemsRelationManager extends RelationManager
                     ->visible(fn (Get $get): bool => ($get('type') ?? 'custom') === 'custom')
                     ->required(fn (Get $get): bool => ($get('type') ?? 'custom') === 'custom')
                     ->helperText(fn (): string => tn_trans('Menu item title and URL are language-specific (editing: :locale).', ['locale' => $this->localeLabel()]))
-                    ->maxLength(255),
+                    ->maxLength(255)
+                    // CORE-MENU-URL-1: reject unsafe navigation schemes at write time
+                    // using the same canonical authority the public menu contract
+                    // enforces, so a custom URL can never introduce an executable
+                    // scheme (javascript:, data:, vbscript:, …) into a theme href.
+                    ->rule(static function (): \Closure {
+                        return static function (string $attribute, mixed $value, \Closure $fail): void {
+                            if (is_string($value) && trim($value) !== '' && ! MenuUrlPolicy::isSafe($value)) {
+                                $fail(tn_trans('This URL uses a scheme that is not allowed. Use a relative path, or an http, https, mailto, or tel link.'));
+                            }
+                        };
+                    }),
 
                 Select::make('target')
                     ->label(tn_trans('Open in'))
