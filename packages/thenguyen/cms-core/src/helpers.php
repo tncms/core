@@ -882,6 +882,30 @@ if (! function_exists('tn_hook_context')) {
     }
 }
 
+if (! function_exists('on_user_deleting')) {
+    /**
+     * Register a vetoable pre-delete handler for user accounts
+     * (CORE-USER-LIFECYCLE-1, v1.0.0-beta.7.1.31). Ergonomic wrapper over
+     * app('cms.user.deletion')->registerPreDelete(). The callback receives a
+     * {@see \TheNguyen\CMS\Support\UserLifecycle\UserDeletionContext} and either
+     * returns a {@see \TheNguyen\CMS\Support\UserLifecycle\UserDeletionVeto} (or
+     * throws {@see \TheNguyen\CMS\Exceptions\UserDeletionVetoException}) to abort
+     * the deletion, or returns null to allow it. Handlers run in ascending
+     * priority order. Guarded so early-boot / console contexts never fatal.
+     *
+     * @param  callable(\TheNguyen\CMS\Support\UserLifecycle\UserDeletionContext): (\TheNguyen\CMS\Support\UserLifecycle\UserDeletionVeto|null)  $handler
+     * @param  array<string, mixed>  $meta
+     */
+    function on_user_deleting(callable $handler, int $priority = 10, array $meta = []): void
+    {
+        try {
+            app('cms.user.deletion')->registerPreDelete($handler, $priority, $meta);
+        } catch (\Throwable) {
+            // Registration must never fatal during early boot / console.
+        }
+    }
+}
+
 if (! function_exists('preview_context')) {
     /**
      * Build a PreviewContext from a data bag (v1.0.0-beta.7.1.12.1). Passed to

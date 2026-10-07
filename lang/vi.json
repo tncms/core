@@ -550,5 +550,7 @@
     "more": "thêm",
     "Only the active theme's demo presets can be imported.": "Chỉ có thể nhập bộ demo của giao diện đang kích hoạt.",
     "Theme not active — import disabled; reset remains available.": "Giao diện chưa kích hoạt — không thể nhập; vẫn có thể đặt lại.",
-    "Reset removes only the pages and menus this demo created and restores the pre-import theme settings and homepage layout. Your own content is not affected. Continue?": "Đặt lại chỉ xóa các trang và menu do demo này tạo và khôi phục thiết lập giao diện cùng bố cục trang chủ trước khi nhập. Nội dung của bạn không bị ảnh hưởng. Tiếp tục?"
+    "Reset removes only the pages and menus this demo created and restores the pre-import theme settings and homepage layout. Your own content is not affected. Continue?": "Đặt lại chỉ xóa các trang và menu do demo này tạo và khôi phục thiết lập giao diện cùng bố cục trang chủ trước khi nhập. Nội dung của bạn không bị ảnh hưởng. Tiếp tục?",
+    "This account cannot be deleted": "Không thể xóa tài khoản này",
+    "An extension prevented this account from being deleted.": "Một tiện ích mở rộng đã ngăn việc xóa tài khoản này."
 }

@@ -550,5 +550,7 @@
     "more": "more",
     "Only the active theme's demo presets can be imported.": "Only the active theme's demo presets can be imported.",
     "Theme not active — import disabled; reset remains available.": "Theme not active — import disabled; reset remains available.",
-    "Reset removes only the pages and menus this demo created and restores the pre-import theme settings and homepage layout. Your own content is not affected. Continue?": "Reset removes only the pages and menus this demo created and restores the pre-import theme settings and homepage layout. Your own content is not affected. Continue?"
+    "Reset removes only the pages and menus this demo created and restores the pre-import theme settings and homepage layout. Your own content is not affected. Continue?": "Reset removes only the pages and menus this demo created and restores the pre-import theme settings and homepage layout. Your own content is not affected. Continue?",
+    "This account cannot be deleted": "This account cannot be deleted",
+    "An extension prevented this account from being deleted.": "An extension prevented this account from being deleted."
 }

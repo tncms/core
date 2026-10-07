@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\View;
 use TheNguyen\CMS\Support\ExtensionDiscovery;
 use TheNguyen\CMS\Support\Theme;
+use TheNguyen\CMS\Support\ThemeOptionGroup;
 
 /**
  * Discovers themes on disk, tracks the active theme via cms_settings
@@ -715,6 +716,10 @@ class ThemeManager
                 'key' => $key,
                 'label' => $label,
                 'description' => is_string($section['description'] ?? null) ? $section['description'] : '',
+                // CORE-THEME-OPTIONS-UX-1: the admin tab this section belongs to.
+                // Core owns the tab identity; an absent/unknown group falls back
+                // to "general". Additive — never affects stored keys or values.
+                'group' => ThemeOptionGroup::normalize($section['group'] ?? null),
                 'fields' => $normalizedFields,
             ];
         }

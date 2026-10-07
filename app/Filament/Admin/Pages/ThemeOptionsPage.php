@@ -16,10 +16,13 @@ use Filament\Pages\Page;
 use Filament\Schemas\Components\Component;
 use Filament\Schemas\Components\Group;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Tabs;
+use Filament\Schemas\Components\Tabs\Tab;
 use Filament\Schemas\Schema;
 use TheNguyen\CMS\Services\ThemeCustomCssManager;
 use TheNguyen\CMS\Services\ThemeOptionManager;
 use TheNguyen\CMS\Support\Theme;
+use TheNguyen\CMS\Support\ThemeOptionGroup;
 
 /**
  * Appearance → Theme Options (v0.9.9).
@@ -106,19 +109,70 @@ class ThemeOptionsPage extends Page
 
     public function form(Schema $schema): Schema
     {
-        $components = [];
+        // CORE-THEME-OPTIONS-UX-1: render the schema as canonical tabs (Brand,
+        // Colors, Layout, Media, SEO & Social, Custom CSS & Code, Advanced, with
+        // General as the fallback), mirroring CMS Settings. The grouping comes
+        // from the Core contract; this page only lays it out.
+        return $schema
+            ->components([
+                Tabs::make('theme_options')
+                    ->columnSpanFull()
+                    ->persistTabInQueryString()
+                    ->tabs($this->buildTabs()),
+            ])
+            ->statePath('data');
+    }
 
-        foreach ($this->schemaSections() as $section) {
-            $components[] = Section::make($section['label'])
-                ->description($section['description'] !== '' ? $section['description'] : null)
-                ->schema(array_map(fn (array $field): Component => $this->fieldComponent($field), $section['fields']))
-                ->columns(1);
+    /**
+     * Build one Filament Tab per canonical group that has sections, always
+     * ending with the Custom CSS editors inside the "Custom CSS & Code" tab.
+     *
+     * @return array<int, Tab>
+     */
+    private function buildTabs(): array
+    {
+        $tabs = [];
+        $codeTabHasCss = false;
+
+        foreach ($this->groupedSchema() as $group) {
+            $sections = array_map(
+                fn (array $section): Section => $this->sectionComponent($section),
+                $group['sections'],
+            );
+
+            // The always-present Custom CSS editors live in the Code tab.
+            if ($group['group'] === ThemeOptionGroup::CUSTOM_CSS) {
+                $sections[] = $this->customCssSection();
+                $codeTabHasCss = true;
+            }
+
+            $tabs[] = Tab::make(tn_trans($group['label']))
+                ->icon($group['icon'])
+                ->schema($sections);
         }
 
-        // Custom CSS tab — always present, independent of the theme schema.
-        $components[] = $this->customCssSection();
+        // Custom CSS is a core feature for every active theme — even one that
+        // declares no option schema or no code-group section gets the tab.
+        if (! $codeTabHasCss) {
+            $tabs[] = Tab::make(tn_trans(ThemeOptionGroup::label(ThemeOptionGroup::CUSTOM_CSS)))
+                ->icon(ThemeOptionGroup::icon(ThemeOptionGroup::CUSTOM_CSS))
+                ->schema([$this->customCssSection()]);
+        }
 
-        return $schema->components($components)->statePath('data');
+        return $tabs;
+    }
+
+    /**
+     * Render one normalised schema section as a Filament Section of fields.
+     *
+     * @param  array<string, mixed>  $section
+     */
+    private function sectionComponent(array $section): Section
+    {
+        return Section::make($section['label'])
+            ->description($section['description'] !== '' ? $section['description'] : null)
+            ->schema(array_map(fn (array $field): Component => $this->fieldComponent($field), $section['fields']))
+            ->columns(1);
     }
 
     public function save(): void
@@ -282,13 +336,20 @@ class ThemeOptionsPage extends Page
     {
         $result = [];
 
-        foreach ($options as $value => $label) {
-            // Support both ['key' => 'Label'] maps and ['a','b'] lists.
-            if (is_int($value)) {
+        // A JSON array (['a','b']) is a value list; a JSON object — including one
+        // whose keys look numeric ({"280":"280px"}, which PHP decodes to int keys)
+        // — is a value=>label map. Distinguishing by list-ness (not per-key
+        // is_int) keeps numeric-keyed option maps selectable by their real value.
+        if (array_is_list($options)) {
+            foreach ($options as $label) {
                 $result[(string) $label] = (string) $label;
-            } else {
-                $result[(string) $value] = is_scalar($label) ? (string) $label : (string) $value;
             }
+
+            return $result;
+        }
+
+        foreach ($options as $value => $label) {
+            $result[(string) $value] = is_scalar($label) ? (string) $label : (string) $value;
         }
 
         return $result;
@@ -306,6 +367,16 @@ class ThemeOptionsPage extends Page
         $slug = $this->activeTheme()?->slug;
 
         return $this->sectionsCache = $this->options()->schema($slug)['sections'];
+    }
+
+    /**
+     * The active theme's schema sections grouped into canonical admin tabs.
+     *
+     * @return array<int, array{group: string, label: string, icon: string, sections: array<int, array<string, mixed>>}>
+     */
+    private function groupedSchema(): array
+    {
+        return $this->options()->groupedSchema($this->activeTheme()?->slug);
     }
 
     private function options(): ThemeOptionManager

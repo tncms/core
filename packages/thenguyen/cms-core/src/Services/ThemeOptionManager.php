@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace TheNguyen\CMS\Services;
 
+use TheNguyen\CMS\Support\ThemeOptionGroup;
+
 /**
  * Theme Options storage layer (v0.9.9).
  *
@@ -154,6 +156,44 @@ class ThemeOptionManager
     public function hasOptions(?string $theme = null): bool
     {
         return $this->themes->hasThemeOptions($theme);
+    }
+
+    /**
+     * The schema sections bucketed into canonical admin tabs
+     * (CORE-THEME-OPTIONS-UX-1). Only groups that actually contain a section are
+     * returned, in {@see ThemeOptionGroup} order; each carries its canonical
+     * English label + icon (localize at the UI boundary) and its sections in
+     * their declared order. A theme that declares no groups collapses cleanly to
+     * a single "General" tab; this derives purely from the schema and never
+     * touches stored values.
+     *
+     * @return array<int, array{group: string, label: string, icon: string, sections: array<int, array<string, mixed>>}>
+     */
+    public function groupedSchema(?string $theme = null): array
+    {
+        $buckets = [];
+
+        foreach ($this->schema($theme)['sections'] as $section) {
+            $group = ThemeOptionGroup::normalize($section['group'] ?? null);
+            $buckets[$group][] = $section;
+        }
+
+        $tabs = [];
+
+        foreach (ThemeOptionGroup::keys() as $group) {
+            if (($buckets[$group] ?? []) === []) {
+                continue;
+            }
+
+            $tabs[] = [
+                'group' => $group,
+                'label' => ThemeOptionGroup::label($group),
+                'icon' => ThemeOptionGroup::icon($group),
+                'sections' => $buckets[$group],
+            ];
+        }
+
+        return $tabs;
     }
 
     private function settingKey(string $slug, string $key): string

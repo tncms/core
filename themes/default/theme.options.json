@@ -3,6 +3,7 @@
         "sections": [
             {
                 "key": "brand",
+                "group": "brand",
                 "label": "Brand",
                 "description": "Logo, site icon, and brand display.",
                 "fields": [
@@ -31,6 +32,7 @@
             },
             {
                 "key": "colors",
+                "group": "colors",
                 "label": "Colors",
                 "description": "Brand accents, exposed to the theme as CSS variables.",
                 "fields": [
@@ -52,6 +54,7 @@
             },
             {
                 "key": "layout",
+                "group": "layout",
                 "label": "Layout",
                 "fields": [
                     {
@@ -69,6 +72,7 @@
             },
             {
                 "key": "homepage",
+                "group": "layout",
                 "label": "Homepage",
                 "description": "The preset blueprint that powers the homepage. The live value is the setting theme.default.homepage_preset; import a demo to fill it with content.",
                 "fields": [
@@ -88,6 +92,7 @@
             },
             {
                 "key": "content_layout",
+                "group": "layout",
                 "label": "Blog / Content Layout",
                 "description": "Controls the listing (category, tag, author, archive) and single-post layouts. A presentation concern, stored in Theme Options only.",
                 "fields": [
@@ -161,6 +166,7 @@
             },
             {
                 "key": "footer",
+                "group": "layout",
                 "label": "Footer",
                 "fields": [
                     {
@@ -174,6 +180,7 @@
             },
             {
                 "key": "social",
+                "group": "seo",
                 "label": "Social",
                 "description": "Social profile links shown in the theme.",
                 "fields": [

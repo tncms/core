@@ -15,8 +15,11 @@ class EditUser extends EditRecord
 
     protected function getHeaderActions(): array
     {
+        // Route the edit-page delete through the Core user-deletion authority
+        // (CORE-USER-LIFECYCLE-1) so a vetoed deletion shows a safe notification
+        // instead of a 500, exactly like the list-view delete.
         return [
-            DeleteAction::make(),
+            UserResource::configureDeleteAction(DeleteAction::make()),
         ];
     }
 

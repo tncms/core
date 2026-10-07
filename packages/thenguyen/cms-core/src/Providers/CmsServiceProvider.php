@@ -113,6 +113,7 @@ use TheNguyen\CMS\Services\ThemeAssetPublisher;
 use TheNguyen\CMS\Services\ThemeCustomCssManager;
 use TheNguyen\CMS\Services\ThemeManager;
 use TheNguyen\CMS\Services\ThemeOptionManager;
+use TheNguyen\CMS\Services\UserDeletionManager;
 use TheNguyen\CMS\Services\WidgetManager;
 use TheNguyen\CMS\Support\Hooks\HookContext;
 use TheNguyen\CMS\Support\Hooks\HookDefinition;
@@ -259,6 +260,15 @@ class CmsServiceProvider extends ServiceProvider
         // order, and membership data belong to plugins via the account hooks.
         $this->app->singleton('cms.account', fn ($app) => new AccountManager($app->make('cms.frontend_auth')));
         $this->app->alias('cms.account', AccountManager::class);
+
+        // User deletion lifecycle authority (CORE-USER-LIFECYCLE-1,
+        // v1.0.0-beta.7.1.31). The single Core-owned path for deleting user
+        // accounts, with a synchronous typed vetoable pre-delete contract. A veto
+        // aborts before the row + its FK cascade are removed; an unexpected
+        // handler failure fails closed. NOT the fire-and-forget HookManager — a
+        // veto is honoured and a thrown error is never swallowed.
+        $this->app->singleton('cms.user.deletion', fn () => new UserDeletionManager);
+        $this->app->alias('cms.user.deletion', UserDeletionManager::class);
 
         // Hooks & Shortcodes foundation (v1.0.0-beta.7.1.11). In-process actions /
         // filters and content shortcodes; ShortcodeManager applies the

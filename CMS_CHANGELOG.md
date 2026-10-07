@@ -16,6 +16,73 @@ this project adheres to [Semantic Versioning](https://semver.org).
 
 ---
 
+## [1.0.0-beta.7.1.31] — User Deletion Lifecycle + Tabbed Theme Options (CORE-USER-LIFECYCLE-1, CORE-THEME-OPTIONS-UX-1) — 2026-10-06
+
+Two additive, backward-compatible Core features. No destructive migration; no
+stored setting keys, values, or locales change; the public rendering and
+`theme_option()` read contracts are unchanged.
+
+### Added
+
+- **Vetoable user deletion lifecycle (CORE-USER-LIFECYCLE-1).** A single
+  Core-owned authority (`cms.user.deletion` /
+  `TheNguyen\CMS\Services\UserDeletionManager`) through which every supported
+  user-deletion path is routed. Extensions register a synchronous, typed,
+  transaction-scoped pre-delete handler with `on_user_deleting()` (or
+  `registerPreDelete()`); handlers receive an immutable, privacy-safe
+  `UserDeletionContext` (target id, actor, source — never passwords, tokens,
+  sessions) and run inside the deletion transaction, with the target row
+  reloaded and `lockForUpdate`-locked, before the user row or its FK cascade is
+  touched.
+- Typed results: `UserDeletionVeto` (opaque code + safe, presentable message +
+  non-sensitive metadata), `UserDeletionResult`, and `UserDeletionVetoException`.
+- Atomic, deterministic, future-safe batch authority (`deleteMany()`) so any
+  future supported bulk delete routes through the same lifecycle.
+- **Grouped/tabbed Theme Options (CORE-THEME-OPTIONS-UX-1).** The Theme Options
+  admin page now renders as canonical tabs (like CMS Settings), driven by a
+  Core-owned group registry (`TheNguyen\CMS\Support\ThemeOptionGroup`): General,
+  Brand, Colors, Layout, Media, SEO & Social, Custom CSS & Code, Advanced. A
+  section declares a `group`; Core owns each tab's label, icon and order.
+  `ThemeOptionManager::groupedSchema()` buckets sections into those tabs.
+
+### Changed
+
+- The Filament `UserResource` list-row and `EditUser` header delete actions now
+  route through `cms.user.deletion`. An expected veto becomes a safe, localized
+  admin notification (no HTTP 500, no false success, the account remains); an
+  unexpected handler failure rolls back and fails closed (the deletion never
+  proceeds) and is never rendered as unsafe exception text. Existing
+  authorization (not-self, not-last-super-admin, `users.delete`) is unchanged
+  and the manager is never an authorization bypass.
+- The Default Theme option schema is grouped into Brand / Colors / Layout /
+  SEO & Social tabs (additive group metadata only — all option keys, labels and
+  defaults are unchanged). Themes that declare no group fall back to a single
+  **General** tab; an unknown/mis-cased group also falls back to General.
+- The built-in Custom CSS editors moved administratively into the
+  **Custom CSS & Code** tab. Their storage and public render semantics are
+  unchanged; a theme with no option schema still exposes the tab.
+
+### Fixed
+
+- Theme Options select fields whose options are a numeric-keyed map (for example
+  `{"280":"280px"}`, which PHP decodes to integer keys) were treated as a value
+  list, making the option values the labels and the field default unsaveable.
+  Such maps are now distinguished from JSON arrays (`array_is_list`) and save
+  their real value; string-keyed maps and plain arrays are unchanged.
+
+### Notes
+
+- Grouping is presentation metadata only; it never becomes storage identity.
+  Theme option values remain under `theme_options.{slug}.{key}`, so values saved
+  under a pre-`.31` ungrouped schema continue to load and save unchanged after a
+  theme adopts grouping.
+- Core carries no Business Reviews domain logic or `br_*` knowledge; the
+  `cms.user.deleting`-style veto a plugin contributes is opaque to Core. Raw SQL
+  or query-builder deletion performed outside the user deletion service is
+  explicitly outside this contract.
+- Additive only: no new migration, no data backfill, no version-gated upgrade
+  step beyond the standard version bump.
+
 ## [1.0.0-beta.7.1.30] — Safe Public Menu URL Contract (CORE-MENU-URL-1) — 2026-10-04
 
 Security hardening for the public menu system. Core now classifies every menu

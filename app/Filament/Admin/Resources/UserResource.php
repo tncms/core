@@ -11,13 +11,16 @@ use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
+use Filament\Support\Exceptions\Halt;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Model;
 use TheNguyen\CMS\Models\Role;
+use TheNguyen\CMS\Support\UserLifecycle\UserDeletionContext;
 
 /**
  * Users admin resource (v1.0.0-beta.3).
@@ -127,7 +130,7 @@ class UserResource extends Resource
             ])
             ->recordActions([
                 EditAction::make(),
-                DeleteAction::make(),
+                self::configureDeleteAction(DeleteAction::make()),
             ])
             ->defaultSort('id');
     }
@@ -197,5 +200,43 @@ class UserResource extends Resource
         $id = Role::query()->where('slug', Role::SUPER_ADMIN)->value('id');
 
         return $id === null ? null : (int) $id;
+    }
+
+    /**
+     * Route a user DeleteAction through the Core user-deletion authority
+     * (CORE-USER-LIFECYCLE-1). The actual deletion runs inside
+     * {@see \TheNguyen\CMS\Services\UserDeletionManager::delete()} so a
+     * registered extension can veto it transactionally before the row — and its
+     * FK cascade — is removed. An expected veto renders the extension's safe,
+     * localized message as a danger notification and halts gracefully (no HTTP
+     * 500, no false success, record kept). An unexpected handler failure is NOT
+     * caught here: the manager has already rolled back, and it propagates to
+     * normal Core error handling (logged, no deletion). Authorization is
+     * unchanged — {@see canDelete()} still gates who may reach this action.
+     */
+    public static function configureDeleteAction(DeleteAction $action): DeleteAction
+    {
+        return $action->using(static function (Model $record): bool {
+            $result = app('cms.user.deletion')->delete(
+                $record,
+                auth()->user(),
+                UserDeletionContext::SOURCE_ADMIN,
+            );
+
+            if ($result->wasVetoed()) {
+                Notification::make()
+                    ->title(tn_trans('This account cannot be deleted'))
+                    ->body($result->veto()?->message() ?: tn_trans('An extension prevented this account from being deleted.'))
+                    ->danger()
+                    ->persistent()
+                    ->send();
+
+                // Stop without success/failure: the record remains, the modal
+                // closes, and no stack trace or 500 is produced.
+                throw new Halt;
+            }
+
+            return $result->wasDeleted();
+        });
     }
 }
