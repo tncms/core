@@ -6,6 +6,7 @@ namespace App\Filament\Admin\Resources;
 
 use App\Filament\Admin\Components\MediaPicker;
 use App\Filament\Admin\Components\RichEditor;
+use App\Filament\Admin\Resources\Concerns\HasContentBulkActions;
 use App\Filament\Admin\Resources\PostResource\Pages;
 use App\Filament\Admin\Resources\PostResource\Support\PostLocalizedContent;
 use BackedEnum;
@@ -39,7 +40,13 @@ use TheNguyen\CMS\Translation\Admin\FallbackPreviewResult;
 
 class PostResource extends Resource
 {
+    use HasContentBulkActions;
     use HasTranslations;
+
+    protected static function contentPermissionPrefix(): string
+    {
+        return 'posts';
+    }
 
     protected static ?string $model = Content::class;
 
@@ -149,12 +156,7 @@ class PostResource extends Resource
                     ->schema([
                         Select::make('status')
                             ->label(tn_trans('Status'))
-                            ->options([
-                                'draft' => tn_trans('Draft'),
-                                'published' => tn_trans('Published'),
-                                'pending' => tn_trans('Pending'),
-                                'private' => tn_trans('Private'),
-                            ])
+                            ->options(self::contentStatusOptions())
                             ->default(fn (): string => (string) settings('writing.default_post_status', 'draft'))
                             ->required(),
 
@@ -247,6 +249,8 @@ class PostResource extends Resource
     {
         return $table
             ->columns([
+                static::featuredImageColumn(),
+
                 TextColumn::make('title')
                     ->label(tn_trans('Title'))
                     ->state(fn (Content $record): string => $record->translatedTitle(editing_locale()))
@@ -302,6 +306,7 @@ class PostResource extends Resource
                 EditAction::make(),
                 DeleteAction::make(),
             ])
+            ->toolbarActions(static::contentBulkActions())
             ->defaultSort('updated_at', 'desc');
     }
 

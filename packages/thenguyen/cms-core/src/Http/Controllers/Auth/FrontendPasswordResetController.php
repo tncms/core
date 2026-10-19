@@ -7,11 +7,12 @@ namespace TheNguyen\CMS\Http\Controllers\Auth;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Validation\Rules\Password as PasswordRule;
 use Illuminate\Validation\ValidationException;
-use Illuminate\View\View;
 use TheNguyen\CMS\Services\FrontendAuthManager;
+use TheNguyen\CMS\View\SystemViewResolver;
 
 /**
  * Frontend password reset (v1.0.0-beta.7.1.14). Uses the Laravel password
@@ -20,11 +21,15 @@ use TheNguyen\CMS\Services\FrontendAuthManager;
  */
 class FrontendPasswordResetController
 {
-    public function __construct(private readonly FrontendAuthManager $auth) {}
+    public function __construct(
+        private readonly FrontendAuthManager $auth,
+        private readonly SystemViewResolver $systemView,
+    ) {}
 
-    public function showForgot(): View
+    public function showForgot(): Response
     {
-        return view('cms::auth.forgot-password');
+        // Theme-first (theme::auth.forgot-password) → Core fallback, noindex.
+        return $this->systemView->renderNoindexResponse('forgot-password');
     }
 
     public function sendResetLink(Request $request): RedirectResponse
@@ -36,9 +41,10 @@ class FrontendPasswordResetController
         return back()->with('status', __($status));
     }
 
-    public function showReset(Request $request, string $token): View
+    public function showReset(Request $request, string $token): Response
     {
-        return view('cms::auth.reset-password', [
+        // Theme-first (theme::auth.reset-password) → Core fallback, noindex.
+        return $this->systemView->renderNoindexResponse('reset-password', [
             'token' => $token,
             'email' => (string) $request->query('email', ''),
         ]);

@@ -6,9 +6,10 @@ namespace TheNguyen\CMS\Http\Controllers\Auth;
 
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Validation\Rules\Password;
-use Illuminate\View\View;
 use TheNguyen\CMS\Services\FrontendAuthManager;
+use TheNguyen\CMS\View\SystemViewResolver;
 
 /**
  * Frontend registration (v1.0.0-beta.7.1.14). Honours the registration_enabled
@@ -17,16 +18,21 @@ use TheNguyen\CMS\Services\FrontendAuthManager;
  */
 class FrontendRegisterController
 {
-    public function __construct(private readonly FrontendAuthManager $auth) {}
+    public function __construct(
+        private readonly FrontendAuthManager $auth,
+        private readonly SystemViewResolver $systemView,
+    ) {}
 
-    public function show(): View|RedirectResponse
+    public function show(): Response|RedirectResponse
     {
         if (! $this->auth->registrationEnabled()) {
             return redirect()->route('cms.auth.login')
                 ->withErrors(['email' => __('Registration is currently disabled.')]);
         }
 
-        return view('cms::auth.register');
+        // Theme-first (theme::auth.register) → Core fallback (cms::auth.register),
+        // noindex enforced at the HTTP layer.
+        return $this->systemView->renderNoindexResponse('register');
     }
 
     public function register(Request $request): RedirectResponse

@@ -11,7 +11,6 @@ use App\Search\SearchRegistry;
 use App\Search\SearchScope;
 use Illuminate\Contracts\View\View as ViewContract;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\View;
 
 /**
  * Public storefront search page (Phase 3.1.6N-D).
@@ -96,10 +95,13 @@ final class SearchController extends Controller
         // still wins. A neutral "Search" document title replaces the site default.
         seo()->forCustom(__('Search'), '')->noindex();
 
-        // Theme override → host fallback. A theme may ship its own
-        // "theme::search.index"; otherwise the platform view renders in the
-        // active theme's layout. Themes are never edited by this phase.
-        $view = View::exists('theme::search.index') ? 'theme::search.index' : 'frontend.search.index';
+        // Theme override → host fallback, via the ONE Core frontend system-page
+        // resolver (CORE-FRONTEND-SYSTEM-VIEW-RESOLVER-1). A theme may ship its
+        // own "theme::search.index"; otherwise the platform "frontend.search.index"
+        // view renders in the active theme's layout. Behaviour is identical to the
+        // previous inline check — the resolver's frozen fallback for "search" is
+        // exactly "frontend.search.index". Themes are never edited by this phase.
+        $view = app('cms.system_view')->resolve('search');
 
         return view($view, ['page' => $viewModel]);
     }

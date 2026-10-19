@@ -6,10 +6,11 @@ namespace TheNguyen\CMS\Http\Controllers\Auth;
 
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Validation\ValidationException;
-use Illuminate\View\View;
 use TheNguyen\CMS\Services\FrontendAuthManager;
 use TheNguyen\CMS\Support\Hooks\HookContext;
+use TheNguyen\CMS\View\SystemViewResolver;
 
 /**
  * Frontend login / logout (v1.0.0-beta.7.1.14). Thin: all session and device
@@ -17,11 +18,17 @@ use TheNguyen\CMS\Support\Hooks\HookContext;
  */
 class FrontendLoginController
 {
-    public function __construct(private readonly FrontendAuthManager $auth) {}
+    public function __construct(
+        private readonly FrontendAuthManager $auth,
+        private readonly SystemViewResolver $systemView,
+    ) {}
 
-    public function show(): View
+    public function show(): Response
     {
-        return view('cms::auth.login');
+        // Theme-first (theme::auth.login) → Core fallback (cms::auth.login),
+        // guaranteed noindex at the HTTP layer so a custom theme layout cannot
+        // expose the login page to search indexes.
+        return $this->systemView->renderNoindexResponse('login');
     }
 
     public function login(Request $request): RedirectResponse

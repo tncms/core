@@ -16,6 +16,64 @@ this project adheres to [Semantic Versioning](https://semver.org).
 
 ---
 
+## [1.0.0-beta.7.1.32] — Content Admin UX + Theme Page Reference + Unified Frontend System View Resolver — 2026-10-19
+
+Three additive, backward-compatible Core features integrated together
+(CORE-CONTENT-ADMIN-UX-1, CORE-THEME-PAGE-REFERENCE-1,
+CORE-FRONTEND-SYSTEM-VIEW-RESOLVER-1). No destructive migration; no change to
+existing routes, guards, validation, throttling, sessions, redirects,
+localization, or public-cache semantics.
+
+### Added
+
+- **Content Admin UX.** Posts and Pages Filament list screens gain bulk
+  **Change status** (draft/publish) and **Delete selected** actions that route
+  through `ContentManager` with per-record authorization — translations, slugs,
+  SEO, featured image, author and publication timestamp are preserved, and
+  published-content visibility/cache is refreshed. A toggleable **Featured
+  Image** thumbnail column (with a safe placeholder) sits alongside Slug.
+- **Theme Page Reference.** Theme Options gains a `page`-type field with a Page
+  picker that stores a **stable content ID** (not a slug). The localized
+  `theme_page_url()` helper resolves that reference per locale and returns
+  `null` when the referenced page is missing, unpublished or deleted — so a
+  bulk draft/delete immediately withdraws the public link while the stored ID is
+  preserved, and republishing restores the link without re-selection. Safe for
+  stale/missing/wrong-type IDs.
+- **Unified Frontend System View Resolver** (`cms.system_view`). One Core-owned,
+  theme-first resolver for the six frontend system pages with a frozen Core
+  fallback for each:
+  - `theme::search.index` → host `frontend.search.index`
+  - `theme::auth.login` → `cms::auth.login`
+  - `theme::auth.register` → `cms::auth.register`
+  - `theme::auth.forgot-password` → `cms::auth.forgot-password`
+  - `theme::auth.reset-password` → `cms::auth.reset-password`
+  - `theme::account.index` → `cms::account.dashboard`
+
+  A page is addressed only by a fixed key (no user-supplied view names). A
+  broken theme override is reported and falls back to the Core view so the page
+  (e.g. login) stays reachable. Auth and account responses carry
+  `X-Robots-Tag: noindex, nofollow` at the response layer, so they stay
+  unindexed even when a custom theme layout omits the robots meta; Search keeps
+  its `noindex,follow` meta. New `cms_system_view()` helper and
+  `docs/frontend/SYSTEM-PAGE-VIEW-RESOLUTION.md` theme-developer documentation.
+
+### Changed
+
+- The frontend auth/account/search controllers and the host search controller
+  now resolve their view through `cms.system_view`; search behaviour is
+  unchanged (same `frontend.search.index` fallback and SEO).
+
+### Notes
+
+- The themed error pages (`FrontendErrorResponder`) and content templates
+  (`PageTemplateRegistry`) remain specialized siblings of the same precedence
+  policy and are unchanged.
+- **Out of scope** (no theme-override contract): account subpages
+  (profile/security/sessions/preferences) and email verification. These render
+  their Core views directly; adding an override requires a new Core registration.
+
+---
+
 ## [1.0.0-beta.7.1.31] — User Deletion Lifecycle + Tabbed Theme Options (CORE-USER-LIFECYCLE-1, CORE-THEME-OPTIONS-UX-1) — 2026-10-06
 
 Two additive, backward-compatible Core features. No destructive migration; no

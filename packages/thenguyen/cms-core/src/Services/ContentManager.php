@@ -78,6 +78,51 @@ class ContentManager
         return $content;
     }
 
+    /**
+     * Change ONLY a content item's publication status (CORE-CONTENT-ADMIN-UX-1).
+     *
+     * The narrow, single-record status-transition authority reused by the admin
+     * bulk "Change status" action so that a status change never rewrites the
+     * title/body/slug/translations/terms/SEO/media the way {@see update()} would.
+     * It:
+     *
+     *   - resolves `published_at` with the SAME rule as a normal save
+     *     ({@see resolvePublishedAt()}) — a first transition to `published`
+     *     stamps now, an existing publish date is preserved, otherwise the
+     *     stored value is kept;
+     *   - persists through the model `save()` so the Eloquent `saved` event fires
+     *     and the public-content cache is invalidated exactly as on any other
+     *     content write (CmsServiceProvider::registerPublicCacheInvalidation);
+     *   - fires the `cms.content.saving` / `cms.content.saved` plugin hooks with
+     *     the changed field so extensions observe the write, matching
+     *     {@see update()};
+     *   - leaves every translation row, slug, term assignment, featured media and
+     *     unrelated column untouched.
+     *
+     * Status is written verbatim (as {@see update()} does); callers validate the
+     * target against their allowed set before calling.
+     */
+    public function changeStatus(Content $content, string $status): Content
+    {
+        $data = ['status' => $status];
+
+        do_action('cms.content.saving', $content, $data, hook_context(['content' => $content, 'data' => $data]));
+
+        $content = DB::transaction(function () use ($content, $status, $data): Content {
+            $content->status = $status;
+            $content->published_at = $this->resolvePublishedAt($data, $status, $content);
+            $content->save();
+
+            $content->refresh();
+
+            return $content;
+        });
+
+        do_action('cms.content.saved', $content, $data, hook_context(['content' => $content, 'data' => $data]));
+
+        return $content;
+    }
+
     public function delete(Content $content): bool
     {
         return DB::transaction(function () use ($content): bool {

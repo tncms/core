@@ -24,7 +24,7 @@ class ThemeManager
      * Field types a theme option schema may declare (v0.9.9). Anything else is
      * skipped with a logged warning.
      */
-    public const THEME_OPTION_FIELD_TYPES = ['text', 'textarea', 'boolean', 'number', 'select', 'image', 'color'];
+    public const THEME_OPTION_FIELD_TYPES = ['text', 'textarea', 'boolean', 'number', 'select', 'image', 'color', 'page'];
 
     /**
      * Per-request memo of a theme's functions.php return value, keyed by slug.

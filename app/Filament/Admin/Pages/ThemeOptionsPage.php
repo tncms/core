@@ -19,6 +19,7 @@ use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Tabs;
 use Filament\Schemas\Components\Tabs\Tab;
 use Filament\Schemas\Schema;
+use TheNguyen\CMS\Models\Content;
 use TheNguyen\CMS\Services\ThemeCustomCssManager;
 use TheNguyen\CMS\Services\ThemeOptionManager;
 use TheNguyen\CMS\Support\Theme;
@@ -295,6 +296,7 @@ class ThemeOptionsPage extends Page
                 ->options($this->selectOptions($field['options'] ?? []))
                 ->native(false),
             'color' => ColorPicker::make($key),
+            'page' => $this->pageField($key),
             default => TextInput::make($key), // text
         };
 
@@ -324,6 +326,105 @@ class ThemeOptionsPage extends Page
         }
 
         return $component;
+    }
+
+    /**
+     * The `page` field: a searchable picker over CMS Pages (never Posts) that
+     * stores the stable canonical page id (CORE-THEME-PAGE-REFERENCE-1).
+     *
+     * - Options come from a bounded search query (localized title, limit 50) — no
+     *   full-table load, no N+1.
+     * - The currently stored id always resolves to a label (including an
+     *   unpublished/soft-deleted page, flagged "(unavailable)", or a bare
+     *   "#id — (unavailable)" when hard-deleted), so an unrelated save never
+     *   silently drops a stale selection.
+     * - Server-side validation (not UI-only) rejects a malformed id or one that
+     *   points at a non-page (a post), while accepting empty / a page / a
+     *   now-missing id.
+     */
+    private function pageField(string $key): Select
+    {
+        return Select::make($key)
+            ->native(false)
+            ->searchable()
+            ->placeholder(tn_trans('No page selected'))
+            ->getSearchResultsUsing(fn (string $search): array => $this->pageSearchResults($search))
+            ->getOptionLabelUsing(fn ($value): ?string => $this->pageOptionLabel($value))
+            ->rules([
+                static function (): \Closure {
+                    return static function (string $attribute, mixed $value, \Closure $fail): void {
+                        if (! app('cms.theme_page_reference')->isPersistable($value)) {
+                            $fail(tn_trans('Select a CMS Page (not a post).'));
+                        }
+                    };
+                },
+            ]);
+    }
+
+    /**
+     * Bounded page search for the picker: up to 50 `type=page` records whose
+     * title in the editing locale matches the term (empty term lists the first
+     * pages), keyed by id => localized label.
+     *
+     * @return array<int, string>
+     */
+    private function pageSearchResults(string $search): array
+    {
+        $locale = editing_locale();
+
+        $query = Content::query()
+            ->where('type', 'page')
+            ->with(['translations' => fn ($q) => $q->where('locale', $locale)]);
+
+        $search = trim($search);
+
+        if ($search !== '') {
+            $query->whereHas('translations', fn ($q) => $q->where('locale', $locale)->where('title', 'like', '%'.$search.'%'));
+        }
+
+        return $query
+            ->orderByDesc('updated_at')
+            ->limit(50)
+            ->get()
+            ->mapWithKeys(fn (Content $page): array => [$page->id => $this->pageLabel($page, $locale)])
+            ->all();
+    }
+
+    /**
+     * Resolve the display label for a stored page id, preserving (and flagging)
+     * unavailable selections. Returns null only for an empty/malformed value.
+     */
+    private function pageOptionLabel(mixed $value): ?string
+    {
+        $resolver = app('cms.theme_page_reference');
+        $id = $resolver->normalizeId($value);
+
+        if ($id === null) {
+            return null;
+        }
+
+        $page = $resolver->anyPage($id);
+
+        if ($page === null) {
+            return '#'.$id.' — '.tn_trans('(unavailable)');
+        }
+
+        return $this->pageLabel($page, editing_locale());
+    }
+
+    /**
+     * Localized page title, suffixed with "(unavailable)" when the page would not
+     * produce a public link (soft-deleted or not published).
+     */
+    private function pageLabel(Content $page, string $locale): string
+    {
+        $title = $page->translatedTitle($locale);
+
+        if ($page->trashed() || $page->status !== 'published') {
+            $title .= ' — '.tn_trans('(unavailable)');
+        }
+
+        return $title;
     }
 
     /**

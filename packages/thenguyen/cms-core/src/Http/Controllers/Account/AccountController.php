@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 namespace TheNguyen\CMS\Http\Controllers\Account;
 
-use Illuminate\View\View;
+use Illuminate\Http\Response;
+use TheNguyen\CMS\View\SystemViewResolver;
 
 /**
  * Account dashboard (v1.0.0-beta.7.1.15). Thin: renders the shell + a simple
@@ -12,8 +13,12 @@ use Illuminate\View\View;
  */
 class AccountController
 {
-    public function dashboard(): View
+    public function __construct(private readonly SystemViewResolver $systemView) {}
+
+    public function dashboard(): Response
     {
-        return view('cms::account.dashboard');
+        // Theme-first (theme::account.index) → Core fallback (cms::account.dashboard),
+        // noindex enforced at the HTTP layer.
+        return $this->systemView->renderNoindexResponse('account');
     }
 }

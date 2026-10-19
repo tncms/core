@@ -6,6 +6,7 @@ namespace App\Filament\Admin\Resources;
 
 use App\Filament\Admin\Components\MediaPicker;
 use App\Filament\Admin\Components\RichEditor;
+use App\Filament\Admin\Resources\Concerns\HasContentBulkActions;
 use App\Filament\Admin\Resources\PageResource\Pages;
 use App\Filament\Admin\Resources\PageResource\Support\PageLocalizedContent;
 use BackedEnum;
@@ -33,7 +34,13 @@ use TheNguyen\CMS\Translation\Admin\FallbackPreviewResult;
 
 class PageResource extends Resource
 {
+    use HasContentBulkActions;
     use HasTranslations;
+
+    protected static function contentPermissionPrefix(): string
+    {
+        return 'pages';
+    }
 
     protected static ?string $model = Content::class;
 
@@ -137,12 +144,7 @@ class PageResource extends Resource
                     ->schema([
                         Select::make('status')
                             ->label(tn_trans('Status'))
-                            ->options([
-                                'draft' => tn_trans('Draft'),
-                                'published' => tn_trans('Published'),
-                                'pending' => tn_trans('Pending'),
-                                'private' => tn_trans('Private'),
-                            ])
+                            ->options(self::contentStatusOptions())
                             ->default('draft')
                             ->required(),
 
@@ -207,6 +209,8 @@ class PageResource extends Resource
     {
         return $table
             ->columns([
+                static::featuredImageColumn(),
+
                 TextColumn::make('title')
                     ->label(tn_trans('Title'))
                     ->state(fn (Content $record): string => $record->translatedTitle(editing_locale()))
@@ -262,6 +266,7 @@ class PageResource extends Resource
                 EditAction::make(),
                 DeleteAction::make(),
             ])
+            ->toolbarActions(static::contentBulkActions())
             ->defaultSort('updated_at', 'desc');
     }
 

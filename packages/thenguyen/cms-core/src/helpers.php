@@ -298,6 +298,31 @@ if (! function_exists('theme_option')) {
     }
 }
 
+if (! function_exists('theme_page_url')) {
+    /**
+     * Public, locale-aware URL for the CMS Page referenced by a Theme Options
+     * `page` field (CORE-THEME-PAGE-REFERENCE-1).
+     *
+     * Resolves the stored canonical page id to the page's CURRENT published
+     * public URL in $locale (defaults to the current request locale). Returns
+     * null — never a broken, preview or admin link — when the reference is
+     * unset, malformed, points at a non-page, or the page is draft/pending/
+     * private/soft-deleted/hard-deleted/missing, or has no translation in the
+     * requested locale. Render an <a> only when the result is non-null; escaping
+     * is the theme's responsibility.
+     *
+     * theme_page_url('privacy_policy_page')       => '/chinh-sach'   (current locale)
+     * theme_page_url('privacy_policy_page', 'en') => 'https://site/en/privacy' or null
+     */
+    function theme_page_url(string $key, ?string $locale = null): ?string
+    {
+        /** @var \TheNguyen\CMS\Services\ThemePageReferenceResolver $resolver */
+        $resolver = app('cms.theme_page_reference');
+
+        return $resolver->url($key, $locale);
+    }
+}
+
 if (! function_exists('tn_content_layout')) {
     /**
      * Normalise a content-layout option value to a safe, known layout.
@@ -461,6 +486,26 @@ if (! function_exists('theme_view')) {
     function theme_view(string $view): string
     {
         return 'theme::'.$view;
+    }
+}
+
+if (! function_exists('cms_system_view')) {
+    /**
+     * Resolve the view name for a Core frontend system page through the shared
+     * theme-first resolver (CORE-FRONTEND-SYSTEM-VIEW-RESOLVER-1): the active
+     * theme's "theme::" override when it ships one, otherwise the frozen Core
+     * fallback. The $page argument is a fixed Core-owned key (login, register,
+     * forgot-password, reset-password, account, search) — never a caller- or
+     * user-supplied view name — so no input can select an arbitrary template.
+     *
+     * cms_system_view('login') => theme::auth.login (if present) or cms::auth.login
+     */
+    function cms_system_view(string $page): string
+    {
+        /** @var \TheNguyen\CMS\View\SystemViewResolver $resolver */
+        $resolver = app('cms.system_view');
+
+        return $resolver->resolve($page);
     }
 }
 

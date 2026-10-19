@@ -113,6 +113,7 @@ use TheNguyen\CMS\Services\ThemeAssetPublisher;
 use TheNguyen\CMS\Services\ThemeCustomCssManager;
 use TheNguyen\CMS\Services\ThemeManager;
 use TheNguyen\CMS\Services\ThemeOptionManager;
+use TheNguyen\CMS\Services\ThemePageReferenceResolver;
 use TheNguyen\CMS\Services\UserDeletionManager;
 use TheNguyen\CMS\Services\WidgetManager;
 use TheNguyen\CMS\Support\Hooks\HookContext;
@@ -261,6 +262,16 @@ class CmsServiceProvider extends ServiceProvider
         $this->app->singleton('cms.account', fn ($app) => new AccountManager($app->make('cms.frontend_auth')));
         $this->app->alias('cms.account', AccountManager::class);
 
+        // Frontend system-page view resolver (CORE-FRONTEND-SYSTEM-VIEW-RESOLVER-1).
+        // The ONE Core-owned theme-first resolver for the non-content frontend
+        // system pages (login, register, forgot/reset password, account dashboard,
+        // search). Each page is addressed by a fixed key => [theme override, Core
+        // fallback]; no request input can ever select an arbitrary view. Themed
+        // error pages keep their own richer recursion-guarded responder as a
+        // specialized sibling of the same precedence policy.
+        $this->app->singleton('cms.system_view', fn () => new \TheNguyen\CMS\View\SystemViewResolver);
+        $this->app->alias('cms.system_view', \TheNguyen\CMS\View\SystemViewResolver::class);
+
         // User deletion lifecycle authority (CORE-USER-LIFECYCLE-1,
         // v1.0.0-beta.7.1.31). The single Core-owned path for deleting user
         // accounts, with a synchronous typed vetoable pre-delete contract. A veto
@@ -336,6 +347,14 @@ class CmsServiceProvider extends ServiceProvider
         // cms_settings (v0.9.9).
         $this->app->singleton('cms.theme_option', fn ($app) => new ThemeOptionManager($app->make('cms.theme')));
         $this->app->alias('cms.theme_option', ThemeOptionManager::class);
+
+        // Theme Options `page` reference resolver (CORE-THEME-PAGE-REFERENCE-1):
+        // turns a stored canonical page id into a public, locale-aware URL at read
+        // time (published + non-deleted pages only), via the canonical URL service.
+        $this->app->singleton('cms.theme_page_reference', fn ($app) => new ThemePageReferenceResolver(
+            $app->make('cms.localization.content_url'),
+        ));
+        $this->app->alias('cms.theme_page_reference', ThemePageReferenceResolver::class);
 
         // Theme Custom CSS (v1.0.0-beta.7.1.13.4): admin-managed frontend/admin
         // CSS stored in the theme_options namespace, rendered through the Asset
