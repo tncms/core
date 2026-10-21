@@ -7,10 +7,11 @@ namespace TheNguyen\CMS\Http\Controllers\Account;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Validation\Rule;
-use Illuminate\View\View;
 use TheNguyen\CMS\Services\AccountManager;
 use TheNguyen\CMS\Support\Hooks\HookContext;
+use TheNguyen\CMS\View\SystemViewResolver;
 
 /**
  * Account profile page (v1.0.0-beta.7.1.15). Thin: validation + delegation to
@@ -18,11 +19,16 @@ use TheNguyen\CMS\Support\Hooks\HookContext;
  */
 class AccountProfileController
 {
-    public function __construct(private readonly AccountManager $account) {}
+    public function __construct(
+        private readonly AccountManager $account,
+        private readonly SystemViewResolver $systemView,
+    ) {}
 
-    public function edit(): View
+    public function edit(): Response
     {
-        return view('cms::account.profile');
+        // Theme-first (theme::account.profile) → Core fallback (cms::account.profile),
+        // noindex enforced at the HTTP layer.
+        return $this->systemView->renderNoindexResponse('profile');
     }
 
     public function update(Request $request): RedirectResponse

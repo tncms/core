@@ -83,18 +83,24 @@ final class ResolverThreeContractCoexistenceR2Test extends TestCase
     }
 
     // 1. The resolver registry is intact and frozen in the integrated build.
-    public function test_six_mappings_and_allowlist_survive_integration(): void
+    public function test_nine_mappings_and_allowlist_survive_integration(): void
     {
         $r = app('cms.system_view');
 
         $this->assertSame(
-            ['login', 'register', 'forgot-password', 'reset-password', 'account', 'search'],
+            [
+                'login', 'register', 'forgot-password', 'reset-password',
+                'account', 'profile', 'security', 'preferences', 'sessions', 'search',
+            ],
             $r->pages(),
         );
         // No theme override present → exact frozen fallbacks (search = host view).
         View::replaceNamespace('theme', [base_path('themes/__none__')]);
         $this->assertSame('cms::auth.login', $r->resolve('login'));
         $this->assertSame('cms::account.dashboard', $r->resolve('account'));
+        $this->assertSame('cms::account.profile', $r->resolve('profile'));
+        $this->assertSame('cms::account.security', $r->resolve('security'));
+        $this->assertSame('cms::account.preferences', $r->resolve('preferences'));
         $this->assertSame('frontend.search.index', $r->resolve('search'));
 
         // Fixed allowlist: no caller/user input can select an arbitrary view.

@@ -140,13 +140,15 @@ with a missing/invalid manifest is **skipped** (not rendered) and listed under
   (specialized then generic). Optional: the Core ships a safe fallback that keeps
   the site functional even if a theme provides neither. See section 15 (Error
   pages) below.
-- **Frontend system pages** (login, register, forgot/reset password, account)
-  overrides: `auth/login.blade.php`, `auth/register.blade.php`,
-  `auth/forgot-password.blade.php`, `auth/reset-password.blade.php`, and
-  `account/index.blade.php`. Omit any and the Core fallback (`cms::auth.*` /
-  `cms::account.dashboard`) renders. These, plus `search/index.blade.php` and the
-  error pages, are governed by ONE theme-first resolution policy with a frozen
-  Core fallback for each. See
+- **Frontend system pages** (login, register, forgot/reset password, and the
+  account dashboard + its profile / security / preferences pages) overrides:
+  `auth/login.blade.php`, `auth/register.blade.php`,
+  `auth/forgot-password.blade.php`, `auth/reset-password.blade.php`,
+  `account/index.blade.php`, `account/profile.blade.php`,
+  `account/security.blade.php`, and `account/preferences.blade.php`. Omit any and
+  the Core fallback (`cms::auth.*` / `cms::account.*`) renders. These, plus
+  `search/index.blade.php` and the error pages, are governed by ONE theme-first
+  resolution policy with a frozen Core fallback for each. See
   [docs/frontend/SYSTEM-PAGE-VIEW-RESOLUTION.md](packages/thenguyen/cms-core/docs/frontend/SYSTEM-PAGE-VIEW-RESOLUTION.md)
   for the full mapping table, copy-ready Blade, form/security/SEO contracts, the
   resolution inventory, and the TheNguyen two-column login migration guide.

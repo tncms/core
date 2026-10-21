@@ -7,10 +7,11 @@ namespace TheNguyen\CMS\Http\Controllers\Account;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
-use Illuminate\View\View;
 use TheNguyen\CMS\Services\AccountManager;
+use TheNguyen\CMS\View\SystemViewResolver;
 
 /**
  * Account security page (v1.0.0-beta.7.1.15): password + email change. Both are
@@ -19,11 +20,16 @@ use TheNguyen\CMS\Services\AccountManager;
  */
 class AccountSecurityController
 {
-    public function __construct(private readonly AccountManager $account) {}
+    public function __construct(
+        private readonly AccountManager $account,
+        private readonly SystemViewResolver $systemView,
+    ) {}
 
-    public function edit(): View
+    public function edit(): Response
     {
-        return view('cms::account.security');
+        // Theme-first (theme::account.security) → Core fallback (cms::account.security),
+        // noindex enforced at the HTTP layer.
+        return $this->systemView->renderNoindexResponse('security');
     }
 
     public function updatePassword(Request $request): RedirectResponse

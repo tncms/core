@@ -214,6 +214,84 @@ if (! function_exists('tn_trans')) {
     }
 }
 
+if (! function_exists('cms_account_profile_fields')) {
+    /**
+     * Render schema for the authenticated owner's dynamic profile-fields form
+     * (P3). Lets both `cms::account.profile` and a `theme::account.profile`
+     * override drop in the Core partial without duplicating any security logic.
+     * Returns a graceful empty schema when there is no authenticated user.
+     *
+     * @return array{hasFields: bool, action: string, groups: array<int, array<string, mixed>>}
+     */
+    function cms_account_profile_fields(?\App\Models\User $user = null): array
+    {
+        $user ??= auth()->user();
+
+        if (! $user instanceof \App\Models\User) {
+            return ['hasFields' => false, 'action' => '', 'groups' => []];
+        }
+
+        return app(\TheNguyen\CMS\Profile\AccountProfileFieldsPresenter::class)->forOwner($user);
+    }
+}
+
+if (! function_exists('cms_profile_present')) {
+    /**
+     * Privacy-first presentation model of a target user's profile as seen by a
+     * viewer (P4). The viewer defaults to the CURRENT authenticated user — never
+     * the target — so a guest request renders public fields only. Authorization is
+     * enforced by UserProfileManager; encrypted and media fields are never
+     * surfaced through this presentation API.
+     *
+     * @param  array<int, string>|null  $only  restrict to these field keys
+     * @return array{target_id: int, hasFields: bool, groups: array<int, array<string, mixed>>}
+     */
+    function cms_profile_present(\Illuminate\Database\Eloquent\Model $target, ?\Illuminate\Contracts\Auth\Authenticatable $viewer = null, ?array $only = null): array
+    {
+        $viewer ??= auth()->user();
+
+        return app(\TheNguyen\CMS\Profile\ProfilePresenter::class)->present($target, $viewer, $only);
+    }
+}
+
+if (! function_exists('cms_profile_links')) {
+    /**
+     * The viewer-authorized URL links (url-type fields) of a target user, as safe
+     * link descriptors [{key,label,url}] (P4). Viewer defaults to the current
+     * authenticated user. No hard-coded social schema; schemes are re-checked at
+     * render time by the Core partial.
+     *
+     * @return array<int, array{key: string, label: string, url: string}>
+     */
+    function cms_profile_links(\Illuminate\Database\Eloquent\Model $target, ?\Illuminate\Contracts\Auth\Authenticatable $viewer = null): array
+    {
+        $viewer ??= auth()->user();
+
+        return app(\TheNguyen\CMS\Profile\ProfilePresenter::class)->links($target, $viewer);
+    }
+}
+
+if (! function_exists('user_profile_value')) {
+    /**
+     * A single presentation-safe profile value of a target, authorized for the
+     * viewer (P4). Viewer defaults to the current authenticated user (never the
+     * target). Returns null for unknown/inactive fields and — by design — for
+     * encrypted and media fields: those are not exposed through the presentation
+     * layer; read them with an authorized actor via app('cms.user_profile')->get().
+     */
+    function user_profile_value(\Illuminate\Database\Eloquent\Model $target, string $key, ?\Illuminate\Contracts\Auth\Authenticatable $viewer = null): mixed
+    {
+        $field = \TheNguyen\CMS\Models\UserProfileField::query()
+            ->where('key', strtolower(trim($key)))->where('is_active', true)->first();
+
+        if ($field === null || (bool) $field->is_encrypted || $field->type === 'media') {
+            return null;
+        }
+
+        return app('cms.user_profile')->get($target, $key, $viewer ?? auth()->user());
+    }
+}
+
 if (! function_exists('cms_slug')) {
     /**
      * Generate a CMS-aware slug from arbitrary text.

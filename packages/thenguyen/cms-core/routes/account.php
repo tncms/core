@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Route;
 use TheNguyen\CMS\Http\Controllers\Account\AccountController;
 use TheNguyen\CMS\Http\Controllers\Account\AccountPreferenceController;
 use TheNguyen\CMS\Http\Controllers\Account\AccountProfileController;
+use TheNguyen\CMS\Http\Controllers\Account\AccountProfileFieldsController;
 use TheNguyen\CMS\Http\Controllers\Account\AccountSecurityController;
 use TheNguyen\CMS\Http\Controllers\Account\AccountSessionController;
 
@@ -29,6 +30,12 @@ Route::middleware(['web', 'cms.auth', 'cms.frontend_session'])->group(function (
 
     Route::get('/account/profile', [AccountProfileController::class, 'edit'])->name('cms.account.profile');
     Route::post('/account/profile', [AccountProfileController::class, 'update'])->name('cms.account.profile.update');
+
+    // Dynamic custom profile fields (P3) — separate namespaced owner-only write,
+    // never mixed with the base User-column update above.
+    Route::post('/account/profile/fields', [AccountProfileFieldsController::class, 'update'])
+        ->middleware('throttle:20,1')
+        ->name('cms.account.profile.fields.update');
 
     Route::get('/account/security', [AccountSecurityController::class, 'edit'])->name('cms.account.security');
     Route::post('/account/security/password', [AccountSecurityController::class, 'updatePassword'])

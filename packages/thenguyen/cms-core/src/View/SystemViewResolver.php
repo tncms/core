@@ -14,8 +14,9 @@ use Throwable;
  * (CORE-FRONTEND-SYSTEM-VIEW-RESOLVER-1).
  *
  * Frontend "system pages" are the Core-owned screens that are NOT content
- * (login, register, forgot/reset password, the account dashboard, and the
- * search results page). Each has a stable theme-override target and a frozen
+ * (login, register, forgot/reset password, the account dashboard and its
+ * profile/security/preferences pages, and the search results page). Each has a
+ * stable theme-override target and a frozen
  * Core fallback. This service centralizes that mapping and applies ONE
  * precedence rule everywhere:
  *
@@ -66,6 +67,10 @@ final class SystemViewResolver
         'forgot-password' => ['theme::auth.forgot-password', 'cms::auth.forgot-password'],
         'reset-password' => ['theme::auth.reset-password', 'cms::auth.reset-password'],
         'account' => ['theme::account.index', 'cms::account.dashboard'],
+        'profile' => ['theme::account.profile', 'cms::account.profile'],
+        'security' => ['theme::account.security', 'cms::account.security'],
+        'preferences' => ['theme::account.preferences', 'cms::account.preferences'],
+        'sessions' => ['theme::account.sessions', 'cms::account.sessions'],
         'search' => ['theme::search.index', 'frontend.search.index'],
     ];
 

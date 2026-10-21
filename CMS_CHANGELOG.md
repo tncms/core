@@ -16,6 +16,63 @@ this project adheres to [Semantic Versioning](https://semver.org).
 
 ---
 
+## [1.0.0-beta.7.1.33] — Account Profile Extensibility (custom profile fields: engine, admin builder, frontend form, presentation & extension API) — 2026-10-21
+
+The Account Profile Extensibility feature lineage (P0–P4), additive and
+backward-compatible. No destructive migration; no change to existing routes,
+guards, validation, throttling, sessions, redirects, localization, or
+public-cache semantics. The ten-key frontend system-view resolver (including
+`theme::account.sessions` → Core fallback with `X-Robots-Tag: noindex`) is
+preserved; session-management business logic is unchanged.
+
+### Added
+
+- **Profile field engine (P1-A/P1-B).** Four additive `cms_user_profile_*`
+  tables (`field_groups`, `fields`, `values`, `field_translations`);
+  `UserProfileFieldRegistry` (`cms.user_profile_fields`) with namespaced keys,
+  reserved-key/collision rejection, idempotent same-source registration and an
+  explicit schema-guarded, non-destructive `reconcile()` (no write-on-boot).
+  `UserProfileManager` (`cms.user_profile`) is the single authority for typed
+  values (12 types), with central per-field visibility/editability enforcement,
+  selective at-rest encryption (never indexed), and a real
+  `cms_user_profile_values.user_id → users(id) ON DELETE CASCADE` FK with
+  unique `(user_id, field_id, locale)` (`locale=''` neutral sentinel).
+- **Admin Field Builder (P2).** Filament 5 Profile Field Group / Profile Field
+  resources under Users, gated by `profile_fields.manage`; all writes route
+  through the audited, transactional `ProfileFieldAdminService` (reserved
+  `custom.` admin namespace, locked Core/plugin definitions, data-shape freeze
+  once values exist). New `profile_fields.manage/view_private/edit_others`
+  permissions. Adds the `theme::account.sessions` system-view seam.
+- **Dynamic frontend form (P3).** Owner-only custom-fields form on
+  `/account/profile` backed by `UserProfileManager`, via a separate namespaced
+  `POST /account/profile/fields` endpoint (whitelist of editable fields, typed
+  controls, encrypted-blank-keeps-value, media display-only, per-field
+  validation, PRG), with a self-resolving `cms::account.partials.profile-fields`
+  partial reusable by theme overrides.
+- **Presentation & extension API (P4).** `ProfilePresenter`
+  (`present`/`presentMany`/`links`) and helpers `cms_profile_present()`,
+  `cms_profile_links()`, `user_profile_value()` — privacy-first, viewer-context
+  read/display (guest ⇒ public only, never viewer=target), encrypted/media never
+  surfaced, batched (no N+1); Core display partials `cms::profile.fields` and
+  `cms::profile.links` (escaped output, http/https scheme allow-list,
+  `rel="noopener noreferrer nofollow"`).
+
+### Changed
+
+- **Account Field Builder UX (P2-R1).** Locked/non-deletable definitions hide
+  their Delete action (server guard unchanged); the destructive-confirmation
+  modal shows the real impacted-value count; form controls reflect server-side
+  immutability.
+
+### Notes
+
+- Backend-only value authority; no public plaintext/ciphertext exposure through
+  the presentation layer. Deferred (not in this release): ACF convergence,
+  media serving/authorization, GDPR export, system/immutable write paths,
+  encryption key rotation, and the Page Builder render-data provider.
+
+---
+
 ## [1.0.0-beta.7.1.32] — Content Admin UX + Theme Page Reference + Unified Frontend System View Resolver — 2026-10-19
 
 Three additive, backward-compatible Core features integrated together

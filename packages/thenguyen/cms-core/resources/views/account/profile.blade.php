@@ -33,5 +33,9 @@
         </form>
     </div>
 
+    {{-- Dynamic custom profile fields (P3). Self-contained, authorization-filtered
+         Core seam; a theme override can @include the same partial. --}}
+    @include('cms::account.partials.profile-fields')
+
     {!! render_hook('cms.account.profile.after') !!}
 @endsection

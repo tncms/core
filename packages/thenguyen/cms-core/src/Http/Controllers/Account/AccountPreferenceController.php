@@ -7,9 +7,10 @@ namespace TheNguyen\CMS\Http\Controllers\Account;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Validation\Rule;
-use Illuminate\View\View;
 use TheNguyen\CMS\Services\AccountManager;
+use TheNguyen\CMS\View\SystemViewResolver;
 
 /**
  * Account preferences page (v1.0.0-beta.7.1.15): the three independent locale
@@ -18,11 +19,16 @@ use TheNguyen\CMS\Services\AccountManager;
  */
 class AccountPreferenceController
 {
-    public function __construct(private readonly AccountManager $account) {}
+    public function __construct(
+        private readonly AccountManager $account,
+        private readonly SystemViewResolver $systemView,
+    ) {}
 
-    public function edit(): View
+    public function edit(): Response
     {
-        return view('cms::account.preferences');
+        // Theme-first (theme::account.preferences) → Core fallback (cms::account.preferences),
+        // noindex enforced at the HTTP layer.
+        return $this->systemView->renderNoindexResponse('preferences');
     }
 
     public function update(Request $request): RedirectResponse

@@ -549,6 +549,27 @@ class CmsServiceProvider extends ServiceProvider
         $this->app->singleton('cms.permission', fn () => new PermissionManager);
         $this->app->alias('cms.permission', PermissionManager::class);
 
+        // Account Profile Field Engine registry (CORE-ACCOUNT-PROFILE-1, P1-A).
+        // In-memory definition registry; persistence is explicit via reconcile().
+        $this->app->singleton('cms.user_profile_fields', fn () => new \TheNguyen\CMS\Profile\UserProfileFieldRegistry);
+        $this->app->alias('cms.user_profile_fields', \TheNguyen\CMS\Profile\UserProfileFieldRegistry::class);
+
+        // Account Profile value engine (CORE-ACCOUNT-PROFILE-1, P1-B): the single
+        // privacy-aware read/write authority. Every access enforces per-field
+        // visibility/editability here — there is no raw bypass path.
+        $this->app->singleton('cms.user_profile', fn () => new \TheNguyen\CMS\Profile\UserProfileManager(
+            new \TheNguyen\CMS\Profile\ProfileValueCaster,
+        ));
+        $this->app->alias('cms.user_profile', \TheNguyen\CMS\Profile\UserProfileManager::class);
+
+        // Account Profile Field Builder admin write authority (P2). Audited,
+        // transactional, permission-enforced; the only supported admin path for
+        // mutating field/group definitions (never touches users' private values).
+        $this->app->singleton('cms.user_profile_fields.admin', fn ($app) => new \TheNguyen\CMS\Profile\ProfileFieldAdminService(
+            $app->make('cms.user_profile_fields'),
+        ));
+        $this->app->alias('cms.user_profile_fields.admin', \TheNguyen\CMS\Profile\ProfileFieldAdminService::class);
+
         // Maintenance Mode Core (v1.0.0-beta.4).
         $this->app->singleton('cms.maintenance', fn () => new MaintenanceManager);
         $this->app->alias('cms.maintenance', MaintenanceManager::class);
@@ -780,6 +801,17 @@ class CmsServiceProvider extends ServiceProvider
         $assets = $this->app->make('cms.assets');
         $assets->registerMarker('tncms.frontend', 'frontend');
         $assets->registerMarker('tncms.admin', 'admin');
+
+        // Account Profile Field Engine permissions (CORE-ACCOUNT-PROFILE-1, P1-B).
+        // Registered in-memory here (DB-free, like plugin permissions); persisted
+        // when PermissionManager::syncDefaults() runs at install/seed. Value
+        // cleanup on user deletion is handled by the DB FK ON DELETE CASCADE
+        // (CLARIFICATION-003-REVISED) — no application pre-delete handler, so the
+        // UserDeletionManager lean-path invariants are preserved.
+        $permissions = $this->app->make('cms.permission');
+        $permissions->register(\TheNguyen\CMS\Profile\UserProfileManager::PERM_MANAGE, 'Manage profile fields', 'Users', 'Create and edit user profile field definitions.');
+        $permissions->register(\TheNguyen\CMS\Profile\UserProfileManager::PERM_VIEW_PRIVATE, 'View private profile fields', 'Users', "Read other users' owner/admin-visibility profile values.");
+        $permissions->register(\TheNguyen\CMS\Profile\UserProfileManager::PERM_EDIT_OTHERS, 'Edit other users\' profile fields', 'Users', "Write other users' profile values.");
 
         // DB-free install check (marker/env only). When false — a fresh,
         // pre-install boot — every database-touching boot step is skipped so the

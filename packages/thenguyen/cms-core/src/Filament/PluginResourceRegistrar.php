@@ -43,6 +43,14 @@ final class PluginResourceRegistrar implements Plugin
             \TheNguyen\CMS\Filament\Admin\Pages\WidgetsPage::class,
         ]);
 
+        // Account Profile Field Builder resources (P2). Core-owned, so the host
+        // app needs no app/Filament/.../ProfileField*.php. Access is gated by the
+        // profile_fields.manage permission on each resource.
+        $panel->resources([
+            \TheNguyen\CMS\Filament\Admin\Resources\ProfileFieldGroupResource::class,
+            \TheNguyen\CMS\Filament\Admin\Resources\ProfileFieldResource::class,
+        ]);
+
         if (! app()->bound('cms.extension')) {
             return;
         }
