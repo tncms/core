@@ -6,6 +6,7 @@ namespace TheNguyen\CMS\Services;
 
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
+use TheNguyen\CMS\Exceptions\ExtensionInstallBusyException;
 use TheNguyen\CMS\Support\InstallResult;
 use ZipArchive;
 
@@ -57,6 +58,7 @@ class ExtensionInstaller
         private readonly ExtensionManager $extensions,
         private readonly ThemeManager $themes,
         private readonly PluginAssetPublisher $assetPublisher = new PluginAssetPublisher(),
+        private readonly ExtensionInstallFilesystem $fs = new ExtensionInstallFilesystem(),
     ) {
     }
 
@@ -276,52 +278,72 @@ class ExtensionInstaller
                 return InstallResult::failure($type, $structureError, [], $slug);
             }
 
-            // 7. Resolve destination + apply the overwrite policy.
+            // 6a. Preflight the declared public-asset source on the EXTRACTED candidate, before
+            //     anything live is touched (same validator the publisher uses).
+            if ($type === 'plugin') {
+                try {
+                    $this->assetPublisher->sourceFor($sourceRoot, $slug, $data);
+                } catch (\Throwable $e) {
+                    return InstallResult::failure($type, $this->safeMessage($e->getMessage()), [], $slug);
+                }
+            }
+
+            // 7. Lock the slug, then apply the overwrite policy — still before any mutation.
             $destination = $this->destinationPath($type, $slug);
 
+            try {
+                $txn = ExtensionInstallTransaction::begin($this->fs, $this->typeRoot($type), $slug);
+            } catch (ExtensionInstallBusyException $e) {
+                return InstallResult::failure($type, $e->getMessage(), [], $slug);
+            }
+
             if (File::isDirectory($destination)) {
-                if (! $overwrite) {
+                $refusal = ! $overwrite
+                    ? ucfirst($type) . " \"{$slug}\" is already installed. Enable “Overwrite existing files” to replace it."
+                    : ($this->isActive($type, $slug) ? "The {$type} \"{$slug}\" is currently active. Deactivate it before overwriting." : null);
+
+                if ($refusal !== null) {
+                    $txn->rollback();
+
+                    return InstallResult::failure($type, $refusal, [], $slug);
+                }
+            }
+
+            // 8. Staged swap (CORE-PLUGIN-UPGRADE-ATOMIC-ROLLBACK-R1): stage the candidate privately, back
+            //    up the previous directory + owned asset namespace, promote, then commit. Any failure
+            //    before the commit restores the previous unit; nothing is deleted before then.
+            try {
+                $txn->stage($sourceRoot);
+                $txn->promote();
+
+                if ($type === 'plugin') {
+                    $assetSource = $this->assetPublisher->sourceFor($txn->livePath(), $slug, $data);
+                    if ($assetSource !== null) {
+                        $txn->publishAssets($assetSource, $this->assetPublisher->assetBase());
+                    }
+                }
+
+                $warnings = array_merge($warnings, $txn->commit());
+            } catch (\Throwable $e) {
+                report($e);
+
+                if (! $txn->rollback()) {
                     return InstallResult::failure(
                         $type,
-                        ucfirst($type) . " \"{$slug}\" is already installed. Enable “Overwrite existing files” to replace it.",
-                        [],
+                        ucfirst($type) . " \"{$slug}\" could not be installed and the previous version could not be fully restored. "
+                            . 'It is preserved in ' . $txn->residueLabel() . ' under the ' . $type . 's directory; see the log.',
+                        ['rollback_incomplete'],
                         $slug,
                     );
                 }
 
-                if ($this->isActive($type, $slug)) {
-                    return InstallResult::failure(
-                        $type,
-                        "The {$type} \"{$slug}\" is currently active. Deactivate it before overwriting.",
-                        [],
-                        $slug,
-                    );
-                }
-
-                File::deleteDirectory($destination);
-            }
-
-            // 8. Copy the validated source into place (scoped to the slug folder).
-            //    Copy (not rename) is used because a cross-directory rename from
-            //    the storage temp dir is unreliable on some platforms; the temp
-            //    directory is removed in the finally block regardless.
-            if (! File::copyDirectory($sourceRoot, $destination)) {
-                return InstallResult::failure($type, 'The validated files could not be moved into place.', [], $slug);
-            }
-
-            // 8a. Provision opt-in plugin public assets from the just-installed root into the Core-owned
-            //     public namespace. A plugin without an "assets" declaration is unaffected. On failure,
-            //     roll back this install (the plugin dir Core just created + any partial public assets)
-            //     so a partial state never reports success.
-            if ($type === 'plugin') {
-                $assetResult = $this->assetPublisher->publish($destination, $slug, $data);
-                if ($assetResult->isFailure()) {
-                    File::deleteDirectory($destination);
-                    $this->assetPublisher->purge($slug);
-
-                    return InstallResult::failure($type, $assetResult->message, [], $slug);
-                }
-                $warnings = array_merge($warnings, $assetResult->warnings);
+                return InstallResult::failure(
+                    $type,
+                    ucfirst($type) . " \"{$slug}\" could not be installed: " . rtrim($this->safeMessage($e->getMessage()), '. ')
+                        . '. Nothing was changed; any previous version is still installed.',
+                    [],
+                    $slug,
+                );
             }
 
             $this->refreshDiscovery();
@@ -334,7 +356,9 @@ class ExtensionInstaller
                 $warnings,
             );
         } catch (\Throwable $e) {
-            return InstallResult::failure($type, 'Installation failed: ' . $e->getMessage());
+            report($e);
+
+            return InstallResult::failure($type, 'Installation failed: ' . $this->safeMessage($e->getMessage()));
         } finally {
             // Always clean up the temp directory, success or failure.
             File::deleteDirectory($tempDir);
@@ -370,6 +394,7 @@ class ExtensionInstaller
         }
 
         $totalBytes = 0;
+        $seen = [];
 
         for ($i = 0; $i < $zip->numFiles; $i++) {
             $stat = $zip->statIndex($i);
@@ -391,6 +416,20 @@ class ExtensionInstaller
             if (str_starts_with($normalized, '/') || preg_match('#^[a-zA-Z]:#', $normalized) === 1) {
                 return 'The archive contains an absolute path, which is not allowed.';
             }
+
+            // Colons (drive letters inside a segment, stream wrappers, NTFS alternate data streams)
+            // and NUL bytes are never part of a legitimate extension path.
+            if (str_contains($normalized, ':') || str_contains($normalized, "\0")) {
+                return 'The archive contains an invalid entry name.';
+            }
+
+            // Two entries that differ only by case would overwrite each other on a
+            // case-insensitive filesystem (Windows/macOS) — refuse the ambiguity.
+            $folded = strtolower(rtrim($normalized, '/'));
+            if (isset($seen[$folded])) {
+                return 'The archive contains duplicate or case-colliding entries.';
+            }
+            $seen[$folded] = true;
 
             // Path traversal in any segment.
             foreach (explode('/', $normalized) as $segment) {
@@ -623,6 +662,26 @@ class ExtensionInstaller
         } catch (\Throwable) {
             // best-effort only
         }
+    }
+
+    /**
+     * Strip absolute server paths from a message shown to the user (the full detail is logged).
+     */
+    private function safeMessage(string $message): string
+    {
+        $roots = [
+            base_path(), storage_path(), sys_get_temp_dir(),
+            $this->typeRoot('plugin'), $this->typeRoot('theme'), dirname($this->assetPublisher->destinationFor('x')),
+        ];
+        foreach ($roots as $root) {
+            foreach ([$root, str_replace('\\', '/', $root), str_replace('/', '\\', $root)] as $variant) {
+                if ($variant !== '') {
+                    $message = str_ireplace($variant, '[path]', $message);
+                }
+            }
+        }
+
+        return $message;
     }
 
     private function makeTempDir(): string

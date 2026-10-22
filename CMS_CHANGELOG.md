@@ -16,6 +16,44 @@ this project adheres to [Semantic Versioning](https://semver.org).
 
 ---
 
+## [1.0.0-beta.7.1.34] — Atomic, rollback-safe plugin/theme install & overwrite — 2026-10-22
+
+Installer safety release. No migration, no route, permission, setting or
+public-API change; extensions built for earlier betas run unchanged.
+
+### Fixed
+
+- **Plugin/theme ZIP overwrite (upgrade) could destroy the live install.**
+  The previous installer deleted `plugins/<slug>` and `public/vendor/<slug>`
+  before the candidate was proven installable, so a failure after that point
+  (for example a missing `assets.source`) left neither version on disk.
+  `ExtensionInstaller` now runs a staged transaction
+  (`ExtensionInstallTransaction`, `ExtensionInstallFilesystem`
+  `cms.extension_install_fs`): the candidate is fully validated, staged beside
+  its target, swapped in with same-volume renames, and the plugin directory
+  plus its owned asset namespace are committed as one unit. Any failure before
+  the commit point restores the previous directory and asset namespace
+  byte-for-byte, leaves activation and database state untouched, never touches
+  foreign plugins/themes/namespaces, and leaves no staging, backup or lock
+  residue, so the same install can simply be retried.
+
+### Added
+
+- Per-slug, non-blocking install lock (`ExtensionInstallBusyException`):
+  a concurrent install of the same extension fails fast with "already in
+  progress".
+- `PluginAssetPublisher` exposes source validation so staged installs can
+  verify a declared `assets.source` before anything live is touched.
+
+### Notes
+
+- Overwriting an ACTIVE extension is still refused before any mutation.
+- A failed rollback is never hidden: it reports `rollback_incomplete`, keeps
+  the residue and logs details. Power-loss mid-transaction recovery is out of
+  scope for this release.
+- Design and state machine:
+  `packages/thenguyen/cms-core/docs/extension-install/ATOMIC-EXTENSION-INSTALL.md`.
+
 ## [1.0.0-beta.7.1.33] — Account Profile Extensibility (custom profile fields: engine, admin builder, frontend form, presentation & extension API) — 2026-10-21
 
 The Account Profile Extensibility feature lineage (P0–P4), additive and

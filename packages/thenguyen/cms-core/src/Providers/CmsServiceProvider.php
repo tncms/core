@@ -71,6 +71,7 @@ use TheNguyen\CMS\Services\DemoImporter;
 use TheNguyen\CMS\Services\DemoMenuImporter;
 use TheNguyen\CMS\Services\DemoPageImporter;
 use TheNguyen\CMS\Services\ExtensionInstaller;
+use TheNguyen\CMS\Services\ExtensionInstallFilesystem;
 use TheNguyen\CMS\Services\ExtensionManager;
 use TheNguyen\CMS\Services\ExtensionTranslationManager;
 use TheNguyen\CMS\Services\FormHookBridge;
@@ -614,11 +615,16 @@ class CmsServiceProvider extends ServiceProvider
         $this->app->singleton('cms.plugin_asset_publisher', fn () => new PluginAssetPublisher);
         $this->app->alias('cms.plugin_asset_publisher', PluginAssetPublisher::class);
 
+        // Filesystem operations of the staged (rollback-safe) extension install transaction.
+        $this->app->singleton('cms.extension_install_fs', fn () => new ExtensionInstallFilesystem);
+        $this->app->alias('cms.extension_install_fs', ExtensionInstallFilesystem::class);
+
         // Theme/Plugin ZIP Installer (v1.0.0-beta.2).
         $this->app->singleton('cms.extension_installer', fn ($app) => new ExtensionInstaller(
             $app->make('cms.extension'),
             $app->make('cms.theme'),
             $app->make('cms.plugin_asset_publisher'),
+            $app->make('cms.extension_install_fs'),
         ));
         $this->app->alias('cms.extension_installer', ExtensionInstaller::class);
 

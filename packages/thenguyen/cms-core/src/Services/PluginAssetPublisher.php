@@ -49,35 +49,12 @@ final class PluginAssetPublisher
      */
     public function publish(string $pluginRoot, string $slug, array $manifest): AssetPublishResult
     {
-        $declaration = $manifest[self::MANIFEST_KEY] ?? null;
-        if ($declaration === null) {
+        if (($manifest[self::MANIFEST_KEY] ?? null) === null) {
             return AssetPublishResult::skipped();
         }
 
         try {
-            $source = $this->readDeclaredSource($declaration);
-            $slugError = $this->validateSlug($slug);
-            if ($slugError !== null) {
-                return AssetPublishResult::failed($slugError);
-            }
-
-            $realPluginRoot = realpath($pluginRoot);
-            if ($realPluginRoot === false || ! is_dir($realPluginRoot)) {
-                return AssetPublishResult::failed("Plugin root not found: {$pluginRoot}");
-            }
-
-            // Resolve + contain the source strictly inside the plugin root.
-            $realSource = realpath($realPluginRoot.DIRECTORY_SEPARATOR.$this->toOsPath($source));
-            if ($realSource === false || ! is_dir($realSource)) {
-                return AssetPublishResult::failed("Declared asset source does not exist: {$source}");
-            }
-            if ($realSource === $realPluginRoot
-                || ! str_starts_with($realSource.DIRECTORY_SEPARATOR, $realPluginRoot.DIRECTORY_SEPARATOR)) {
-                return AssetPublishResult::failed("Asset source escapes the plugin root: {$source}");
-            }
-            if ($this->containsLink($realSource)) {
-                return AssetPublishResult::failed('Asset source contains symbolic links, which are not allowed.');
-            }
+            $realSource = $this->sourceFor($pluginRoot, $slug, $manifest);
 
             // Core-owned, slug-derived destination (the plugin can never influence this).
             $baseReal = $this->ensureBase();
@@ -91,7 +68,7 @@ final class PluginAssetPublisher
                 $this->assertOwnedDestination($destination, $baseReal);
                 File::deleteDirectory($destination);
             }
-            if (! File::copyDirectory($realSource, $destination) || ! File::isDirectory($destination)) {
+            if (! File::copyDirectory((string) $realSource, $destination) || ! File::isDirectory($destination)) {
                 return AssetPublishResult::failed('Failed to copy plugin public assets into place.');
             }
 
@@ -99,6 +76,64 @@ final class PluginAssetPublisher
         } catch (\Throwable $e) {
             return AssetPublishResult::failed('Asset provisioning failed: '.$e->getMessage());
         }
+    }
+
+    /**
+     * Validate a plugin's declared asset source and return its real path — the ONE source-validation
+     * authority, shared by {@see publish()} and the staged installer preflight
+     * (CORE-PLUGIN-UPGRADE-ATOMIC-ROLLBACK-R1). Null when no `assets` block is declared.
+     *
+     * Throws (with a message that names only the plugin-relative source) when the declaration is
+     * malformed/unsafe, the source is missing, escapes the plugin root, or contains a link.
+     *
+     * @param  array<string, mixed>  $manifest
+     */
+    public function sourceFor(string $pluginRoot, string $slug, array $manifest): ?string
+    {
+        $declaration = $manifest[self::MANIFEST_KEY] ?? null;
+        if ($declaration === null) {
+            return null;
+        }
+
+        $source = $this->readDeclaredSource($declaration);
+        $slugError = $this->validateSlug($slug);
+        if ($slugError !== null) {
+            throw new RuntimeException($slugError);
+        }
+
+        $realPluginRoot = realpath($pluginRoot);
+        if ($realPluginRoot === false || ! is_dir($realPluginRoot)) {
+            throw new RuntimeException('Plugin root not found.');
+        }
+
+        // Resolve + contain the source strictly inside the plugin root.
+        $realSource = realpath($realPluginRoot.DIRECTORY_SEPARATOR.$this->toOsPath($source));
+        if ($realSource === false || ! is_dir($realSource)) {
+            throw new RuntimeException("Declared asset source does not exist: {$source}");
+        }
+        if ($realSource === $realPluginRoot
+            || ! str_starts_with($realSource.DIRECTORY_SEPARATOR, $realPluginRoot.DIRECTORY_SEPARATOR)) {
+            throw new RuntimeException("Asset source escapes the plugin root: {$source}");
+        }
+        if ($this->containsLink($realSource)) {
+            throw new RuntimeException('Asset source contains symbolic links, which are not allowed.');
+        }
+
+        return $realSource;
+    }
+
+    /**
+     * The real public asset base, created when absent (never plugin-specified). Throws when it cannot
+     * be resolved. Used by the staged installer to keep its asset swap on the same volume.
+     */
+    public function assetBase(): string
+    {
+        $baseReal = $this->ensureBase();
+        if ($baseReal === null) {
+            throw new RuntimeException('Public asset base directory is unavailable.');
+        }
+
+        return $baseReal;
     }
 
     /**
