@@ -277,7 +277,9 @@ final class SystemViewResolverTest extends TestCase
         // Guest guard preserved.
         $this->get('/account')->assertRedirect(route('cms.auth.login'));
 
-        $user = User::factory()->create();
+        // A fixed name with an apostrophe: Blade escapes it, so the assertion must
+        // escape too (a random Faker name like "O'Connell" made this flaky).
+        $user = User::factory()->create(['name' => "Fred O'Connell"]);
 
         $this->actingAs($user)->get('/account')
             ->assertOk()
@@ -289,7 +291,7 @@ final class SystemViewResolverTest extends TestCase
             ->assertOk()
             ->assertHeader('X-Robots-Tag', 'noindex, nofollow')
             ->assertSee('theme-account-override', false)
-            ->assertSee($user->name, false);
+            ->assertSee($user->name);
     }
 
     // --- Account profile / security / preferences (HTTP wiring) ---------------

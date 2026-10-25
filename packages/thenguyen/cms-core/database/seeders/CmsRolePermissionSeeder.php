@@ -45,9 +45,12 @@ class CmsRolePermissionSeeder extends Seeder
         // 2. Create/update the core roles + their grants.
         $this->syncRole('super-admin', 'Super Admin', 'Full, unrestricted access.', true, $allSlugs);
 
+        // trusted_scripts.manage (CORE-EXTENSION-TRUST S1) is never granted to a
+        // generic role: approving third-party JavaScript stays with super admins
+        // until an owner assigns it to a dedicated role explicitly.
         $this->syncRole('admin', 'Administrator', 'Manage the whole site except role/user removal.', true, array_values(array_filter(
             $allSlugs,
-            static fn (string $slug): bool => ! in_array($slug, ['roles.manage', 'users.delete'], true),
+            static fn (string $slug): bool => ! in_array($slug, ['roles.manage', 'users.delete', 'trusted_scripts.manage'], true),
         )));
 
         $this->syncRole('editor', 'Editor', 'Manage all content, media, taxonomy and menus.', false, [

@@ -13,6 +13,7 @@ use TheNguyen\CMS\Exceptions\ReservedProfileFieldKeyException;
 use TheNguyen\CMS\Models\UserProfileField;
 use TheNguyen\CMS\Models\UserProfileFieldGroup;
 use TheNguyen\CMS\Models\UserProfileFieldTranslation;
+use TheNguyen\CMS\Services\ExtensionIdentityResolver;
 
 /**
  * In-memory registry of user profile field definitions
@@ -27,6 +28,11 @@ use TheNguyen\CMS\Models\UserProfileFieldTranslation;
  * same source with an incompatible definition, is a hard collision. Registering
  * a field does NOT grant any read access to user values; the privacy-aware read
  * API (UserProfileManager) is P1-B.
+ *
+ * Plugin registrations (CORE-EXTENSION-TRUST S3, G-3): when the call comes from
+ * plugin code, the source is derived from the S1 extension identity
+ * (`plugin:{slug}`), never trusted from the argument, and keys must sit in the
+ * plugin's own namespace. Core and host-app callers keep the declared source.
  */
 class UserProfileFieldRegistry
 {
@@ -40,6 +46,9 @@ class UserProfileFieldRegistry
     public const EDITABILITIES = ['owner', 'admin', 'system', 'immutable'];
 
     public const RESERVED_NAMESPACE = 'core';
+
+    /** Source prefix recorded for plugin registrations (matches the schema comment). */
+    public const PLUGIN_SOURCE_PREFIX = 'plugin:';
 
     /**
      * Auth identifiers and users-table columns that a profile field may never
@@ -73,7 +82,10 @@ class UserProfileFieldRegistry
     {
         $key = $this->normalizeKey($key);
         $this->assertGroupKeyShape($key);
+        $plugin = $this->callSitePlugin();
+        $source = $this->effectiveSource($source, $plugin);
         $this->assertNotReserved($key, $source);
+        $this->assertPluginGroupNamespace($key, $plugin);
 
         $group = [
             'key' => $key,
@@ -102,11 +114,14 @@ class UserProfileFieldRegistry
     public function registerField(string $key, array $definition, string $source = 'core'): void
     {
         $key = $this->normalizeKey($key);
+        $plugin = $this->callSitePlugin();
+        $source = $this->effectiveSource($source, $plugin);
 
         // Reserved names are checked before format so a bare "email"/"password"
         // reports a reserved-key error rather than a generic shape error.
         $this->assertNotReserved($key, $source);
         $this->assertFieldKeyShape($key);
+        $this->assertPluginFieldNamespace($key, $plugin);
 
         $def = $this->buildDefinition($key, $definition, $source);
 
@@ -316,6 +331,106 @@ class UserProfileFieldRegistry
                 sprintf('Profile field key "%s" must be namespaced snake_case ("<namespace>.<name>").', $key),
             );
         }
+    }
+
+    /**
+     * The source a registration is recorded under. Plugin code (nearest stack
+     * frame under the plugins root) gets `plugin:{slug}` from the S1 identity
+     * resolver; it may restate that source but never claim another one. Calls
+     * with no plugin frame (Core, host app) keep the declared source.
+     */
+    private function effectiveSource(string $declared, string|false $plugin): string
+    {
+        if ($plugin === false) {
+            return $declared;
+        }
+
+        if ($plugin === '') {
+            throw InvalidProfileFieldDefinitionException::because(
+                'Profile definitions may only be registered by an active plugin.',
+            );
+        }
+
+        $derived = self::PLUGIN_SOURCE_PREFIX.$plugin;
+
+        if (! in_array($declared, [self::RESERVED_NAMESPACE, $plugin, $derived], true)) {
+            throw InvalidProfileFieldDefinitionException::because(
+                sprintf('Plugin "%s" cannot register profile definitions under source "%s".', $plugin, $declared),
+            );
+        }
+
+        return $derived;
+    }
+
+    private function assertPluginFieldNamespace(string $key, string|false $plugin): void
+    {
+        if ($plugin === false) {
+            return;
+        }
+
+        $namespace = $this->pluginNamespace($plugin);
+
+        if ($this->firstSegment($key) !== $namespace) {
+            throw InvalidProfileFieldDefinitionException::because(
+                sprintf('Profile field "%s" must use its plugin\'s own namespace "%s.".', $key, $namespace),
+            );
+        }
+    }
+
+    private function assertPluginGroupNamespace(string $key, string|false $plugin): void
+    {
+        if ($plugin === false) {
+            return;
+        }
+
+        $namespace = $this->pluginNamespace($plugin);
+
+        if ($key !== $namespace && ! str_starts_with($key, $namespace.'_')) {
+            throw InvalidProfileFieldDefinitionException::because(
+                sprintf('Profile group "%s" must use its plugin\'s own namespace "%s".', $key, $namespace),
+            );
+        }
+    }
+
+    /** snake_case key namespace of a plugin slug ("acme-crm" → "acme_crm"). */
+    private function pluginNamespace(string $slug): string
+    {
+        return str_replace('-', '_', strtolower($slug));
+    }
+
+    /**
+     * The plugin owning the nearest stack frame under the plugins root: its slug,
+     * '' when that code is not owned by an active plugin, or false when no
+     * plugin code is on the stack (same rule as the S2 component registry).
+     */
+    private function callSitePlugin(): string|false
+    {
+        $identity = app(ExtensionIdentityResolver::class);
+        $skip = [
+            $this->normalizePath(__FILE__),
+            $this->normalizePath(dirname(__DIR__).DIRECTORY_SEPARATOR.'helpers.php'),
+        ];
+
+        foreach (debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS) as $frame) {
+            $file = $frame['file'] ?? null;
+
+            if (! is_string($file) || in_array($this->normalizePath($file), $skip, true)) {
+                continue;
+            }
+
+            if ($identity->isUnderPluginsRoot($file)) {
+                return $identity->ownerOfFile($file) ?? '';
+            }
+        }
+
+        return false;
+    }
+
+    private function normalizePath(string $path): string
+    {
+        $path = str_replace('\\', '/', $path);
+
+        return DIRECTORY_SEPARATOR === '\\' ? strtolower($path) : $path;
     }
 
     private function assertNotReserved(string $key, string $source): void

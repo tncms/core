@@ -137,6 +137,10 @@ class ProfilePresenter
                 continue; // never present encrypted/media values
             }
 
+            if ($key === PublicProfileProvider::ELIGIBILITY_FIELD) {
+                continue; // S3 consent flag: an account control, not profile data
+            }
+
             $value = $values[$key];
 
             if ($value === null || $value === '' || $value === []) {

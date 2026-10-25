@@ -1332,6 +1332,35 @@ if (! function_exists('tn_enqueue_script')) {
     }
 }
 
+if (! function_exists('cms_enqueue_trusted_script')) {
+    /**
+     * Activate an approved trusted external script declared in the calling
+     * plugin's plugin.json, for the current request only (CORE-EXTENSION-TRUST
+     * S1). Pass `$this` (or any object of the owning plugin). Returns false when
+     * the caller is not the owner or the declaration is unknown, invalid or not
+     * approved. Never throws.
+     */
+    function cms_enqueue_trusted_script(object $caller, string $key): bool
+    {
+        return app('cms.trusted_scripts')->enqueue($caller, $key);
+    }
+}
+
+if (! function_exists('cms_trusted_component')) {
+    /**
+     * Render a registered trusted interactive component (`{owner}/{key}`) for
+     * the current request (CORE-EXTENSION-TRUST S2). Returns an opaque slot
+     * placeholder that survives cms_html() and is resolved by the
+     * `cms.trusted_slots` middleware, or an empty unavailable wrapper when the
+     * route has no resolver or any check fails. $props are untrusted; $mode may
+     * only make the server-derived mode stricter. Never throws.
+     */
+    function cms_trusted_component(string $component, array $props = [], ?string $mode = null): string
+    {
+        return app('cms.trusted_components')->render($component, $props, $mode);
+    }
+}
+
 /*
 |--------------------------------------------------------------------------
 | Frontend asset rendering (A2 auth/account extraction)

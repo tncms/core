@@ -765,6 +765,24 @@ Route::get('/cms-health', static function (): JsonResponse {
         $assetRegistryHealth['asset_registry_ready'] = false;
     }
 
+    // Trusted external scripts (CORE-EXTENSION-TRUST S1) — COUNTS only. Never
+    // exposes owners, keys, URLs or fingerprints. Never throws.
+    $trustedScriptsHealth = [
+        'trusted_scripts_ready' => false,
+        'trusted_script_declared_count' => 0,
+        'trusted_script_approved_count' => 0,
+        'trusted_script_pending_count' => 0,
+        'trusted_script_invalid_count' => 0,
+    ];
+
+    try {
+        if (app()->bound('cms.trusted_scripts')) {
+            $trustedScriptsHealth = app('cms.trusted_scripts')->healthSnapshot();
+        }
+    } catch (\Throwable) {
+        $trustedScriptsHealth['trusted_scripts_ready'] = false;
+    }
+
     // Theme Custom CSS (v1.0.0-beta.7.1.13.4) — enabled flag + byte SIZES only.
     // Never exposes the CSS contents. Never throws.
     $themeCustomCssHealth = [
@@ -979,6 +997,9 @@ Route::get('/cms-health', static function (): JsonResponse {
 
         // Asset Registry (v1.0.0-beta.7.1.13.1) — readiness + counts only.
         ...$assetRegistryHealth,
+
+        // Trusted external scripts (CORE-EXTENSION-TRUST S1) — counts only.
+        ...$trustedScriptsHealth,
 
         // Theme Custom CSS (v1.0.0-beta.7.1.13.4) — enabled flag + sizes only.
         ...$themeCustomCssHealth,

@@ -526,6 +526,21 @@ class ScriptManager
             return false;
         }
 
+        // Hardened (CORE-EXTENSION-TRUST S1 / ADR D-8): the host allowlist alone
+        // let "data://www.google.com/,<js>", "http://", "ftp://" and userinfo /
+        // custom-port forms through. Absolute URLs must be HTTPS on the default
+        // port with no userinfo.
+        $parts = parse_url($url);
+        $start = strpos($url, '://');
+        $authority = $start === false ? '' : substr($url, $start + 3, strcspn(substr($url, $start + 3), '/?#'));
+
+        if (! is_array($parts)
+            || ! str_starts_with($url, 'https://')
+            || isset($parts['user']) || isset($parts['pass']) || str_contains($authority, '@')
+            || (isset($parts['port']) && $parts['port'] !== 443)) {
+            return false;
+        }
+
         return in_array($host, self::TRUSTED_SCRIPT_HOSTS, true);
     }
 

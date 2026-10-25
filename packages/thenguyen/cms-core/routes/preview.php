@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Illuminate\Support\Facades\Route;
 use TheNguyen\CMS\Http\Controllers\PreviewController;
+use TheNguyen\CMS\Http\Middleware\ResolveTrustedSlots;
 
 /*
 |--------------------------------------------------------------------------
@@ -21,7 +22,8 @@ use TheNguyen\CMS\Http\Controllers\PreviewController;
 
 $prefix = trim((string) config('cms.preview.route_prefix', 'cms/preview'), '/');
 
-Route::middleware(['web', 'signed'])
+// cms.trusted_slots (S2): preview renders the same content path; components run read-only.
+Route::middleware(['web', 'signed', ResolveTrustedSlots::class])
     ->get($prefix.'/{type}/{key}', PreviewController::class)
     ->where('type', '[A-Za-z0-9._-]+')
     ->where('key', '[A-Za-z0-9._-]+')

@@ -16,6 +16,109 @@ this project adheres to [Semantic Versioning](https://semver.org).
 
 ---
 
+## [1.0.0-beta.7.1.35] — Extension trust: trusted scripts, trusted interactive components, public profile API — 2026-10-25
+
+Security and extension-contract release (CORE-EXTENSION-TRUST S1, S1-R1, S2,
+S2-R1, S3). Adds **3 migrations**, **1 permission**, one admin page
+(*Trusted Scripts*) and four `trusted_scripts_*` counters in the health
+payload; no new public route. Read **Breaking changes** and **Upgrade
+notes** before upgrading a site with third-party plugins.
+
+### Added
+
+- **Trusted external scripts (S1).** An active plugin can declare an HTTPS
+  third-party script in `plugin.json` under `trusted_scripts` (for example a
+  CAPTCHA widget). Each declaration must be approved by an administrator
+  holding the new permission `trusted_scripts.manage` (admin page
+  *Plugins → Trusted Scripts*). The approval binds a SHA-256 fingerprint of
+  every security-relevant field: any change, or deactivating the plugin,
+  revokes it. Only the owning plugin can enqueue its script
+  (`cms_enqueue_trusted_script()`), and pages that emit one are sent
+  `Cache-Control: no-store, private`. Core emits no CSP header; the declared
+  CSP origins are documented for operators. Approvals and their audit trail
+  are stored in `cms_trusted_script_approvals` and
+  `cms_trusted_script_approval_events`.
+- **Trusted interactive components (S2, S2-R1).** A plugin can render
+  interactive HTML, including forms, into content through
+  `cms_trusted_component('owner/key', $props)`. Output is validated against a
+  strict profile and never repaired. It is delivered through a per-request
+  slot vault, so forged or replayed slot markers are stripped, and the
+  `cms_html()` sanitizer is unchanged. Every form must submit to a named
+  route the provider declares (`TrustedFormTarget`). That route must be owned
+  by the same plugin, be CSRF-protected, and match the canonical URL. Signed
+  preview renders components read-only.
+- **Public profile API (S3).** `app('cms.public_profile')->project($userId, $fields)`
+  returns a bounded, typed, public projection: name, avatar, bio, and public
+  custom fields. It returns the same data whoever is viewing, so it is safe in
+  any page and cache. A user appears only after they tick the new
+  **"Show my public profile"** checkbox on `/account/profile`. It defaults to
+  off, and a value set by someone else (for example an admin) does not count
+  as consent.
+- Developer guides: `packages/thenguyen/cms-core/docs/extension-trust/`
+  (`TRUSTED-EXTERNAL-SCRIPTS.md`, `TRUSTED-INTERACTIVE-COMPONENTS.md`,
+  `PUBLIC-PROFILE-PROVIDER.md`).
+
+### Changed
+
+- **Hardened external script and asset URL validation (S1, D-8).**
+  - `ScriptManager` external scripts (*Script Settings* rows,
+    `Script::externalHead/externalFooter`) must now be HTTPS on the default
+    port, without userinfo.
+  - `AssetRegistry` absolute URLs: external URLs must be HTTPS on port 443,
+    userinfo is rejected, and a same-host URL must match the page's scheme
+    and port.
+  - Asset handles starting with `ext:` are reserved.
+- **Plugin profile-field registrations (S3).** When `registerField()` or
+  `registerGroup()` is called from plugin code, Core records the source as
+  `plugin:{slug}` (derived from the plugin's real identity), and keys must use
+  the plugin's own namespace (`{slug with - as _}.…`). Core and host-app
+  calls are unchanged.
+- `/account/profile` shows the new consent checkbox, unchecked, in the custom
+  fields section. Sites with no custom fields now show that section for the
+  first time.
+
+### Breaking changes
+
+- **Script URLs:** `http://`, non-default ports or userinfo in *Script
+  Settings* external scripts or plugin asset URLs are now refused. Switch
+  them to `https://`.
+- **Asset handles** beginning with `ext:` are refused; rename them.
+- **Profile fields registered by a plugin** outside its own namespace, or with
+  another source, now throw `InvalidProfileFieldDefinitionException`. A throw
+  from a service provider's `boot()` can fail every request. No known plugin
+  is affected; check third-party plugins before upgrading.
+- **Trusted components that render forms** must declare their targets
+  (`formTargets`). A form posting to a route the plugin does not own (Core,
+  host, another plugin) renders nothing. This API is new in this release, so
+  it only affects code written against unreleased development builds.
+
+### Upgrade notes
+
+- Run migrations. They are additive and idempotent:
+  - `2026_10_24_000001_create_cms_trusted_script_approvals_table`
+  - `2026_10_24_000002_create_cms_trusted_script_approval_events_table`
+  - `2026_10_25_000001_seed_core_public_profile_field`: data rows only.
+- After upgrading, **nobody is public**: every user must opt in themself.
+- `trusted_scripts.manage` is registered but granted to no role, Administrator
+  included. Assign it explicitly to whoever should approve scripts.
+- **Rolling back** `2026_10_25_000001_seed_core_public_profile_field` deletes
+  the consent field and **every user's stored consent**. To switch public
+  profiles off without losing consent, deactivate the field in the Profile
+  Field Builder instead.
+
+### Notes
+
+- **Signed preview read-only mode is not a PHP sandbox.** It blocks database
+  writes and Laravel HTTP-client calls made during a component's preview
+  render. It does not intercept raw sockets, `curl_*`, the filesystem, mail or
+  non-database queues. Active plugin code is trusted PHP.
+- **Form authorization covers the first hop only.** Redirects issued by a
+  plugin's own handler are that plugin's responsibility.
+- The *Trusted Scripts* admin strings are not yet translated in `lang/vi.json`
+  (shown in English).
+
+---
+
 ## [1.0.0-beta.7.1.34] — Atomic, rollback-safe plugin/theme install & overwrite — 2026-10-22
 
 Installer safety release. No migration, no route, permission, setting or

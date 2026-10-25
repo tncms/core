@@ -153,6 +153,26 @@ class PermissionManager
     }
 
     /**
+     * Strict variant of {@see userCan()} for security-sensitive authority
+     * (CORE-EXTENSION-TRUST S1): NEVER fail-open. Granted only to a super admin
+     * or through an explicit role permission in an initialised RBAC system.
+     */
+    public function userCanStrict(?Authenticatable $user, string $permission): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        $resolved = $this->resolve($user);
+
+        if ($resolved['super']) {
+            return true;
+        }
+
+        return $this->systemInitialized() && in_array($permission, $resolved['slugs'], true);
+    }
+
+    /**
      * Whether the user is a super admin (super-admin role or configured email).
      */
     public function isSuperAdmin(?Authenticatable $user): bool

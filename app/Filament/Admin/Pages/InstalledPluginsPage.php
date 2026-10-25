@@ -84,6 +84,13 @@ class InstalledPluginsPage extends Page implements HasTable
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('trustedScripts')
+                ->label(tn_trans('Trusted Scripts'))
+                ->icon('heroicon-m-shield-check')
+                ->color('gray')
+                ->visible(fn (): bool => \TheNguyen\CMS\Filament\Admin\Pages\TrustedScriptsPage::authorized())
+                ->url(fn (): string => \TheNguyen\CMS\Filament\Admin\Pages\TrustedScriptsPage::getUrl()),
+
             Action::make('installPlugin')
                 ->label(tn_trans('Install Plugin'))
                 ->icon('heroicon-m-arrow-up-tray')

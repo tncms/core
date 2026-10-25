@@ -250,6 +250,30 @@ class CmsServiceProvider extends ServiceProvider
         $this->app->singleton('cms.assets', fn () => new AssetRegistry);
         $this->app->alias('cms.assets', AssetRegistry::class);
 
+        // Extension trust (CORE-EXTENSION-TRUST S1): server-derived plugin
+        // identity, administrator approvals, and the trusted external script
+        // registry. All three are stateless singletons — per-request state lives
+        // on the Request's attributes — so they are safe under persistent workers.
+        $this->app->singleton('cms.extension_identity', fn ($app) => new \TheNguyen\CMS\Services\ExtensionIdentityResolver($app->make('cms.extension')));
+        $this->app->alias('cms.extension_identity', \TheNguyen\CMS\Services\ExtensionIdentityResolver::class);
+        $this->app->singleton('cms.trusted_script_approvals', fn () => new \TheNguyen\CMS\Services\TrustedScriptApprovalStore);
+        $this->app->alias('cms.trusted_script_approvals', \TheNguyen\CMS\Services\TrustedScriptApprovalStore::class);
+        $this->app->singleton('cms.trusted_scripts', fn ($app) => new \TheNguyen\CMS\Services\TrustedExternalScriptRegistry(
+            $app->make('cms.extension'),
+            $app->make('cms.extension_identity'),
+            $app->make('cms.trusted_script_approvals'),
+        ));
+        $this->app->alias('cms.trusted_scripts', \TheNguyen\CMS\Services\TrustedExternalScriptRegistry::class);
+
+        // Trusted interactive components (CORE-EXTENSION-TRUST S2). Provider
+        // registrations live for the app lifetime and freeze at the first matched
+        // route; vault, diagnostics and nesting state live on the Request.
+        $this->app->singleton('cms.trusted_components', fn ($app) => new \TheNguyen\CMS\Services\TrustedComponentRegistry(
+            $app->make('cms.extension_identity'),
+            new \TheNguyen\CMS\Support\TrustedComponents\ReadOnlyRenderGuard,
+        ));
+        $this->app->alias('cms.trusted_components', \TheNguyen\CMS\Services\TrustedComponentRegistry::class);
+
         // Frontend Authentication (v1.0.0-beta.7.1.14): registration, login,
         // logout, password reset, and the session/device invalidation policy on
         // the shared web guard. One users table; roles decide capability.
@@ -571,6 +595,11 @@ class CmsServiceProvider extends ServiceProvider
         ));
         $this->app->alias('cms.user_profile_fields.admin', \TheNguyen\CMS\Profile\ProfileFieldAdminService::class);
 
+        // Public profile read API (CORE-EXTENSION-TRUST S3): always-public,
+        // consent-gated projection for content renderers. Stateless.
+        $this->app->singleton('cms.public_profile', fn () => new \TheNguyen\CMS\Profile\PublicProfileProvider);
+        $this->app->alias('cms.public_profile', \TheNguyen\CMS\Profile\PublicProfileProvider::class);
+
         // Maintenance Mode Core (v1.0.0-beta.4).
         $this->app->singleton('cms.maintenance', fn () => new MaintenanceManager);
         $this->app->alias('cms.maintenance', MaintenanceManager::class);
@@ -818,6 +847,23 @@ class CmsServiceProvider extends ServiceProvider
         $permissions->register(\TheNguyen\CMS\Profile\UserProfileManager::PERM_MANAGE, 'Manage profile fields', 'Users', 'Create and edit user profile field definitions.');
         $permissions->register(\TheNguyen\CMS\Profile\UserProfileManager::PERM_VIEW_PRIVATE, 'View private profile fields', 'Users', "Read other users' owner/admin-visibility profile values.");
         $permissions->register(\TheNguyen\CMS\Profile\UserProfileManager::PERM_EDIT_OTHERS, 'Edit other users\' profile fields', 'Users', "Write other users' profile values.");
+
+        // Trusted external scripts (CORE-EXTENSION-TRUST S1, ADR D-2). A dedicated
+        // permission, granted to NO role by default (super admins only, until an
+        // administrator assigns it) and checked strictly (never fail-open).
+        $permissions->register('trusted_scripts.manage', 'Approve trusted external scripts', 'Plugins', 'Review, approve and revoke third-party scripts declared by plugins.');
+
+        // Pages that carried a trusted external script are never cached (D-5).
+        // A no-op on every other response.
+        $this->app['router']->pushMiddlewareToGroup('web', \TheNguyen\CMS\Http\Middleware\TrustedScriptCacheHeaders::class);
+
+        // Trusted interactive component slots (S2, D-9): attached by the Core
+        // frontend and preview routes, opt-in for plugin routes via the alias.
+        // Provider registration closes at the first matched route (boot only).
+        $this->app['router']->aliasMiddleware('cms.trusted_slots', \TheNguyen\CMS\Http\Middleware\ResolveTrustedSlots::class);
+        $this->app['events']->listen(\Illuminate\Routing\Events\RouteMatched::class, function (): void {
+            $this->app->make('cms.trusted_components')->freeze();
+        });
 
         // DB-free install check (marker/env only). When false — a fresh,
         // pre-install boot — every database-touching boot step is skipped so the

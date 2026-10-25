@@ -41,6 +41,8 @@ final class PluginResourceRegistrar implements Plugin
         // app needs no app/Filament/.../WidgetsPage.php (v1.0.0-beta.7.1).
         $panel->pages([
             \TheNguyen\CMS\Filament\Admin\Pages\WidgetsPage::class,
+            // Trusted external script approvals (CORE-EXTENSION-TRUST S1).
+            \TheNguyen\CMS\Filament\Admin\Pages\TrustedScriptsPage::class,
         ]);
 
         // Account Profile Field Builder resources (P2). Core-owned, so the host

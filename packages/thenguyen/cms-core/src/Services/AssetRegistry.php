@@ -6,6 +6,8 @@ namespace TheNguyen\CMS\Services;
 
 use TheNguyen\CMS\Support\Assets\Asset;
 use TheNguyen\CMS\Support\Assets\AssetRenderResult;
+use TheNguyen\CMS\Support\TrustedScripts\StrictHttpsUrl;
+use TheNguyen\CMS\Support\TrustedScripts\TrustedScriptDeclaration;
 
 /**
  * Asset Registry (v1.0.0-beta.7.1.13.1 — Asset Registry Foundation).
@@ -33,7 +35,13 @@ use TheNguyen\CMS\Support\Assets\AssetRenderResult;
  * Security: this is a trusted theme/plugin API, not a full sanitizer. Sources
  * and inline content are screened for obviously unsafe patterns, external URLs
  * must be same-origin or on a small trusted allowlist, and attributes are
- * escaped with event handlers rejected.
+ * escaped with event handlers rejected. Absolute URLs never carry userinfo;
+ * external ones must be HTTPS on the default port (CORE-EXTENSION-TRUST S1).
+ *
+ * Trusted external scripts: handles starting with `ext:` are reserved. They are
+ * never registered or enqueued through this API; the
+ * {@see TrustedExternalScriptRegistry} admits them per request (owned, declared,
+ * administrator-approved) and this registry pulls them in at render time.
  *
  * NOT a bundler/minifier/build pipeline — no concatenation, no minification,
  * no file hashing, no PHP execution.
@@ -191,6 +199,10 @@ class AssetRegistry
             return $this->reject($handle, 'empty handle');
         }
 
+        if ($this->isReservedHandle($handle)) {
+            return $this->reject($handle, 'reserved handle prefix');
+        }
+
         return $this->store(new Asset(
             handle: $handle,
             type: Asset::TYPE_MARKER,
@@ -331,7 +343,12 @@ class AssetRegistry
     /** Build a position bucket's HTML from the enqueued closure. */
     private function buildBucket(string $scope, string $position): AssetRenderResult
     {
-        $ordered = $this->resolveOrder();
+        // Trusted external scripts admitted for THIS request (CORE-EXTENSION-TRUST
+        // S1) join the render as transient entries; they are never stored on this
+        // singleton, so nothing carries over to another request.
+        $trusted = $this->admittedTrustedAssets();
+        $assets = $this->assets + $trusted;
+        $ordered = $this->resolveOrder($assets, array_keys($trusted));
         $skipped = [];
         $chunks = [];
 
@@ -339,7 +356,7 @@ class AssetRegistry
         // that depends on a style still sees it in the document.
         foreach ([true, false] as $stylesPass) {
             foreach ($ordered as $handle) {
-                $asset = $this->assets[$handle];
+                $asset = $assets[$handle];
 
                 if ($asset->type === Asset::TYPE_MARKER) {
                     continue;
@@ -395,6 +412,10 @@ class AssetRegistry
         }
 
         $chunks[] = $html;
+
+        if ($this->isReservedHandle($asset->handle)) {
+            $this->trustedScripts()?->markRendered($asset->handle);
+        }
     }
 
     private function renderAsset(Asset $asset): ?string
@@ -488,15 +509,17 @@ class AssetRegistry
      * Resolve the enqueued closure to a render order (dependencies first).
      * Missing deps warn; cycles break safely.
      *
+     * @param  array<string, Asset>  $assets
+     * @param  list<string>  $extraEnqueued  Request-scoped trusted handles.
      * @return list<string>
      */
-    private function resolveOrder(): array
+    private function resolveOrder(array $assets, array $extraEnqueued = []): array
     {
         $order = [];
         $state = []; // handle => 'visiting' | 'done'
 
-        foreach (array_keys($this->enqueued) as $handle) {
-            $this->visit($handle, $state, $order);
+        foreach ([...array_keys($this->enqueued), ...$extraEnqueued] as $handle) {
+            $this->visit($handle, $assets, $state, $order);
         }
 
         return $order;
@@ -506,10 +529,11 @@ class AssetRegistry
      * Depth-first post-order visit. `visiting` marks the current path so a
      * back edge (cycle) is detected and skipped instead of recursing forever.
      *
+     * @param  array<string, Asset>  $assets
      * @param  array<string, string>  $state
      * @param  list<string>  $order
      */
-    private function visit(string $handle, array &$state, array &$order): void
+    private function visit(string $handle, array $assets, array &$state, array &$order): void
     {
         if (($state[$handle] ?? null) === 'done') {
             return;
@@ -521,7 +545,7 @@ class AssetRegistry
             return;
         }
 
-        $asset = $this->assets[$handle] ?? null;
+        $asset = $assets[$handle] ?? null;
 
         if ($asset === null) {
             $this->warnings[] = ['handle' => $handle, 'reason' => 'missing dependency'];
@@ -532,7 +556,7 @@ class AssetRegistry
         $state[$handle] = 'visiting';
 
         foreach ($asset->deps as $dep) {
-            $this->visit($dep, $state, $order);
+            $this->visit($dep, $assets, $state, $order);
         }
 
         $state[$handle] = 'done';
@@ -613,6 +637,10 @@ class AssetRegistry
             return $this->reject($handle, 'empty handle');
         }
 
+        if ($this->isReservedHandle($handle)) {
+            return $this->reject($handle, 'reserved handle prefix');
+        }
+
         $src = trim($src);
 
         if (! $this->isSafeSrc($src)) {
@@ -648,6 +676,10 @@ class AssetRegistry
 
         if ($handle === '') {
             return $this->reject($handle, 'empty handle');
+        }
+
+        if ($this->isReservedHandle($handle)) {
+            return $this->reject($handle, 'reserved handle prefix');
         }
 
         if (trim($code) === '') {
@@ -750,12 +782,109 @@ class AssetRegistry
             return ! str_contains($lower, ':');
         }
 
-        // Absolute URL: allow same-origin, else require HTTPS + trusted host.
-        if ($host === $this->currentHost()) {
-            return true;
+        // Absolute URLs (hardened, CORE-EXTENSION-TRUST S1 / ADR D-8): never
+        // userinfo, and only http(s).
+        $parts = parse_url($url);
+
+        if (! is_array($parts) || isset($parts['user']) || isset($parts['pass']) || str_contains($this->authorityOf($url), '@')) {
+            return false;
         }
 
-        return str_starts_with($lower, 'https://') && in_array($host, self::TRUSTED_ASSET_HOSTS, true);
+        $scheme = strtolower((string) ($parts['scheme'] ?? ''));
+        $port = $parts['port'] ?? null;
+
+        // Same origin: https always; http only when the page itself is served
+        // over http; the port must be the page's own port.
+        if ($host === $this->currentHost()) {
+            return ($scheme === 'https' || ($scheme === 'http' && $this->currentScheme() === 'http'))
+                && ($port === null || $port === $this->currentPort());
+        }
+
+        // External: HTTPS on the default port, trusted host only.
+        return $scheme === 'https'
+            && ($port === null || $port === 443)
+            && in_array($host, self::TRUSTED_ASSET_HOSTS, true);
+    }
+
+    /** Raw authority ("user@host:port") of an absolute URL; '' when absent. */
+    private function authorityOf(string $url): string
+    {
+        $start = strpos($url, '://');
+
+        if ($start === false) {
+            return '';
+        }
+
+        $rest = substr($url, $start + 3);
+        $end = strcspn($rest, '/?#');
+
+        return substr($rest, 0, $end);
+    }
+
+    /** Whether a handle is in the reserved trusted-script namespace (ext:...). */
+    private function isReservedHandle(string $handle): bool
+    {
+        return str_starts_with(strtolower(trim($handle)), TrustedScriptDeclaration::HANDLE_PREFIX);
+    }
+
+    private function trustedScripts(): ?TrustedExternalScriptRegistry
+    {
+        try {
+            return app()->bound('cms.trusted_scripts') ? app('cms.trusted_scripts') : null;
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    /**
+     * Trusted external scripts admitted for the current request, re-validated
+     * here so the registry cannot hand over anything this registry would not
+     * render: reserved handle, strict HTTPS src (the fixed host allowlist is the
+     * ONLY check skipped — the declaration was approved by an administrator),
+     * script attributes allowlist, and normalised deps.
+     *
+     * @return array<string, Asset>
+     */
+    private function admittedTrustedAssets(): array
+    {
+        $registry = $this->trustedScripts();
+
+        if ($registry === null) {
+            return [];
+        }
+
+        $out = [];
+
+        foreach ($registry->admittedAssets() as $handle => $asset) {
+            if (! $asset instanceof Asset || $asset->handle !== $handle || ! $this->isReservedHandle($handle)
+                || isset($this->assets[$handle])) {
+                continue;
+            }
+
+            if ($asset->type === Asset::TYPE_SCRIPT) {
+                if ($asset->src === null || StrictHttpsUrl::normalize($asset->src) !== $asset->src
+                    || $this->sanitizeAttributes($asset->attributes, self::ALLOWED_SCRIPT_ATTRIBUTES) === null) {
+                    continue;
+                }
+            } elseif ($asset->type !== Asset::TYPE_MARKER) {
+                continue;
+            }
+
+            $out[$handle] = new Asset(
+                handle: $handle,
+                type: $asset->type,
+                src: $asset->src,
+                deps: $this->normalizeDeps($asset->deps),
+                scope: Asset::SCOPE_FRONTEND,
+                position: $this->normalizePosition($asset->position, Asset::POSITION_FOOTER),
+                attributes: $asset->type === Asset::TYPE_SCRIPT
+                    ? (array) $this->sanitizeAttributes($asset->attributes, self::ALLOWED_SCRIPT_ATTRIBUTES)
+                    : [],
+                sequence: $asset->sequence,
+            );
+        }
+
+        return $out;
     }
 
     /**
@@ -831,7 +960,9 @@ class AssetRegistry
     {
         $handle = trim($handle);
 
-        if ($handle === '') {
+        // ext:{slug}/{key} handles are activated only through the trusted
+        // script registry, never by an ordinary enqueue.
+        if ($handle === '' || $this->isReservedHandle($handle)) {
             return false;
         }
 
@@ -981,6 +1112,26 @@ class AssetRegistry
             $host = request()->getHost();
 
             return is_string($host) && $host !== '' ? strtolower($host) : null;
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    private function currentScheme(): ?string
+    {
+        try {
+            return strtolower(request()->getScheme());
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    private function currentPort(): ?int
+    {
+        try {
+            $port = request()->getPort();
+
+            return is_numeric($port) ? (int) $port : null;
         } catch (\Throwable) {
             return null;
         }
@@ -1152,7 +1303,7 @@ class AssetRegistry
      */
     private function countEnqueuedForScope(string $scope): int
     {
-        $ordered = $this->resolveOrder();
+        $ordered = $this->resolveOrder($this->assets);
         $count = 0;
 
         foreach ($ordered as $handle) {

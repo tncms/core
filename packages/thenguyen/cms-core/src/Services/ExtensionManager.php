@@ -274,7 +274,27 @@ class ExtensionManager
             static fn (string $s): bool => $s !== $slug,
         )));
 
+        $this->revokeTrustedScriptApprovals($slug);
+
         return true;
+    }
+
+    /**
+     * Deactivation revokes every trusted external script approval the plugin
+     * holds (CORE-EXTENSION-TRUST S1, ADR D-2), so reactivating it can never
+     * silently restore a third-party script: an administrator must approve
+     * again. Best-effort — a failure here must not block deactivation, and the
+     * scripts stop rendering anyway because only ACTIVE plugins are consulted.
+     */
+    private function revokeTrustedScriptApprovals(string $slug): void
+    {
+        try {
+            if (app()->bound('cms.trusted_script_approvals')) {
+                app('cms.trusted_script_approvals')->revokeAllForOwner($slug);
+            }
+        } catch (\Throwable $e) {
+            report($e);
+        }
     }
 
     // ---------------------------------------------------------------------

@@ -7,6 +7,7 @@ use TheNguyen\CMS\Http\Controllers\FrontendController;
 use TheNguyen\CMS\Http\Middleware\CheckMaintenanceMode;
 use TheNguyen\CMS\Http\Middleware\OptimizeResponseHeaders;
 use TheNguyen\CMS\Http\Middleware\QueryInsights;
+use TheNguyen\CMS\Http\Middleware\ResolveTrustedSlots;
 use TheNguyen\CMS\Services\LanguageManager;
 
 /*
@@ -50,7 +51,9 @@ $pageSlugConstraint = '^(?!(admin|install|cms-health|livewire|filament|storage|u
 // The maintenance gate is applied to the frontend group ONLY (v1.0.0-beta.4),
 // so admin/Livewire/cms-health/robots.txt/sitemap.xml — registered outside this
 // group — are never blocked. The middleware no-ops when maintenance is disabled.
-Route::middleware(['web', CheckMaintenanceMode::class, QueryInsights::class, OptimizeResponseHeaders::class])->group(function () use ($activeLocales, $pageSlugConstraint, $postBase, $categoryBase, $tagBase, $dictionary): void {
+// ResolveTrustedSlots (CORE-EXTENSION-TRUST S2) is listed LAST so it is innermost:
+// it resolves trusted component slots before any other middleware sees the body.
+Route::middleware(['web', CheckMaintenanceMode::class, QueryInsights::class, OptimizeResponseHeaders::class, ResolveTrustedSlots::class])->group(function () use ($activeLocales, $pageSlugConstraint, $postBase, $categoryBase, $tagBase, $dictionary): void {
     // 1. Default (unprefixed) routes. Base routes only when the base is set.
     Route::get('/', [FrontendController::class, 'home'])->name('cms.home');
 

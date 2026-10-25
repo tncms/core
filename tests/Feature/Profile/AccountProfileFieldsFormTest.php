@@ -88,6 +88,9 @@ class AccountProfileFieldsFormTest extends TestCase
 
     public function test_no_fields_configured_renders_no_custom_section(): void
     {
+        // S3 seeds the Core consent field `core.public_profile`; switch it off to keep "no fields".
+        UserProfileField::query()->where('key', 'core.public_profile')->update(['is_active' => false]);
+
         $this->actingAs(User::factory()->create())->get('/account/profile')
             ->assertOk()
             ->assertSee('Save profile', false)      // base form intact
