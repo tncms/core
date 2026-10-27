@@ -39,6 +39,7 @@ class UpgradeController
             'current' => $mgr->currentVersion(),
             'situation' => $mgr->situation(),
             'latest' => $mgr->latest(),
+            'usage' => $mgr->storageUsage(),
             'stepRoute' => fn (string $status) => $this->routeForStatus($status),
         ]);
     }
@@ -175,10 +176,13 @@ class UpgradeController
     public function finish(): ViewContract
     {
         $mgr = $this->manager();
+        // The same decision the landing page shows: an attempt that needs recovery outranks everything.
+        $situation = $mgr->situation();
 
         return view('upgrade.finish', [
             'step' => 5,
             'state' => $mgr->latest(),
+            'recovery' => $situation['recommendation'] === 'recover' ? $situation['state'] : null,
             'current' => $mgr->currentVersion(),
         ]);
     }
@@ -191,16 +195,43 @@ class UpgradeController
         if ($state === null) {
             return redirect()->route('cms.upgrade.index');
         }
-        $id = (string) $state['upgrade_id'];
+        // An unverified earlier recovery is always the one to retry first.
+        $id = $mgr->blockingRecovery() ?? (string) $state['upgrade_id'];
+        $state = $mgr->store()->load($id) ?? $state;
         $status = (string) ($state['status'] ?? '');
 
-        if (UpgradeState::hasMutatedLiveState($status)) {
-            $mgr->recover($id, 'manual recovery requested', null);
-        } else {
-            $mgr->discard($id);
+        // The manager decides server-side: a COMPLETED (or committed) upgrade is
+        // never rolled back from this route, whatever the form posts.
+        if ($mgr->needsRecovery($id)) {
+            $mgr->manualRecover($id);
+        } elseif (! UpgradeState::isTerminal($status)) {
+            $discarded = $mgr->discard($id);
+            if (! $discarded['ok']) {
+                return redirect()->route('cms.upgrade.finish')
+                    ->with('upgrade_error', tn_trans('The upgrade was not discarded: :reason', ['reason' => $discarded['reason']]));
+            }
         }
 
         return redirect()->route('cms.upgrade.finish');
+    }
+
+    /**
+     * Retry the pending post-commit cleanup of a completed upgrade. The manager
+     * re-checks eligibility under the upgrade lock, whatever the page showed.
+     */
+    public function retryCleanup(Request $request): RedirectResponse
+    {
+        $id = $request->input('upgrade_id');
+        $res = $this->manager()->retryCleanup(\is_string($id) ? $id : '');
+
+        if ($res['cleanup_ok']) {
+            return redirect()->route('cms.upgrade.finish')
+                ->with('upgrade_ok', tn_trans('The temporary upgrade files were removed.'));
+        }
+
+        return redirect()->route('cms.upgrade.finish')->with('upgrade_error', ($res['refused'] ?? false)
+            ? tn_trans('The cleanup was not run: :reason', ['reason' => (string) $res['reason']])
+            : tn_trans('Some temporary upgrade files could not be removed yet: :items', ['items' => implode('; ', $res['pending'])]));
     }
 
     // ---- helpers --------------------------------------------------------

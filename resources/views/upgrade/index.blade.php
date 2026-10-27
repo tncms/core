@@ -15,14 +15,29 @@
         <span class="label">Installed version</span>
         <span class="v">v{{ $current }}</span>
     </div>
+    @if (($usage['attempts'] ?? 0) > 0)
+        <div class="kv">
+            <span class="label">Upgrade data on disk</span>
+            <span class="v">{{ number_format(($usage['bytes'] ?? 0) / 1048576, 1) }} MiB in {{ $usage['attempts'] }} attempt(s)</span>
+        </div>
+    @endif
 
     @if ($situation['has_active'])
         @php($active = $situation['state'])
-        <div class="alert alert--warn">
-            An earlier upgrade attempt is still in progress
-            (stage: <strong>{{ str_replace('_', ' ', $active['status']) }}</strong>).
-            Continue it, or discard it to start over.
-        </div>
+        @if (($active['outcome'] ?? null) === \TheNguyen\CMS\Upgrade\UpgradeOutcome::RECOVERY_REQUIRED)
+            <div class="alert alert--error">
+                An earlier upgrade could not be rolled back completely and still needs recovery
+                (incident <code>{{ $active['upgrade_id'] }}</code>). New upgrades are blocked until
+                recovery is verified. Close programs that may hold site files open (editors, file
+                explorers, terminals, sync or backup tools), then retry.
+            </div>
+        @else
+            <div class="alert alert--warn">
+                An earlier upgrade attempt is still in progress
+                (stage: <strong>{{ str_replace('_', ' ', $active['status']) }}</strong>).
+                Continue it, or discard it to start over.
+            </div>
+        @endif
         <div class="actions">
             @if ($situation['recommendation'] === 'recover')
                 <form method="POST" action="{{ route('cms.upgrade.recover') }}">

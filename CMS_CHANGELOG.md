@@ -16,6 +16,115 @@ this project adheres to [Semantic Versioning](https://semver.org).
 
 ---
 
+## [1.0.0-beta.7.1.36] — Windows-safe Core upgrades, disk-full safety and verified recovery — 2026-10-27
+
+Upgrade-engine hotfix (CORE-UPGRADE-WIN-R1, CORE-UPGRADE-DISK-QUOTA P0-R1 to
+P0-R5). **No migrations, no new permission, no settings change.** One new
+admin route, `POST /upgrade/cleanup`, inside the existing Super-Admin upgrade
+area. Only the Core upgrade manager (`/upgrade`, the upgrade bridge and the
+upgrade engine classes) changes. Read **Upgrade notes** before upgrading a
+site that runs `1.0.0-beta.7.1.34` or `1.0.0-beta.7.1.35`.
+
+### Fixed
+
+- **Windows upgrades no longer fail with `failed to promote staged dir`.**
+  Core files are now promoted one file at a time inside a journaled
+  transaction instead of renaming whole directories, so an editor, file
+  explorer, antivirus scanner or PHP worker holding a file open no longer
+  breaks the upgrade. If a file cannot be placed, every changed file is
+  restored and verified against its pre-upgrade bytes before the upgrade
+  reports *rolled back*.
+- **A full disk can no longer corrupt the site or the upgrade record.** A
+  storage preflight refuses an upgrade without enough verified free space;
+  the backup step refuses to start until the system check has passed; state,
+  lock and journal writes are durable and fail cleanly; and a failure before
+  any live change frees the space it used before recording the outcome.
+- **Database snapshots are proven before they are trusted.** A snapshot that
+  cannot be verified rejects the upgrade before anything changes; a restore
+  is refused unless maintenance mode is confirmed; tables of unproven origin
+  are never dropped; and a restored schema is compared semantically.
+- **Recovery is never reported as successful when it is not.** The upgrade
+  journal is never read or written through a symbolic link, junction or hard
+  link (a forged journal could previously turn a failed upgrade into a
+  reported success); an attempt that may have changed the site keeps
+  blocking new upgrades until its recovery is verified, even when its final
+  record was lost on a full disk; a roll-forward lifts maintenance only once
+  the completed record is durable; and an unreadable journal leaves the
+  attempt recoverable instead of making recovery unreachable.
+- **The finish page no longer says "No completed upgrade… Start an upgrade"
+  while an earlier upgrade still needs recovery.** It explains that the
+  previous upgrade has not been fully recovered and offers **Recover now**.
+
+### Added
+
+- **Retry of a pending post-commit cleanup** when temporary upgrade files
+  could not be removed (a file held open, or a full disk): a **Retry cleanup**
+  button on the finish page (`POST /upgrade/cleanup`, Super Admin, CSRF) and
+  `upgrade-bridge.php --site=… --cleanup=<id>`. A retry runs under the upgrade
+  lock, never changes the completed upgrade, and can be repeated.
+- **Precise cleanup errors.** A cleanup that fails because the disk is full
+  says so and tells the operator to free a few MB and retry; any other cause
+  (permissions, a file held open, a lock) is reported as itself. The original
+  error is kept in the upgrade record.
+- **Upgrade bridge** `packages/thenguyen/cms-core/bin/upgrade-bridge.php`:
+  runs an upgrade with the engine shipped **in the package** (needed once by
+  `.34`/`.35` sites, see below), after verifying the package SHA-256, its
+  manifests and every engine file. `--usage`, `--cleanup` and `--purge` run
+  without a package on sites already on this version.
+- **Operator guidance in the upgrade package.** Its `UPGRADE.md` now explains
+  the one-time bridge upgrade for `.34`/`.35` sites and what to do when the
+  disk fills up. The full guides
+  (`docs/core-upgrade-windows/WINDOWS-UPGRADE-BRIDGE-34-35.md`,
+  `docs/core-upgrade-windows/OPERATOR-DISK-FULL-RECOVERY.md`) are in the
+  repository; they are not shipped in the packages.
+
+### Upgrade notes
+
+- **Sites on `1.0.0-beta.7.1.34` or `1.0.0-beta.7.1.35` must upgrade to this
+  version once with the upgrade bridge**, not the `/upgrade` wizard: the wizard
+  runs the engine already installed on the site, which is the one being fixed.
+  Stop the site's web server, extract the upgrade package outside the site,
+  then run with the site's PHP 8.3:
+  `php <extracted>/packages/thenguyen/cms-core/bin/upgrade-bridge.php --site=<site root> --package=<tncms-1.0.0-beta.7.1.36-upgrade.zip> --sha256=<value from the release page>`.
+  `BRIDGE: UPGRADED` (exit 0) means done. From then on the `/upgrade` wizard
+  uses the fixed engine. The upgrade package's `UPGRADE.md` lists every bridge
+  outcome.
+- **Antivirus:** some antivirus products (observed with Norton,
+  `IDP.Generic`, a false positive on the official bridge) quarantine
+  `upgrade-bridge.php` while PHP runs it, which stops the bridge part-way.
+  Never run a file restored from quarantine: delete the extraction folder and
+  extract the package again from the verified zip; do not disable the
+  antivirus (at most a temporary exception for the extraction folder only).
+  Then rerun the same bridge command; its answer tells you the state. Stopped
+  **before** Core files were replaced: nothing changed; remove the stale
+  `storage/app/upgrades/upgrade.lock` once no `php.exe` runs the bridge, and
+  rerun. Stopped **during** file replacement or migrations: the site stays in
+  maintenance; run with `--recover=<id>` (and the package) until it reports
+  `ROLLED BACK (verified)` or, for an already committed upgrade, `UPGRADED`.
+  **Committed with cleanup pending**: the site is upgraded; use **Retry
+  cleanup** or `--cleanup=<id>`. The upgrade package's `UPGRADE.md` has the
+  exact steps.
+- Free a few hundred MB before upgrading: the storage preflight now refuses an
+  upgrade it cannot complete safely.
+- Rolling back: the upgrade keeps a verified backup of the Core files and the
+  database snapshot for its attempt; see the bridge guide for `--recover`.
+
+### Notes
+
+- **Certified on Windows 11 / NTFS**, including real disk-full tests on a
+  dedicated volume. Linux and macOS, shared-hosting quotas, inode exhaustion
+  and non-NTFS volumes were not physically tested.
+- **Automatic database rollback needs MySQL or MariaDB.** On PostgreSQL or
+  SQLite an upgrade package that includes migrations is refused at the system
+  check.
+- **At exactly 0 bytes free the site's own pages may not load** (PHP and
+  Laravel cannot write their runtime files). The command-line bridge remains
+  the entry point; a cleanup or recovery still needs a few KB free. After
+  space returns, `php artisan view:clear` removes empty compiled views. Never
+  delete `storage/app/upgrades/` to free space.
+
+---
+
 ## [1.0.0-beta.7.1.35] — Extension trust: trusted scripts, trusted interactive components, public profile API — 2026-10-25
 
 Security and extension-contract release (CORE-EXTENSION-TRUST S1, S1-R1, S2,

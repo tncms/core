@@ -66,15 +66,18 @@ final class CoreBackup
                 $zip->addFile($abs, $rel);
             }
         }
-        $zip->close();
+        // close() is where libzip writes the archive: on a full volume it fails here.
+        if (! $zip->close()) {
+            @unlink($zipPath);
+            throw new UpgradeStorageException('backup archive could not be finalized', 'close_failed');
+        }
 
         $manifestPath = $backupDir.'/core-files.manifest.json';
-        file_put_contents($manifestPath, (string) json_encode([
-            'root' => $this->root,
+        DurableFile::replace($manifestPath, (string) json_encode([
             'generated_at' => gmdate('c'),
             'file_count' => \count($owned),
             'files' => $owned,
-        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), 'backup manifest');
 
         // .env — protected, byte-for-byte, never logged.
         $envSrc = $this->root.'/.env';
@@ -82,10 +85,15 @@ final class CoreBackup
         $envSha = null;
         if (is_file($envSrc)) {
             $envDest = $backupDir.'/env.backup';
-            if (! @copy($envSrc, $envDest)) {
+            $envBytes = @file_get_contents($envSrc);
+            if (! \is_string($envBytes)) {
                 throw new RuntimeException('cannot back up .env');
             }
+            DurableFile::replace($envDest, $envBytes, '.env backup');
             $envSha = (string) hash_file('sha256', $envDest);
+            if (! hash_equals(hash('sha256', $envBytes), $envSha)) {
+                throw new RuntimeException('cannot back up .env');
+            }
         }
 
         return [
@@ -120,16 +128,28 @@ final class CoreBackup
             return ['ok' => false, 'reason' => 'file backup is not a valid archive'];
         }
         $entries = $za->numFiles;
-        $za->close();
         $expected = (int) ($refs['files_count'] ?? 0);
         if ($expected > 0 && $entries < $expected) {
+            $za->close();
+
             return ['ok' => false, 'reason' => "file backup incomplete ($entries/$expected)"];
         }
 
         $manifest = (string) ($refs['files_manifest'] ?? '');
-        if ($manifest === '' || ! is_file($manifest)) {
-            return ['ok' => false, 'reason' => 'file backup manifest missing'];
+        $listed = $manifest !== '' && is_file($manifest) ? json_decode((string) file_get_contents($manifest), true) : null;
+        if (! \is_array($listed) || ! \is_array($listed['files'] ?? null) || \count($listed['files']) !== (int) ($listed['file_count'] ?? -1)) {
+            $za->close();
+
+            return ['ok' => false, 'reason' => 'file backup manifest missing or corrupt'];
         }
+        foreach (array_keys($listed['files']) as $rel) {
+            if ($za->locateName((string) $rel) === false) {
+                $za->close();
+
+                return ['ok' => false, 'reason' => 'file backup manifest lists a file the archive lacks'];
+            }
+        }
+        $za->close();
 
         $envFile = $refs['env_file'] ?? null;
         if ($envFile !== null) {
@@ -185,6 +205,89 @@ final class CoreBackup
         $zip->close();
 
         return $restored;
+    }
+
+    /**
+     * Make the live Core-owned tree EXACTLY equal $baseline (rel => sha256) and
+     * verify it (CORE-UPGRADE-WIN-R1). Files absent from the baseline were created
+     * during the upgrade (cache / asset regeneration, promoted files) and are
+     * removed; changed or missing files are rewritten from the verified backup
+     * archive via temp-file + rename. Never writes outside Core ownership.
+     *
+     * @param  array<string,string>  $baseline
+     * @param  array<string,mixed>   $model
+     * @return array{restored:int, removed:int, problems:list<array<string,string>>}
+     */
+    public function reconcile(array $baseline, string $zipPath, array $model): array
+    {
+        $problems = [];
+        $restored = 0;
+        $removed = 0;
+        $live = $this->liveOwnedFiles($model);
+
+        foreach ($live as $rel => $_sha) {
+            if (isset($baseline[$rel]) || ! CoreOwnership::isCoreOwned($rel, $model)) {
+                continue;
+            }
+            if (@unlink($this->root.'/'.$rel)) {
+                $removed++;
+            } else {
+                $problems[] = ['rel' => $rel, 'reason' => 'file created during the upgrade could not be removed'];
+            }
+        }
+
+        $zip = null;
+        $guard = new UpgradePathGuard;
+        foreach ($baseline as $rel => $sha) {
+            $rel = (string) $rel;
+            if (($live[$rel] ?? null) === $sha || ! CoreOwnership::isCoreOwned($rel, $model)) {
+                continue;
+            }
+            // baseline.json is on-disk state: re-prove every path before writing through it.
+            if (($why = UpgradePathGuard::unsafeReason($rel) ?? $guard->reparseReason($this->root, $rel)) !== null) {
+                $problems[] = ['rel' => $rel, 'reason' => "refused to restore an unsafe recorded path ($why)"];
+
+                continue;
+            }
+            if ($zip === null) {
+                $zip = new ZipArchive();
+                if (! is_file($zipPath) || $zip->open($zipPath) !== true) {
+                    return ['restored' => $restored, 'removed' => $removed, 'problems' => array_merge($problems, [['rel' => '*', 'reason' => 'backup archive unavailable']])];
+                }
+            }
+            $data = $zip->getFromName($rel);
+            if ($data === false || ! hash_equals($sha, hash('sha256', $data))) {
+                $problems[] = ['rel' => $rel, 'reason' => 'no verified copy in the backup archive'];
+
+                continue;
+            }
+            $dest = $this->root.'/'.$rel;
+            if (! is_dir(\dirname($dest))) {
+                @mkdir(\dirname($dest), 0775, true);
+            }
+            $tmp = $dest.'.tncms-restore';
+            if (@file_put_contents($tmp, $data) === false || ! @rename($tmp, $dest)) {
+                @unlink($tmp);
+                $problems[] = ['rel' => $rel, 'reason' => 'original could not be written back (file may be locked)'];
+
+                continue;
+            }
+            $restored++;
+        }
+        if ($zip instanceof ZipArchive && $zip->filename !== '') {
+            $zip->close();
+        }
+
+        if ($problems === []) {
+            $after = $this->liveOwnedFiles($model);
+            foreach (array_unique(array_merge(array_keys($after), array_keys($baseline))) as $rel) {
+                if (($after[$rel] ?? null) !== ($baseline[$rel] ?? null)) {
+                    $problems[] = ['rel' => $rel, 'reason' => 'live file differs from the pre-upgrade baseline'];
+                }
+            }
+        }
+
+        return ['restored' => $restored, 'removed' => $removed, 'problems' => $problems];
     }
 
     /**

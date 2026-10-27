@@ -22,6 +22,16 @@ use RuntimeException;
  * State vocabulary + legal transitions belong to {@see UpgradeState}; this class
  * only reads/writes and appends history, delegating every transition to the
  * state machine so idempotency has one definition.
+ *
+ * Durability (CORE-UPGRADE-DISK-QUOTA-P0-R1): each record carries a monotonic
+ * `generation` and an `integrity` SHA-256 over its canonical JSON. A write goes
+ * to a verified temp file ({@see DurableFile}); the current `state.json` is then
+ * renamed to `state.prev.json` and the temp file renamed into place, so a failed
+ * or torn write never destroys the last good record. load() returns the newest
+ * valid generation among state.json / state.prev.json / leftover temp files and
+ * flags `state_degraded` when it had to fall back. An attempt directory whose
+ * state cannot be read at all is still reported by all() as a degraded record,
+ * so "no prior upgrade" is never inferred from unreadable state.
  */
 final class UpgradeStateStore
 {
@@ -91,12 +101,131 @@ final class UpgradeStateStore
     public function load(string $id): ?array
     {
         $file = $this->stateFile($id);
-        if (! is_file($file)) {
+        $id = $this->safeId($id);
+        $best = null;
+        $primaryValid = false;
+        $records = [];
+        foreach ($this->candidates($id) as $candidate) {
+            $data = self::decode($candidate);
+            if ($data !== null && (string) $data['upgrade_id'] === $id) {
+                $records[$candidate] = $data;
+            }
+        }
+        // Once any record carries an integrity hash, an unhashed (legacy-looking) record is not trusted.
+        $hashed = array_filter($records, static fn (array $r) => (bool) ($r['__hashed'] ?? false));
+        if ($hashed !== []) {
+            $records = $hashed;
+        }
+        // A leftover temp file is only the generation directly after the newest promoted record.
+        $promoted = array_filter($records, static fn ($k) => ! str_contains((string) $k, '.tmp-'), ARRAY_FILTER_USE_KEY);
+        $top = $promoted === [] ? 0 : max(array_map(static fn (array $r) => (int) ($r['generation'] ?? 0), $promoted));
+        foreach ($records as $candidate => $data) {
+            if (str_contains((string) $candidate, '.tmp-') && (int) ($data['generation'] ?? 0) !== $top + 1) {
+                continue;
+            }
+            unset($data['__hashed']);
+            if ($candidate === $file) {
+                $primaryValid = true;
+            }
+            if ($best === null || (int) ($data['generation'] ?? 0) > (int) ($best['generation'] ?? 0)) {
+                $best = $data;
+                $best['__from'] = $candidate;
+            }
+        }
+        if ($best === null) {
             return null;
         }
-        $data = json_decode((string) file_get_contents($file), true);
+        $from = $best['__from'];
+        unset($best['__from']);
+        if (! $primaryValid || $from !== $file) {
+            $best['state_degraded'] = true;
+        }
 
-        return \is_array($data) ? $data : null;
+        return $best;
+    }
+
+    /**
+     * True when the attempt directory holds state or transaction artifacts but
+     * no state record can be read (zero-byte, malformed or corrupt).
+     */
+    public function isUnreadable(string $id): bool
+    {
+        $dir = $this->dir($id);
+
+        return is_dir($dir) && $this->load($id) === null && (
+            $this->candidates($id) !== []
+            || is_dir($dir.'/txn') || is_dir($dir.'/backup') || is_dir($dir.'/staging') || is_file($dir.'/package.zip')
+        );
+    }
+
+    /**
+     * Write a fresh record for an attempt whose state could not be read, after
+     * its recovery ran (generation continues above anything on disk).
+     *
+     * @param  array<string,mixed>  $fields
+     * @return array<string,mixed>
+     */
+    public function rebuild(string $id, array $fields): array
+    {
+        $now = $this->now();
+        $state = array_merge([
+            'upgrade_id' => $this->safeId($id),
+            'status' => UpgradeState::FAILED,
+            'created_at' => $now,
+            'history' => [['status' => UpgradeState::FAILED, 'at' => $now, 'note' => 'State rebuilt after an unreadable record']],
+        ], $fields, ['updated_at' => $now, 'state_rebuilt' => true]);
+        $this->write($id, $state);
+
+        return $state;
+    }
+
+    /** @return list<string> existing state files for $id (primary, previous, leftover temps) */
+    private function candidates(string $id): array
+    {
+        $dir = $this->dir($id);
+        $out = [];
+        foreach (['state.json', 'state.prev.json'] as $name) {
+            if (is_file($dir.'/'.$name)) {
+                $out[] = $dir.'/'.$name;
+            }
+        }
+        foreach (is_dir($dir) ? (scandir($dir) ?: []) : [] as $entry) {
+            if (preg_match('/^state\.json\.tmp-[0-9a-f]{8}$/', $entry) === 1) {
+                $out[] = $dir.'/'.$entry; // fully verified before rename; may be newer than state.json after a crash
+            }
+        }
+
+        return $out;
+    }
+
+    /** @return array<string,mixed>|null a record whose integrity checks out (legacy records have none) */
+    private static function decode(string $file): ?array
+    {
+        $raw = @file_get_contents($file);
+        if (! \is_string($raw) || $raw === '') {
+            return null;
+        }
+        $data = json_decode($raw, true);
+        if (! \is_array($data) || ! isset($data['upgrade_id'], $data['status'])) {
+            return null;
+        }
+        $hashed = \array_key_exists('integrity', $data);
+        if ($hashed) {
+            $claimed = (string) $data['integrity'];
+            unset($data['integrity']);
+            if (! hash_equals(self::digest($data), $claimed)) {
+                return null;
+            }
+        }
+        $data['__hashed'] = $hashed;
+
+        return $data;
+    }
+
+    /** @param array<string,mixed> $state */
+    private static function digest(array $state): string
+    {
+        return hash('sha256', (string) json_encode($state, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
     }
 
     /**
@@ -203,6 +332,16 @@ final class UpgradeStateStore
             $state = $this->load($entry);
             if ($state !== null) {
                 $out[] = $state;
+            } elseif ($this->isUnreadable($entry)) {
+                // Never let unreadable state look like "no prior upgrade".
+                $out[] = [
+                    'upgrade_id' => $entry,
+                    'status' => 'unknown',
+                    'outcome' => UpgradeOutcome::RECOVERY_REQUIRED,
+                    'state_degraded' => true,
+                    'state_unreadable' => true,
+                    'updated_at' => gmdate('c', (int) @filemtime($this->root.'/'.$entry)),
+                ];
             }
         }
 
@@ -215,11 +354,33 @@ final class UpgradeStateStore
         $file = $this->stateFile($id);
         $dir = \dirname($file);
         if (! is_dir($dir) && ! @mkdir($dir, 0775, true) && ! is_dir($dir)) {
-            throw new RuntimeException("cannot create upgrade state dir: $dir");
+            throw new RuntimeException('cannot create upgrade state dir');
         }
-        $json = json_encode($state, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-        if (@file_put_contents($file, (string) $json) === false) {
-            throw new RuntimeException("cannot write upgrade state: $file");
+        unset($state['state_degraded'], $state['integrity']);
+        $current = $this->load($id);
+        $state['generation'] = max((int) ($state['generation'] ?? 0), (int) ($current['generation'] ?? 0)) + 1;
+        $state['integrity'] = self::digest($state);
+        $json = (string) json_encode($state, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+
+        try {
+            $tmp = DurableFile::writeTemp($file, $json, 'upgrade state');
+        } catch (UpgradeStorageException $e) {
+            throw new RuntimeException('cannot write upgrade state: '.$e->reason, 0, $e);
+        }
+        // Keep the last good record as the previous generation, then promote.
+        if (is_file($file) && self::decode($file) !== null && ! DurableFile::rename($file, $dir.'/state.prev.json')) {
+            @unlink($tmp);
+            throw new RuntimeException('cannot write upgrade state: rename_failed');
+        }
+        if (! DurableFile::rename($tmp, $file)) {
+            // Reported as not persisted, so the temp must not be adopted later; state.prev.json stays readable.
+            @unlink($tmp);
+            throw new RuntimeException('cannot write upgrade state: rename_failed');
+        }
+        foreach (scandir($dir) ?: [] as $entry) {
+            if (preg_match('/^state\.json\.tmp-[0-9a-f]{8}$/', $entry) === 1) {
+                @unlink($dir.'/'.$entry); // stale temps from earlier interrupted writes
+            }
         }
     }
 

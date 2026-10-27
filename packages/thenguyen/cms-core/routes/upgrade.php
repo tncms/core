@@ -39,4 +39,5 @@ Route::middleware(['web', EnsureUpgradeAccess::class])
 
         Route::get('/finish', [UpgradeController::class, 'finish'])->name('finish');
         Route::post('/recover', [UpgradeController::class, 'recover'])->name('recover');
+        Route::post('/cleanup', [UpgradeController::class, 'retryCleanup'])->name('cleanup');
     });
