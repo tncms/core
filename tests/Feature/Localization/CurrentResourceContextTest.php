@@ -204,10 +204,10 @@ final class CurrentResourceContextTest extends TestCase
         $page = app('cms.content')->create([
             'type' => 'page', 'status' => 'published', 'locale' => 'en',
             'title' => 'Home', 'slug' => 'home', 'content' => '<p>en</p>',
-        ]);
+        ], \Tests\Support\ContentFixtures::context());
         app('cms.content')->update($page, [
             'type' => 'page', 'locale' => 'vi', 'title' => 'Trang chủ', 'slug' => 'trang-chu',
-        ]);
+        ], null, \Tests\Support\ContentFixtures::context());
 
         // The RENDER BOUNDARY publishes the resource (as FrontendController does) —
         // NOT SeoManager.
@@ -226,7 +226,7 @@ final class CurrentResourceContextTest extends TestCase
         $page = app('cms.content')->create([
             'type' => 'page', 'status' => 'published', 'locale' => 'en',
             'title' => 'Home', 'slug' => 'home', 'content' => '<p>en</p>',
-        ]);
+        ], \Tests\Support\ContentFixtures::context());
 
         // SEO is a pure consumer now — calling it must NOT populate the authority.
         seo()->forContent($page->fresh(['translations']), 'en');

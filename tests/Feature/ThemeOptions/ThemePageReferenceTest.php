@@ -64,11 +64,11 @@ final class ThemePageReferenceTest extends TestCase
         $page = $this->contents()->create([
             'type' => 'page', 'status' => $status, 'locale' => 'vi',
             'title' => 'VI '.$marker, 'slug' => 'vi-'.$marker, 'content' => '<p>vi</p>',
-        ]);
+        ], \Tests\Support\ContentFixtures::context());
 
         return $this->contents()->update($page, [
             'locale' => 'en', 'title' => 'EN '.$marker, 'slug' => 'en-'.$marker, 'content' => '<p>en</p>',
-        ]);
+        ], null, \Tests\Support\ContentFixtures::context());
     }
 
     // ---------------------------------------------------------------------
@@ -102,7 +102,7 @@ final class ThemePageReferenceTest extends TestCase
     {
         $page = $this->makePage('slug');
 
-        $this->contents()->update($page, ['locale' => 'vi', 'title' => 'VI slug', 'slug' => 'vi-slug-renamed']);
+        $this->contents()->update($page, ['locale' => 'vi', 'title' => 'VI slug', 'slug' => 'vi-slug-renamed'], null, \Tests\Support\ContentFixtures::context());
 
         $url = $this->resolver()->urlForId($page->id, 'vi');
         $this->assertStringContainsString('/vi-slug-renamed', $url);
@@ -114,7 +114,7 @@ final class ThemePageReferenceTest extends TestCase
         $page = $this->contents()->create([
             'type' => 'page', 'status' => 'published', 'locale' => 'vi',
             'title' => 'Chỉ VI', 'slug' => 'chi-vi', 'content' => '<p>vi</p>',
-        ]);
+        ], \Tests\Support\ContentFixtures::context());
 
         $this->assertNotNull($this->resolver()->urlForId($page->id, 'vi'));
         $this->assertNull($this->resolver()->urlForId($page->id, 'en'));
@@ -160,7 +160,7 @@ final class ThemePageReferenceTest extends TestCase
         $post = $this->contents()->create([
             'type' => 'post', 'status' => 'published', 'locale' => 'vi',
             'title' => 'Bài', 'slug' => 'bai', 'content' => '<p>x</p>',
-        ]);
+        ], \Tests\Support\ContentFixtures::context());
         $this->assertNull($this->resolver()->urlForId($post->id, 'vi'));
     }
 
@@ -180,7 +180,7 @@ final class ThemePageReferenceTest extends TestCase
         $post = $this->contents()->create([
             'type' => 'post', 'status' => 'published', 'locale' => 'vi',
             'title' => 'P', 'slug' => 'p-post', 'content' => '<p>x</p>',
-        ]);
+        ], \Tests\Support\ContentFixtures::context());
 
         $r = $this->resolver();
         $this->assertTrue($r->isPersistable(null));              // unset
@@ -290,7 +290,7 @@ final class ThemePageReferenceTest extends TestCase
         $post = $this->contents()->create([
             'type' => 'post', 'status' => 'published', 'locale' => 'vi',
             'title' => 'P', 'slug' => 'p-wrong', 'content' => '<p>x</p>',
-        ]);
+        ], \Tests\Support\ContentFixtures::context());
 
         // Wrong type (a post id) rejected server-side (direct Livewire set).
         Livewire::test(ThemeOptionsPage::class)

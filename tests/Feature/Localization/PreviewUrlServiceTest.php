@@ -43,11 +43,11 @@ final class PreviewUrlServiceTest extends TestCase
         $page = app('cms.content')->create([
             'type' => 'page', 'status' => 'published', 'locale' => 'en',
             'title' => 'Home', 'slug' => 'home', 'content' => '<p>en</p>',
-        ]);
+        ], \Tests\Support\ContentFixtures::context());
 
         return app('cms.content')->update($page, [
             'type' => 'page', 'locale' => 'vi', 'title' => 'Trang chủ', 'slug' => 'trang-chu',
-        ]);
+        ], null, \Tests\Support\ContentFixtures::context());
     }
 
     private function draftBilingualPost(): Content
@@ -55,11 +55,11 @@ final class PreviewUrlServiceTest extends TestCase
         $post = app('cms.content')->create([
             'type' => 'post', 'status' => 'draft', 'locale' => 'en',
             'title' => 'Draft', 'slug' => 'draft', 'content' => '<p>en draft</p>',
-        ]);
+        ], \Tests\Support\ContentFixtures::context());
 
         return app('cms.content')->update($post, [
             'type' => 'post', 'locale' => 'vi', 'title' => 'Bản nháp', 'slug' => 'ban-nhap', 'content' => '<p>vi draft</p>',
-        ]);
+        ], null, \Tests\Support\ContentFixtures::context());
     }
 
     // ── published → localized public URL via the platform ──────────────────────
@@ -122,7 +122,7 @@ final class PreviewUrlServiceTest extends TestCase
         $page = app('cms.content')->create([
             'type' => 'page', 'status' => 'published', 'locale' => 'en',
             'title' => 'English only', 'slug' => 'english-only', 'content' => '<p>x</p>',
-        ]);
+        ], \Tests\Support\ContentFixtures::context());
 
         $url = $this->service()->forContent($page, 'vi');
         $this->assertIsString($url);

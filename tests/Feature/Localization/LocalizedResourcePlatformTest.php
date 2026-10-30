@@ -49,11 +49,11 @@ final class LocalizedResourcePlatformTest extends TestCase
         $page = app('cms.content')->create([
             'type' => 'page', 'status' => 'published', 'locale' => 'en',
             'title' => 'Home', 'slug' => 'home', 'content' => '<p>en</p>',
-        ]);
+        ], \Tests\Support\ContentFixtures::context());
 
         return app('cms.content')->update($page, [
             'type' => 'page', 'locale' => 'vi', 'title' => 'Trang chủ', 'slug' => 'trang-chu',
-        ]);
+        ], null, \Tests\Support\ContentFixtures::context());
     }
 
     /** @return array<string, \TheNguyen\CMS\Localization\SwitchTarget> */
@@ -110,7 +110,7 @@ final class LocalizedResourcePlatformTest extends TestCase
         $page = app('cms.content')->create([
             'type' => 'page', 'status' => 'published', 'locale' => 'vi',
             'title' => 'Chỉ tiếng Việt', 'slug' => 'chi-tieng-viet', 'content' => '<p>x</p>',
-        ]);
+        ], \Tests\Support\ContentFixtures::context());
         $context = new LocalizationContext('page', $page);
 
         $targets = $this->targetsByLocale($context);

@@ -41,6 +41,7 @@ class DefaultRelatedPostResolver implements RelatedPostResolver
         $query = Content::query()
             ->posts()
             ->published()
+            ->discoverable()
             ->whereHas('translations', static fn ($q) => $q->where('locale', $locale)->whereNotNull('slug'))
             ->with(['translations', 'terms.translations', 'terms.taxonomy']);
 
@@ -56,12 +57,14 @@ class DefaultRelatedPostResolver implements RelatedPostResolver
             ->get();
 
         $cards = new Collection;
+        $markers = app('cms.content_ownership')->markersFor($posts->modelKeys());
 
         foreach ($posts as $candidate) {
             $card = PostCardViewModel::fromContent(
                 $candidate,
                 $locale,
                 $this->taxonomies->primaryCategory($candidate, $locale),
+                $markers[(int) $candidate->getKey()] ?? null,
             );
 
             if ($card !== null) {

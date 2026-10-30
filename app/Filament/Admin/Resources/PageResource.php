@@ -11,8 +11,6 @@ use App\Filament\Admin\Resources\PageResource\Pages;
 use App\Filament\Admin\Resources\PageResource\Support\PageLocalizedContent;
 use BackedEnum;
 use Filament\Actions\Action;
-use Filament\Actions\DeleteAction;
-use Filament\Actions\EditAction;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Select;
@@ -144,7 +142,8 @@ class PageResource extends Resource
                     ->schema([
                         Select::make('status')
                             ->label(tn_trans('Status'))
-                            ->options(self::contentStatusOptions())
+                            ->options(fn (?Content $record): array => self::contentStatusOptionsFor($record))
+                            ->disabled(fn (?Content $record): bool => self::contentStatusLocked($record))
                             ->default('draft')
                             ->required(),
 
@@ -200,7 +199,7 @@ class PageResource extends Resource
         return $schema
             ->columns(12)
             ->components([
-                ...tn_form_schema($components, Content::class, 'page'),
+                ...tn_form_schema($components, Content::class, 'page', ['record' => $schema->getRecord()]),
                 ...tn_form_regions([], Content::class, 'page'),
             ]);
     }
@@ -263,9 +262,11 @@ class PageResource extends Resource
                     ->openUrlInNewTab()
                     ->visible(fn (): bool => app()->bound('cms.preview') && app('cms.preview')->enabled())
                     ->url(fn (Content $record): ?string => app('cms.preview_url')->forContent($record)),
-                EditAction::make(),
-                DeleteAction::make(),
+                static::contentEditAction(),
+                static::contentDeleteAction(),
+                static::contentDetachAction(),
             ])
+            ->recordUrl(static fn (Content $record): ?string => static::contentRecordUrl($record))
             ->toolbarActions(static::contentBulkActions())
             ->defaultSort('updated_at', 'desc');
     }
@@ -282,12 +283,12 @@ class PageResource extends Resource
 
     public static function canEdit(\Illuminate\Database\Eloquent\Model $record): bool
     {
-        return cms_can('pages.edit');
+        return static::mayEditContent($record);
     }
 
     public static function canDelete(\Illuminate\Database\Eloquent\Model $record): bool
     {
-        return cms_can('pages.delete');
+        return static::mayDeleteContent($record);
     }
 
     public static function getPages(): array

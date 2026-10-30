@@ -156,6 +156,71 @@ view('hello-world::welcome', ['greeting' => 'Hi']);
 
 resolves `plugins/hello-world/resources/views/welcome.blade.php`.
 
+**Theme overrides (CORE-PLATFORM-SEAMS-R1).** The `{slug}::` namespace is
+theme-first. `view('hello-world::welcome')` resolves, in order:
+
+1. `themes/{active}/views/plugins/hello-world/welcome.blade.php`, then each
+   declared parent theme;
+2. `plugins/hello-world/resources/views/welcome.blade.php`;
+3. Laravel's "View not found" error, rendered as Core's themed 500.
+
+Overrides are per view: a theme overrides only the files it ships. They follow
+theme switches, and stop resolving the moment the plugin is deactivated. Do not
+build your own `theme::…` fallback. Render through the public contract
+`cms_plugin_view('hello-world', 'welcome', $data)`, which validates input and
+throws `PluginViewException` (`invalid_plugin`, `invalid_view`, `inactive_plugin`,
+`not_found`). Get the documented override location from
+`cms_plugin_view_override_path('hello-world', 'welcome')` instead of building it
+yourself. An override directory must live inside the theme (a link pointing
+outside it is ignored).
+
+**Localized route segments.** Contribute localized static segments to Core's one
+Route Dictionary from your provider's `register()` (or `boot()`):
+
+```php
+app(RouteDictionarySourceRegistry::class)->register(
+    new PluginRouteDictionarySource('hello-world', ['xin-chao' => ['en' => 'hello']]),
+);
+```
+
+The route key is the default-locale segment. A plugin may register only its own
+slug, once, at the plugin priority.
+
+Core validates every plugin source before composing the dictionary. A source is
+**refused as a whole**, and that plugin's routes are not loaded, when it has:
+- an invalid segment: empty, whitespace, a separator (`/ \ % . ? #`), a control
+  character, non-NFKC Unicode, uppercase, or longer than 100 characters;
+- a reserved prefix: a locale code, the admin path or a Core path;
+- a Core key or a Core segment.
+
+When two plugins collide, **both** are refused, so the result never depends on
+which loaded first. Core and other plugins keep working. Reasons are available in
+`RouteDictionarySourceRegistry::refusals()` and the log.
+
+**Missing locales (CORE-PLATFORM-SEAMS-R2).** The default locale may omit its
+segment; the route key is used and validated. Every other active locale needs an
+explicit segment, or the whole source is refused with
+`missing_locale:{key}:{locale}`. To serve untranslated locales at the default
+segment instead, opt in with `fallbackToDefaultSegment: true`. Those fallbacks
+are materialized into the dictionary, collision-checked, and reported in
+`fallbacks()`.
+
+**Lifecycle.** Never read `app('cms.localization.dictionary')` in a provider's
+`register()`. Core throws `RouteDictionaryLifecycleException` and the plugin fails
+alone. Read it in `routes/web.php`, which runs after Core finalizes the dictionary.
+
+**Runtime.** Plugin routes in `routes/web.php` answer 404 as soon as the plugin
+is deactivated, even from a cached route table. Long-running workers (Octane,
+FrankenPHP worker mode) are not supported. Generate routes from
+`app('cms.localization.dictionary')->projectSegment(RouteKey::of('xin-chao'), $locale)`
+in `routes/web.php`. Core composes the Dictionary after every active plugin's
+providers have registered.
+
+Code that boots *before* plugins and needs the composed Dictionary must not read
+it at boot. Defer route generation instead:
+`app('cms.localized_routes')->defer(fn () => …)`. Core runs it once, after plugin
+routes and before the frontend catch-all.
+
 ---
 
 ## 7. Activation lifecycle
@@ -792,6 +857,39 @@ add_action('cms.scripts.settings.loading', function (\TheNguyen\CMS\Services\Scr
 `/cms-health` adds counts only: `script_source_count`, `asset_source_count`,
 `script_warning_count`, `asset_warning_count`, `plugin_script_sources`,
 `theme_script_sources`.
+
+## Sitemap providers (CORE-SITEMAP-R1)
+
+`/sitemap.xml` is a sitemap index. Each provider contributes child sitemaps at
+`/sitemaps/{provider}-{type}-{locale}-{n}.xml`, cut into chunks of
+`cms.sitemap.chunk_size` URLs (default 5,000). Register one provider per plugin
+from your service provider:
+
+```php
+public function boot(): void
+{
+    $this->app->make('cms.sitemap_providers')->register(new BookSitemapProvider);
+}
+```
+
+Extend `TheNguyen\CMS\Sitemap\KeysetSitemapProvider`: declare `types()`,
+return a query of the **public, indexable** rows of a type in a locale from
+`query()` (or `null`), and map each batch to `SitemapEntry` objects in
+`entriesFor()`. Keys are the primary key, ascending.
+
+- Build every URL with your own named routes (`route('my-plugin.show', ...)`),
+  absolute and canonical. Core refuses an entry that is off-site, in the wrong
+  locale, or not served by a route of **your** plugin: a refused first entry
+  omits that set.
+- Pass `alternates` (`locale => URL`) only for translations that exist.
+- `lastmod` must be a real modification time; future values are dropped.
+- Call `app('cms.sitemap')->invalidate()` after writes that add or remove
+  public records. It only refreshes your own chunk boundaries; children are
+  always rendered live.
+- Deactivated or removed plugins disappear from the index immediately.
+- Owners of Core content can implement `ContentSitemapPolicy` on their
+  `ContentSeoProvider` to keep noindex content out of the sitemap. Core calls
+  it once per chunk.
 
 ---
 

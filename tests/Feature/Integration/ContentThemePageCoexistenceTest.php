@@ -35,6 +35,9 @@ final class ContentThemePageCoexistenceTest extends TestCase
     {
         parent::setUp();
         $this->seed(CmsLanguageSeeder::class);
+        // R1: publication / others' content use strict permissions that never fail
+        // open, so the acting admin is an explicitly configured super-admin.
+        config(['cms.super_admin_emails' => ['int-admin@example.test']]);
         $this->actingAs(User::query()->create([
             'name' => 'Admin', 'email' => 'int-admin@example.test', 'password' => bcrypt('secret-password'),
         ]));
@@ -58,11 +61,11 @@ final class ContentThemePageCoexistenceTest extends TestCase
         $page = $this->contents()->create([
             'type' => 'page', 'status' => 'published', 'locale' => 'vi',
             'title' => 'Chính sách', 'slug' => 'chinh-sach', 'content' => '<p>vi</p>',
-        ]);
+        ], \Tests\Support\ContentFixtures::context());
 
         return $this->contents()->update($page, [
             'locale' => 'en', 'title' => 'Privacy', 'slug' => 'privacy', 'content' => '<p>en</p>',
-        ]);
+        ], null, \Tests\Support\ContentFixtures::context());
     }
 
     private function storedOptionId(): mixed
@@ -76,7 +79,7 @@ final class ContentThemePageCoexistenceTest extends TestCase
         $other = $this->contents()->create([
             'type' => 'page', 'status' => 'published', 'locale' => 'vi',
             'title' => 'Khác', 'slug' => 'khac', 'content' => '<p>x</p>',
-        ]);
+        ], \Tests\Support\ContentFixtures::context());
         app('cms.theme_option')->set(self::KEY, $page->id, self::THEME);
 
         // Published → both locale links resolve.
@@ -110,7 +113,7 @@ final class ContentThemePageCoexistenceTest extends TestCase
         $page = $this->makePrivacyPage();
         app('cms.theme_option')->set(self::KEY, $page->id, self::THEME);
 
-        $this->contents()->update($page, ['locale' => 'vi', 'slug' => 'chinh-sach-moi']);
+        $this->contents()->update($page, ['locale' => 'vi', 'slug' => 'chinh-sach-moi'], null, \Tests\Support\ContentFixtures::context());
 
         $this->assertStringContainsString('/chinh-sach-moi', (string) theme_page_url(self::KEY, 'vi'));
         $this->assertEquals($page->id, $this->storedOptionId());

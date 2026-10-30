@@ -6,6 +6,7 @@ namespace TheNguyen\CMS\Http\Controllers;
 
 use Illuminate\Support\Facades\View;
 use Symfony\Component\HttpFoundation\Response;
+use TheNguyen\CMS\Content\Extension\PreparedContent;
 use TheNguyen\CMS\Contracts\AdjacentPostResolver;
 use TheNguyen\CMS\Contracts\PostBreadcrumbResolver;
 use TheNguyen\CMS\Contracts\PublicAuthorResolver;
@@ -125,14 +126,16 @@ class FrontendController
             abort(404);
         }
 
+        $prepared = $this->gateContent($page, $locale);
         $this->resources->publishContent($page);
         $this->seo->forContent($page, $locale);
+        $prepared->applySeo($this->seo);
 
         if (! View::exists('theme::pages.page')) {
-            return $this->fallback($page->translatedTitle($locale), $locale);
+            return $prepared->finalize($this->fallback($page->translatedTitle($locale), $locale));
         }
 
-        return response($this->renderContent($this->pageView($page), $page, $locale));
+        return $prepared->finalize(response($this->renderContent($this->pageView($page), $page, $locale)));
     }
 
     /**
@@ -166,14 +169,16 @@ class FrontendController
             abort(404);
         }
 
+        $prepared = $this->gateContent($post, $locale);
         $this->resources->publishContent($post);
         $this->seo->forContent($post, $locale);
+        $prepared->applySeo($this->seo);
 
         if (! View::exists('theme::posts.post')) {
-            return $this->fallback($post->translatedTitle($locale), $locale);
+            return $prepared->finalize($this->fallback($post->translatedTitle($locale), $locale));
         }
 
-        return response($this->renderContent('theme::posts.post', $post, $locale));
+        return $prepared->finalize(response($this->renderContent('theme::posts.post', $post, $locale)));
     }
 
     public function category(): Response
@@ -246,17 +251,39 @@ class FrontendController
         $page = $this->findPublishedContent($slug, 'page', $locale);
 
         if ($page !== null) {
+            $prepared = $this->gateContent($page, $locale);
             $this->resources->publishContent($page);
             $this->seo->forContent($page, $locale);
+            $prepared->applySeo($this->seo);
 
             if (! View::exists('theme::pages.page')) {
-                return $this->fallback($page->translatedTitle($locale), $locale);
+                return $prepared->finalize($this->fallback($page->translatedTitle($locale), $locale));
             }
 
-            return response($this->renderContent($this->pageView($page), $page, $locale));
+            return $prepared->finalize(response($this->renderContent($this->pageView($page), $page, $locale)));
+        }
+
+        // CORE-PLATFORM-SEAMS-R2: nothing owns the path; a default-locale dictionary
+        // projection of a base (/tim-kiem) 301s to its canonical key path (/search).
+        if ($locale === $this->languages->defaultCode() && ($alias = $this->defaultLocaleAlias()) !== null) {
+            // Root-relative, like cms.canonical-locale (never via APP_URL / a "/public" root).
+            return new \Illuminate\Http\RedirectResponse($alias, 301);
         }
 
         abort(404);
+    }
+
+    private function defaultLocaleAlias(): ?string
+    {
+        $request = request();
+        $segments = $request->segments();
+
+        if (($segments[0] ?? null) === $this->languages->defaultCode()) {
+            return null; // prefixed form: handled by cms.canonical-locale
+        }
+
+        return app(\TheNguyen\CMS\Localization\DefaultLocaleCanonicalPath::class)
+            ->forSegments(array_values($segments), $request->getQueryString());
     }
 
     /**
@@ -295,6 +322,26 @@ class FrontendController
     }
 
     /**
+     * The content gate (CORE-CONTENT-EXT-R1): ownership, persisted availability
+     * and the owner's SEO override, decided after the publication check and
+     * before anything renders. A non-200 outcome throws here; Core content
+     * passes through untouched. Not used for the home page (D-8) or preview.
+     */
+    private function gateContent(Content $content, string $locale): PreparedContent
+    {
+        return app('cms.content_response')->prepare($content, $locale);
+    }
+
+    /**
+     * R1 does not support an owned front page (D-8): home() never serves a
+     * plugin-owned page, so its availability can never be bypassed at `/`.
+     */
+    private function isOwnedContent(Content $content): bool
+    {
+        return app('cms.content_ownership')->ownershipOf((int) $content->getKey()) !== null;
+    }
+
+    /**
      * Render the record a cms_slugs reference points at, or null when it is
      * missing / unpublished (so the caller can fall back).
      */
@@ -317,20 +364,22 @@ class FrontendController
             }
 
             $this->tagPageType('content');
+            $prepared = $this->gateContent($content, $locale);
             $this->resources->publishContent($content);
             $this->seo->forContent($content, $locale);
+            $prepared->applySeo($this->seo);
 
             $view = $content->type === 'post' ? 'theme::posts.post' : 'theme::pages.page';
 
             if (! View::exists($view)) {
-                return $this->fallback($content->translatedTitle($locale), $locale);
+                return $prepared->finalize($this->fallback($content->translatedTitle($locale), $locale));
             }
 
             if ($content->type !== 'post') {
                 $view = $this->pageView($content);
             }
 
-            return response($this->renderContent($view, $content, $locale));
+            return $prepared->finalize(response($this->renderContent($view, $content, $locale)));
         }
 
         if ($referenceType === 'term') {
@@ -431,7 +480,7 @@ class FrontendController
     {
         $home = $this->contents->findBySlug('trang-chu', $this->languages->defaultCode(), 'page');
 
-        if ($home === null || $home->status !== 'published') {
+        if ($home === null || $home->status !== 'published' || $this->isOwnedContent($home)) {
             return null;
         }
 
@@ -455,7 +504,7 @@ class FrontendController
             ->whereKey($id)
             ->first();
 
-        if ($page === null || $page->status !== 'published') {
+        if ($page === null || $page->status !== 'published' || $this->isOwnedContent($page)) {
             return null;
         }
 
@@ -478,6 +527,7 @@ class FrontendController
         $posts = Content::query()
             ->where('type', 'post')
             ->where('status', 'published')
+            ->discoverable()
             ->whereHas('translations', fn ($q) => $q->where('locale', $locale))
             ->with('translations')
             ->orderByDesc('published_at')
@@ -713,6 +763,7 @@ class FrontendController
         $posts = $term->contents()
             ->where('type', 'post')
             ->where('status', 'published')
+            ->discoverable()
             ->with(['translations' => fn ($q) => $q->where('locale', $locale)])
             ->orderByDesc('published_at')
             ->paginate($this->archivePerPage())

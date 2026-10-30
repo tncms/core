@@ -996,3 +996,26 @@ Legacy note: the bundled Default theme's demo packages already use this
 generic format; Core contains only the generic importer. Existing
 installations keep their imported content — nothing is re-imported or
 duplicated on upgrade.
+
+---
+
+## Overriding plugin views (CORE-PLATFORM-SEAMS-R1)
+
+A theme can override any active plugin's view by mirroring the view's path
+under `views/plugins/{plugin-slug}/`:
+
+```
+themes/my-theme/views/plugins/lottery/public/pages/region.blade.php
+    overrides  lottery::public.pages.region
+    (plugins/lottery/resources/views/public/pages/region.blade.php)
+```
+
+- Lookup order: the active theme, then its declared parent themes, then the plugin.
+  Only the files you ship are overridden; everything else comes from the plugin.
+- Overrides work only while the plugin is active. If the plugin is deactivated,
+  the namespace disappears and your override is never rendered.
+- Overrides follow theme activation immediately; nothing needs re-registering.
+- The directory must be real and inside the theme. A link that escapes the
+  theme is ignored.
+- Use the plugin's documented view names and variables. Core does not change
+  the data a plugin passes to its views.

@@ -35,6 +35,41 @@ class ContentTranslation extends Model
         'meta_keywords',
     ];
 
+    /**
+     * Model-level backstop (CORE-STRUCTURED-CONTENT-AUTHORITY-R1): a translation
+     * of extension-managed content may only be written inside a ContentManager
+     * write. Ordinary content is unaffected (one lookup only for writes made
+     * outside the content service).
+     */
+    protected static function booted(): void
+    {
+        $guard = static function (self $translation): void {
+            $contentId = (int) ($translation->getOriginal('content_id') ?? $translation->content_id);
+
+            if ($contentId === 0 || app('cms.content.gate')->isSanctioned($contentId)) {
+                return;
+            }
+
+            try {
+                $owner = Content::withTrashed()->whereKey($contentId)->value('managed_by');
+            } catch (\Illuminate\Database\QueryException) {
+                return; // marker column not migrated yet: no content can be managed
+            }
+
+            if ($owner !== null) {
+                throw new \TheNguyen\CMS\ContentAuthority\ContentWriteDenied(
+                    'unsanctioned_write',
+                    'This content is managed by an extension and can only be changed through the content service.',
+                    $contentId,
+                    (string) $owner,
+                );
+            }
+        };
+
+        static::saving($guard);
+        static::deleting($guard);
+    }
+
     public function content(): BelongsTo
     {
         return $this->belongsTo(Content::class, 'content_id');

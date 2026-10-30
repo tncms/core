@@ -46,8 +46,8 @@ final class TrustedComponentS1BoundaryTest extends TestCase
         $this->assertTrue($code->register($this->provider('s2-s1', 'widget', '<div class="cf-turnstile" data-sitekey="1x00000000000000000000AA"></div>', ['public'], ['@host'], null, ['data-sitekey'], 'enqueue')));
         $code->shortcode('s2_widget', 's2-s1/widget');
 
-        app('cms.content')->create(['type' => 'page', 'status' => 'published', 'locale' => 'en', 'title' => 'Widget', 'slug' => 'widget', 'content' => '[s2_widget]']);
-        app('cms.content')->create(['type' => 'page', 'status' => 'published', 'locale' => 'en', 'title' => 'Other', 'slug' => 'other', 'content' => '<p>other</p>']);
+        app('cms.content')->create(['type' => 'page', 'status' => 'published', 'locale' => 'en', 'title' => 'Widget', 'slug' => 'widget', 'content' => '[s2_widget]'], \Tests\Support\ContentFixtures::context());
+        app('cms.content')->create(['type' => 'page', 'status' => 'published', 'locale' => 'en', 'title' => 'Other', 'slug' => 'other', 'content' => '<p>other</p>'], \Tests\Support\ContentFixtures::context());
     }
 
     public function test_a_component_does_not_approve_or_load_an_unapproved_script(): void

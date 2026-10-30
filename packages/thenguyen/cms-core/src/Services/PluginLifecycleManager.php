@@ -75,6 +75,7 @@ class PluginLifecycleManager
             return PluginActivationResult::failed($slug, 'The plugin database installed but the plugin could not be marked active.', $install->ranMigrations);
         }
 
+        $this->markPermissionSyncPending($slug);
         $this->afterActivate($plugin);
 
         return PluginActivationResult::activated($slug, $install);
@@ -125,8 +126,81 @@ class PluginLifecycleManager
         }
 
         $this->guard->clearError($slug);
+        $this->markPermissionSyncPending($slug);
 
         return PluginActivationResult::activated($slug, $result);
+    }
+
+    // -----------------------------------------------------------------
+    // Permission persistence (CORE-STRUCTURED-CONTENT-AUTHORITY-R1)
+    // -----------------------------------------------------------------
+
+    private const PERMISSION_SYNC_KEY = 'extensions.permission_sync_pending';
+
+    /**
+     * Persist the registered permission definitions of every ACTIVE plugin that
+     * was activated, re-activated or re-installed since the last boot. Its
+     * provider only registers definitions on a request where it is active, so
+     * this runs at boot after providers registered. Idempotent; persists only the
+     * plugin's own slugs; never grants, revokes or deletes anything. A plugin is
+     * dropped from the pending list only once its persistence succeeded.
+     *
+     * @return array<string, list<string>> plugin slug => persisted permission slugs
+     */
+    public function syncPendingPermissions(): array
+    {
+        $pending = settings(self::PERMISSION_SYNC_KEY, []);
+
+        if (! is_array($pending) || $pending === []) {
+            return [];
+        }
+
+        /** @var PermissionManager $permissions */
+        $permissions = app('cms.permission');
+        $done = [];
+        $remaining = [];
+
+        foreach (array_unique(array_filter($pending, 'is_string')) as $slug) {
+            if (! $this->extensions->isPluginActive($slug)) {
+                continue; // deactivated meanwhile: nothing registered, drop it
+            }
+
+            try {
+                $done[$slug] = $permissions->persistOwnedBy($slug);
+            } catch (\Throwable $e) {
+                report($e);
+                $remaining[] = $slug;
+            }
+        }
+
+        $this->storePermissionSyncPending($remaining);
+
+        return $done;
+    }
+
+    private function markPermissionSyncPending(string $slug): void
+    {
+        try {
+            $pending = settings(self::PERMISSION_SYNC_KEY, []);
+            $pending = is_array($pending) ? $pending : [];
+
+            if (! in_array($slug, $pending, true)) {
+                $pending[] = $slug;
+                $this->storePermissionSyncPending($pending);
+            }
+        } catch (\Throwable $e) {
+            report($e); // never fails an activation; the next activation retries
+        }
+    }
+
+    /** @param  array<int, string>  $slugs */
+    private function storePermissionSyncPending(array $slugs): void
+    {
+        settings()->set(self::PERMISSION_SYNC_KEY, array_values($slugs), 'array', [
+            'is_public' => false,
+            'autoload' => true,
+            'description' => 'Plugins whose permission definitions await persistence',
+        ]);
     }
 
     // -----------------------------------------------------------------

@@ -16,6 +16,126 @@ this project adheres to [Semantic Versioning](https://semver.org).
 
 ---
 
+## [1.0.0-beta.7.1.38] — Unified content ownership, hardened adoption, plugin extension seams and scalable sitemap — 2026-10-30
+
+The first public release after 1.0.0-beta.7.1.36. It includes the structured-content authority work prepared as 1.0.0-beta.7.1.37, which was **never published** (there is no public .37 release; details at the end of this entry).
+
+### Upgrade notes
+
+- **Back up the database before upgrading.** On a site that contains plugin-owned content, rolling back requires restoring that backup; reverting the migrations alone would drop ownership, availability and fallback data.
+- **Migrations (all additive):** `cms_contents.managed_by` and `revision`, `cms_content_authority_events` (plus transition columns), `cms_content_owner_policies`, and a reconciliation step that does nothing on released installations.
+- **New permissions are granted to no role.** Grant adoption explicitly: `php artisan cms:content-ownership:adopters grant <user>` (super-admin does not imply `content.ownership.adopt`).
+- **Publishing and editing others' content are enforced** (`{posts|pages}.publish`, `*.edit_others`, `*.delete_others`). Grant them in *Admin → Roles* where needed.
+- **Themes and plugins:** build search links with `cms_search_url()`; plugin code acting for a user must run in that user's signed-in request.
+
+### Added
+
+- **One content-ownership authority, `cms_contents.managed_by`,** used by ownership, availability and HTTP status (200/404/410/503), inactive-plugin fallback, SEO overrides, sitemap and listings, owner markers, and edit/publish authorization.
+- **Per-content owner policy** `cms_content_owner_policies` (no owner column): fallback `core_render` / `hide_404` / `temporary_503` and persisted availability.
+- **Plugin APIs** (`cms.content_ownership`): `createOwned()`, `setAvailability()`, `setFallback()`, `release()`, batched markers, `Content::scopeDiscoverable()`.
+- **Vetoable content-write guards**, a shared content revision with stale-write conflicts, and `ContentManager::transaction()`.
+- **Ownership audit:** created, claimed, transferred, released, detached and reconciled, with previous/new owner, origin, actor and request correlation id, in the same transaction.
+- **Operator tools:** `cms:content-owner` (transfer and release, `--actor` and `--reason`), `cms:content-ownership:adopters`, `cms:content-ownership:reconcile`.
+- **Owner SEO and indexability:** `ContentSeoProvider` (robots can only become stricter); `ContentSitemapPolicy` decides page robots and sitemap membership together.
+- **Theme-first plugin views:** `cms_plugin_view()`, `cms_plugin_view_override_path()`, overrides in `themes/{theme}/views/plugins/{slug}/`.
+- **Localized plugin route segments** with collision detection, an explicit missing-locale policy and a guarded registration lifecycle. Plugin routes answer 404 while the plugin is inactive.
+- **Scalable sitemap:** `/sitemap.xml` is an index of chunked children, 2,000 URLs each by default (*Settings → SEO*, 500–50,000), with plugin sitemap providers.
+- **`cms_search_url()`** and canonical default-locale search routing.
+
+### Changed
+
+- **Adopting existing content** (`claimOwnership()`) needs the signed-in user, an explicit `content.ownership.adopt` grant, edit permission, a post or page, and never the front page. Adopted content defaults to `core_render`.
+- **Creating plugin-owned content** needs the signed-in user with create (and publish) permission. Default fallback `hide_404`; the conventional home page cannot be plugin-owned.
+- **During a web request a plugin can act only as the signed-in user.**
+- **While its owner is inactive,** `core_render` content is shown only if it has a non-blank body in that language; otherwise 404, and it leaves listings and the sitemap.
+- **`/sitemap.xml` is now a sitemap index;** it answers 404 and `robots.txt` stops advertising it while the site is set to noindex.
+
+### Fixed
+
+- **Open redirect** in the default-locale prefix redirect.
+- **A plugin could release another plugin's content** through the content service.
+
+### Included from the unpublished 1.0.0-beta.7.1.37 line
+
+Structured-content authority, publication/ownership RBAC and content concurrency (prepared 2026-10-28, not released on its own).
+
+CORE-STRUCTURED-CONTENT-AUTHORITY-RBAC-CONCURRENCY-R1.
+
+- **Migrations:** two, both additive: `cms_contents.managed_by`, `cms_contents.revision`, and the table `cms_content_authority_events`.
+- **New permissions:** not granted to any role automatically.
+- **Behaviour changes** for authors and for editing other users' content. Read **Upgrade notes** before upgrading.
+
+Contract reference: `packages/thenguyen/cms-core/docs/content-authority/02-PUBLIC-CONTRACT.md`.
+
+#### Added
+
+- **Vetoable content-write guard** (`Contracts\ContentWriteGuard`, registry `cms.content.guards`).
+  - An active plugin registers one guard. Core consults it for every sanctioned write to content that plugin manages, inside the transaction, after locking the row.
+  - If the guard denies, crashes or returns a malformed answer, or the owning plugin is inactive, the write is refused with a typed exception (`ContentAuthority\ContentWriteDenied`). Nothing is written.
+- **Durable extension-ownership marker** `cms_contents.managed_by`.
+  - Set only by `ContentManager::create()` with an extension context that claims ownership, or by `claimOwnership()`.
+  - Cleared only by audited `detachOwnership()`. This needs the strict permission `content.authority.recover`, a typed confirmation, a reason and the expected revision.
+  - Never cleared when the plugin is deactivated or uninstalled.
+  - Audit table: `cms_content_authority_events`.
+- **Server-derived write contexts** (`ContentAuthority\ContentWriteContext`: `interactive`, `extension`, `system`, legacy).
+  - The extension identity is derived from the calling plugin file.
+  - A system context is allowed only for allowlisted Core reasons (`install_seed`, `demo_import`), and never from plugin code.
+  - Request fields, headers, and running in the CLI or a queue grant nothing.
+- **Shared content revision** `cms_contents.revision`.
+  - Incremented once per write to the row, its translations or its terms.
+  - `update` / `changeStatus` / `delete` take an optional `$expectedRevision`. A stale value throws `ContentRevisionConflict` (`revision_conflict`).
+- **`ContentManager::transaction()` write unit:** one lock, one revision check and one bump for a multi-write extension operation.
+- **Record-aware editor routing:** the filter `cms.content.edit_url` returns the managing extension's editor URL (same-site URLs only, `ManagedContentEditUrl`). The native editor redirects there, or returns 403 when there is no valid URL.
+- **New hook `cms.content.committed`:** fires after the outermost commit only.
+- **Form schema hooks** now receive `['record' => …]` in their context.
+- **New permissions:** `posts.edit_others`, `posts.delete_others`, `pages.edit_others`, `pages.delete_others`, `content.authority.recover`.
+- **`PermissionManager` additions:** `persist()`, `persistOwnedBy()`, `isPersisted()`, `ownerOf()`, `diagnostics()`. A permission slug belongs to whoever registered it first; other owners cannot redefine it.
+
+#### Changed
+
+- **Publication is enforced.** The strict `{posts|pages}.publish` permission is now required to:
+  - create published content;
+  - move content into or out of `published`;
+  - make **any** change to a published record (row fields, translations, terms).
+
+  This applies on every path: forms, bulk actions and the service.
+- **Ownership is enforced per record.**
+  - Editing or deleting another user's content (or content with no author) needs `{type}s.edit_others` / `{type}s.delete_others` (strict).
+  - Changing `author_id`, or creating content in someone else's name, needs `edit_others`.
+  - Publishing someone else's work keeps its author.
+- **Admin Post/Page editors:**
+  - The revision is captured server-side (`#[Locked]`). Saving content that changed in the meantime shows a conflict notice instead of overwriting it.
+  - Bulk status and bulk delete report denied and conflicting records individually.
+  - The status select hides `published` from users without publish rights, and is locked on published records for them.
+- **New content defaults its author** to the user who creates it.
+- **Row and edit-page delete actions** now go through `ContentManager::delete()` (slug cleanup, guard, permission and revision checks) instead of an Eloquent `delete()`.
+- **Omitted body field:** an `update()` without a `content` key keeps the stored body. The admin pages send `''` only when the field is actually present, so a schema hook that removes the field no longer erases the body.
+- **Public cache invalidation** now runs after the outermost commit and is coalesced. A rolled-back write never flushes, and a cache refill that happens before the commit can no longer outlive it.
+- **Plugin permission definitions are persisted** on the next boot after a web activation or re-installation. Only the plugin's own slugs are written; role grants are untouched.
+- **The Roles screen** persists a selected, registered slug instead of silently dropping it.
+- **Pre-R1 calls from plugin code:** a `ContentManager` call without a context, made from plugin code, must pass the expected revision. Host and Core calls on ordinary content may still omit it.
+
+#### Fixed
+
+- **Namespaced plugin seeders** were silently skipped when their class was already loaded. They are now resolved by their declared namespace first, then by the legacy global file name.
+- **Content-authority messages in Vietnamese.** The new denial, conflict and detach messages had no Vietnamese translations, so a Vietnamese admin saw them in English. They are now in `lang/vi.json` (and `lang/en.json`).
+
+#### Upgrade notes
+
+- **Run the migrations.** They are additive. Existing content stays ordinary (`managed_by` NULL) at revision 0.
+- **Authors without `posts.publish` / `pages.publish`** can no longer publish, unpublish or change already-published content. The permission always meant this, but it was not enforced before.
+- **Editors and admins who should edit or delete other users' content** must be granted `posts.edit_others`, `posts.delete_others`, `pages.edit_others` and `pages.delete_others` in *Admin → Roles*.
+  - The upgrade grants them to nobody.
+  - Installer seeding also leaves them out of `admin`.
+  - Super-admins hold them automatically.
+  - Content with no author (`author_id` NULL, e.g. older seeded content) counts as another user's content.
+- **`content.authority.recover`** is held by super-admins only, until an owner assigns it to a role.
+- **Not included:**
+  - Scheduled publication: `status = published` with a future `published_at` is still public. This is tracked separately.
+  - Per-locale publication: status, terms and cover still apply to the whole post.
+
+---
+
 ## [1.0.0-beta.7.1.36] — Windows-safe Core upgrades, disk-full safety and verified recovery — 2026-10-27
 
 Upgrade-engine hotfix (CORE-UPGRADE-WIN-R1, CORE-UPGRADE-DISK-QUOTA P0-R1 to

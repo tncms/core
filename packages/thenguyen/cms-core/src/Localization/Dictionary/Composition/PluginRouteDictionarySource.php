@@ -30,11 +30,16 @@ final class PluginRouteDictionarySource implements RouteDictionarySourceInterfac
     /**
      * @param  string  $pluginId  Stable plugin identity (e.g. the plugin slug).
      * @param  array<string, array<string, string>>  $payload  key => [locale => segment].
+     * @param  bool  $fallbackToDefaultSegment  CORE-PLATFORM-SEAMS-R2: opt in to serving an active
+     *                                          locale that has no explicit segment at the key's
+     *                                          default-locale segment (validated + collision-checked).
+     *                                          Off: such a source is refused (missing_locale).
      */
     public function __construct(
         private readonly string $pluginId,
         private readonly array $payload,
         private readonly int $priority = self::PLUGIN_PRIORITY,
+        private readonly bool $fallbackToDefaultSegment = false,
     ) {
         $reserved = new ReservedRouteKeys;
 
@@ -67,5 +72,16 @@ final class PluginRouteDictionarySource implements RouteDictionarySourceInterfac
     public function payload(): array
     {
         return $this->payload;
+    }
+
+    public function fallsBackToDefaultSegment(): bool
+    {
+        return $this->fallbackToDefaultSegment;
+    }
+
+    /** A copy carrying an explicit segment for every locale (materialized fallbacks). */
+    public function withPayload(array $payload): self
+    {
+        return new self($this->pluginId, $payload, $this->priority, $this->fallbackToDefaultSegment);
     }
 }

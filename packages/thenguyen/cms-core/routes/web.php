@@ -14,6 +14,11 @@ use TheNguyen\CMS\Support\CmsInfo;
 // (web.php loads before frontend.php) so they are not swallowed by /{slug}.
 Route::get('/robots.txt', [SeoController::class, 'robots'])->name('cms.robots');
 Route::get('/sitemap.xml', [SeoController::class, 'sitemap'])->name('cms.sitemap');
+// CORE-SITEMAP-R1: /sitemap.xml is an index of these children; names are
+// looked up in the current manifest, never parsed into queries.
+Route::get('/sitemaps/{name}.xml', [SeoController::class, 'sitemapChunk'])
+    ->where('name', '[a-z0-9][a-z0-9_-]{0,190}')
+    ->name('cms.sitemap.chunk');
 
 // CORE-L10N A2 — the ONE canonical public locale-switch endpoint. The active
 // SessionLocalizationStrategy already targets this route name. "web" gives it

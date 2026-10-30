@@ -309,6 +309,13 @@ class SettingsPage extends Page
                     ])
                     ->native(false),
                 MediaPicker::make('seo_default_og_image', tn_trans('Default OG image')),
+                TextInput::make('seo_sitemap_chunk_size')
+                    ->label(tn_trans('Sitemap URLs per file'))
+                    ->helperText(tn_trans('Each child sitemap lists at most this many URLs (500–50,000).'))
+                    ->integer()
+                    ->minValue(\TheNguyen\CMS\Sitemap\SitemapManager::MIN_CHUNK)
+                    ->maxValue(50000)
+                    ->required(),
             ])
             ->columns(1);
     }
@@ -836,6 +843,7 @@ class SettingsPage extends Page
             ['seo_default_meta_description', 'seo.default_meta_description', 'text', ''],
             ['seo_default_og_image', 'seo.default_og_image', 'string', ''],
             ['seo_robots_default', 'seo.robots_default', 'string', 'index,follow'],
+            ['seo_sitemap_chunk_size', 'seo.sitemap_chunk_size', 'integer', \TheNguyen\CMS\Sitemap\SitemapManager::DEFAULT_CHUNK],
 
             ['permalink_post_base', 'permalink.post_base', 'string', PermalinkManager::DEFAULT_POST_BASE],
             ['permalink_category_base', 'permalink.category_base', 'string', PermalinkManager::DEFAULT_CATEGORY_BASE],

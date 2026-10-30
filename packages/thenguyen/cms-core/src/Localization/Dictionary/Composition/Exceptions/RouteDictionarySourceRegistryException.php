@@ -23,4 +23,20 @@ final class RouteDictionarySourceRegistryException extends RuntimeException
             $sourceId,
         ));
     }
+
+    /** CORE-PLATFORM-SEAMS-R1: one source per id — no last-writer-wins. */
+    public static function duplicate(string $sourceId): self
+    {
+        return new self(sprintf('Route dictionary source [%s] is already registered.', $sourceId));
+    }
+
+    /** CORE-PLATFORM-SEAMS-R1: plugin code may register only its own source at the plugin priority. */
+    public static function identity(string $sourceId, string $caller): self
+    {
+        return new self(sprintf(
+            'Route dictionary source [%s] cannot be registered by plugin [%s]: a plugin registers only "plugin:{its slug}" at the plugin priority.',
+            $sourceId,
+            $caller === '' ? 'inactive' : $caller,
+        ));
+    }
 }

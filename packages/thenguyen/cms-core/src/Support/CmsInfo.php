@@ -6,7 +6,17 @@ namespace TheNguyen\CMS\Support;
 
 final class CmsInfo
 {
-    public const VERSION = '1.0.0-beta.7.1.36';
+    public const VERSION = '1.0.0-beta.7.1.38';
+
+    /**
+     * True inside a long-running worker (Laravel Octane on Swoole/RoadRunner/
+     * FrankenPHP, or FrankenPHP worker mode). Not a supported runtime
+     * (CORE-PLATFORM-SEAMS-R2); used only to warn.
+     */
+    public static function isLongRunningWorker(): bool
+    {
+        return ! empty($_SERVER['LARAVEL_OCTANE']) || ! empty($_SERVER['FRANKENPHP_WORKER']) || app()->bound('octane');
+    }
 
     /** Canonical brand identity (see CMS_ARCHITECTURE.md §brand). */
     public const BRAND = 'TN CMS';

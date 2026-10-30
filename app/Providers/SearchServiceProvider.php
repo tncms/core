@@ -62,7 +62,10 @@ final class SearchServiceProvider extends ServiceProvider
             ->get('/search', [SearchController::class, 'index'])
             ->name('cms.search');
 
-        $this->registerLocalizedSearchRoutes();
+        // Generated from the Route Dictionary, so it must not compose the
+        // Dictionary here (that would lock out plugin sources): Core runs it at its
+        // finalization point, after plugin sources and before the catch-all.
+        $this->app->make('cms.localized_routes')->defer(fn () => $this->registerLocalizedSearchRoutes());
     }
 
     /**
@@ -82,19 +85,27 @@ final class SearchServiceProvider extends ServiceProvider
      * (ApplyPublicLocale) establishes the request locale from the {locale} segment
      * so the transport-only controller's app()->getLocale() is already correct, and
      * "cms.canonical-locale" keeps the default-locale prefix canonical. These routes
-     * boot before CmsServiceProvider's localized catch-all, so /{locale}/{segment}
+     * register at Core's dictionary finalization point (CORE-PLATFORM-SEAMS-R1),
+     * before CmsServiceProvider's localized catch-all, so /{locale}/{segment}
      * wins; that catch-all's own "cms.localized-base" already 301s /{locale}/search
      * to the projected segment, so both URLs reach search with no duplicate route.
      */
     private function registerLocalizedSearchRoutes(): void
     {
         $dictionary = app('cms.localization.dictionary');
+        $languages = app(LanguageManager::class);
+        $default = $languages->defaultCode();
 
         foreach (explode('|', LanguageManager::routeLocalePattern()) as $locale) {
             $segment = $dictionary->projectBase('search', $locale);
 
-            if ($segment === 'search') {
-                continue; // Default locale / no projection — served by "/search".
+            // CORE-PLATFORM-SEAMS-R2: only the unprefixed default locale with no
+            // projection is served by "/search" alone. A non-default locale whose
+            // projection IS the key (/en/search) now gets its route too (it had none).
+            // A default-locale projection route (/vi/tim-kiem on a vi-default site) is
+            // kept: cms.canonical-locale 301s it to the canonical "/search" in one hop.
+            if ($segment === 'search' && $locale === $default && ! $languages->shouldPrefixDefaultLocale()) {
+                continue;
             }
 
             Route::middleware(['web', 'throttle:30,1', 'cms.locale', 'cms.canonical-locale'])

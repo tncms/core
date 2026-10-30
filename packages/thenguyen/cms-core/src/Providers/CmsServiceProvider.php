@@ -274,6 +274,41 @@ class CmsServiceProvider extends ServiceProvider
         ));
         $this->app->alias('cms.trusted_components', \TheNguyen\CMS\Services\TrustedComponentRegistry::class);
 
+        // Content response, SEO context and ownership (CORE-CONTENT-EXT-R1).
+        // None of these hold per-request state; SEO providers live for the app
+        // lifetime like trusted components.
+        $this->app->singleton('cms.content_ownership', fn ($app) => new \TheNguyen\CMS\Content\Extension\ContentOwnershipRegistry(
+            $app->make('cms.extension'),
+            $app->make('cms.extension_identity'),
+        ));
+        $this->app->alias('cms.content_ownership', \TheNguyen\CMS\Content\Extension\ContentOwnershipRegistry::class);
+        $this->app->singleton('cms.content_ownership_admin', fn ($app) => new \TheNguyen\CMS\Content\Extension\ContentOwnershipAdmin(
+            $app->make('cms.extension'),
+            $app->make('cms.extension_identity'),
+        ));
+        $this->app->alias('cms.content_ownership_admin', \TheNguyen\CMS\Content\Extension\ContentOwnershipAdmin::class);
+        $this->app->singleton('cms.content_seo', fn ($app) => new \TheNguyen\CMS\Content\Extension\ContentSeoRegistry(
+            $app->make('cms.extension_identity'),
+        ));
+        $this->app->alias('cms.content_seo', \TheNguyen\CMS\Content\Extension\ContentSeoRegistry::class);
+        $this->app->singleton('cms.content_response', fn ($app) => new \TheNguyen\CMS\Content\Extension\ContentResponsePipeline(
+            $app->make('cms.content_ownership'),
+            $app->make('cms.content_seo'),
+        ));
+        $this->app->alias('cms.content_response', \TheNguyen\CMS\Content\Extension\ContentResponsePipeline::class);
+
+        // Sitemap index + plugin providers (CORE-SITEMAP-R1).
+        $this->app->singleton('cms.sitemap_providers', fn ($app) => new \TheNguyen\CMS\Sitemap\SitemapProviderRegistry(
+            $app->make('cms.extension_identity'),
+            $app->make('cms.extension'),
+        ));
+        $this->app->alias('cms.sitemap_providers', \TheNguyen\CMS\Sitemap\SitemapProviderRegistry::class);
+        $this->app->singleton('cms.sitemap', fn ($app) => new \TheNguyen\CMS\Sitemap\SitemapManager(
+            $app->make('cms.sitemap_providers'),
+            $app->make('cms.extension_identity'),
+        ));
+        $this->app->alias('cms.sitemap', \TheNguyen\CMS\Sitemap\SitemapManager::class);
+
         // Frontend Authentication (v1.0.0-beta.7.1.14): registration, login,
         // logout, password reset, and the session/device invalidation policy on
         // the shared web guard. One users table; roles decide capability.
@@ -321,6 +356,12 @@ class CmsServiceProvider extends ServiceProvider
         ));
         $this->app->alias('cms.content', ContentManager::class);
 
+        // Structured-content authority (CORE-STRUCTURED-CONTENT-AUTHORITY-R1).
+        $this->app->singleton('cms.content.guards', fn ($app) => new \TheNguyen\CMS\ContentAuthority\ContentWriteGuardRegistry($app->make('cms.extension_identity')));
+        $this->app->alias('cms.content.guards', \TheNguyen\CMS\ContentAuthority\ContentWriteGuardRegistry::class);
+        $this->app->singleton('cms.content.gate', fn ($app) => new \TheNguyen\CMS\ContentAuthority\ContentWriteGate($app->make('cms.permission'), $app->make('cms.content.guards')));
+        $this->app->alias('cms.content.gate', \TheNguyen\CMS\ContentAuthority\ContentWriteGate::class);
+
         $this->app->singleton('cms.taxonomy', fn ($app) => new TaxonomyManager(
             $app->make('cms.slug'),
             $app->make('cms.html'),
@@ -348,6 +389,10 @@ class CmsServiceProvider extends ServiceProvider
         $this->app->alias('cms.widget', WidgetManager::class);
 
         $this->app->singleton('cms.theme', fn () => new ThemeManager);
+
+        // Theme-first plugin view namespaces (CORE-PLATFORM-SEAMS-R1).
+        $this->app->singleton('cms.plugin_views', fn ($app) => new \TheNguyen\CMS\Services\PluginViewRegistry($app->make('cms.theme')));
+        $this->app->alias('cms.plugin_views', \TheNguyen\CMS\Services\PluginViewRegistry::class);
         $this->app->alias('cms.theme', ThemeManager::class);
 
         // Theme asset publisher: copies themes/{slug}/assets into
@@ -467,18 +512,29 @@ class CmsServiceProvider extends ServiceProvider
         // Plugins register a RouteDictionarySourceInterface here during their provider boot
         // (ExtensionManager registers all plugin providers BEFORE any plugin routes load, so the
         // set is complete before the Dictionary is first composed). The Runtime never sees it.
-        $this->app->singleton(\TheNguyen\CMS\Localization\Dictionary\Composition\RouteDictionarySourceRegistry::class);
+        // CORE-PLATFORM-SEAMS-R1: plugin-code registrations are identity-checked.
+        $this->app->singleton(\TheNguyen\CMS\Localization\Dictionary\Composition\RouteDictionarySourceRegistry::class, fn ($app) => new \TheNguyen\CMS\Localization\Dictionary\Composition\RouteDictionarySourceRegistry(
+            new \TheNguyen\CMS\Content\Extension\CallSitePlugin($app->make('cms.extension_identity'), [
+                (new \ReflectionClass(\TheNguyen\CMS\Localization\Dictionary\Composition\RouteDictionarySourceRegistry::class))->getFileName(),
+            ]),
+        ));
+
+        // CORE-PLATFORM-SEAMS-R1: the single Dictionary finalization point. Early
+        // consumers (host search routes) defer dictionary-generated routes here.
+        $this->app->singleton('cms.localized_routes', fn ($app) => new \TheNguyen\CMS\Localization\Routing\LocalizedRouteRegistrar(
+            $app->make(\TheNguyen\CMS\Localization\Dictionary\Composition\RouteDictionarySourceRegistry::class),
+        ));
+        $this->app->alias('cms.localized_routes', \TheNguyen\CMS\Localization\Routing\LocalizedRouteRegistrar::class);
 
         // P6.2/P6.3 — the build-time composer: merges all Dictionary sources into one canonical
         // payload. The persistence store is the base (lowest-priority) source; plugin sources
         // (from the registry above) merge on top by the frozen (priority, id) precedence.
         // Composition happens once at boot — never during a request.
-        $this->app->singleton(\TheNguyen\CMS\Localization\Dictionary\Composition\RouteDictionaryComposer::class, fn ($app) => new \TheNguyen\CMS\Localization\Dictionary\Composition\RouteDictionaryComposer([
-            new \TheNguyen\CMS\Localization\Dictionary\Composition\StoreRouteDictionarySource(
-                $app->make(\TheNguyen\CMS\Localization\Dictionary\Persistence\RouteDictionaryStoreInterface::class),
-            ),
-            ...$app->make(\TheNguyen\CMS\Localization\Dictionary\Composition\RouteDictionarySourceRegistry::class)->all(),
-        ]));
+        // CORE-LOTTERY-P05-SEAMS-1: plugin sources pass Core's policy first; a refused
+        // source contributes nothing (both parties of a plugin collision are refused).
+        $this->app->singleton(\TheNguyen\CMS\Localization\Dictionary\Composition\RouteDictionaryComposer::class, fn ($app) => new \TheNguyen\CMS\Localization\Dictionary\Composition\RouteDictionaryComposer(
+            self::acceptedDictionarySources($app),
+        ));
 
         // P5H.1/P5H.1B/P6.1/P6.2 — the Route Segment Dictionary, built ONCE from the composed
         // sources via the loader (validation + collision-check at construction). The single source
@@ -857,12 +913,23 @@ class CmsServiceProvider extends ServiceProvider
         // A no-op on every other response.
         $this->app['router']->pushMiddlewareToGroup('web', \TheNguyen\CMS\Http\Middleware\TrustedScriptCacheHeaders::class);
 
+        // CORE-UNIFIED-OWNERSHIP-R1: mark every HTTP request (any route group,
+        // admin included) for content-write actor binding and audit correlation.
+        if ($this->app->bound(\Illuminate\Contracts\Http\Kernel::class)) {
+            $kernel = $this->app->make(\Illuminate\Contracts\Http\Kernel::class);
+            if (method_exists($kernel, 'prependMiddleware')) {
+                $kernel->prependMiddleware(\TheNguyen\CMS\Http\Middleware\MarkHttpRequest::class);
+            }
+        }
+
         // Trusted interactive component slots (S2, D-9): attached by the Core
         // frontend and preview routes, opt-in for plugin routes via the alias.
         // Provider registration closes at the first matched route (boot only).
         $this->app['router']->aliasMiddleware('cms.trusted_slots', \TheNguyen\CMS\Http\Middleware\ResolveTrustedSlots::class);
         $this->app['events']->listen(\Illuminate\Routing\Events\RouteMatched::class, function (): void {
             $this->app->make('cms.trusted_components')->freeze();
+            // Content write guards register during boot only (CORE-STRUCTURED-CONTENT-AUTHORITY-R1).
+            $this->app->make('cms.content.guards')->freeze();
         });
 
         // DB-free install check (marker/env only). When false — a fresh,
@@ -935,6 +1002,7 @@ class CmsServiceProvider extends ServiceProvider
 
         $this->registerCommands();
         $this->registerPublicCacheInvalidation();
+        $this->registerSitemapInvalidation();
     }
 
     /**
@@ -996,9 +1064,12 @@ class CmsServiceProvider extends ServiceProvider
      */
     private function registerPublicCacheInvalidation(): void
     {
+        // After commit, coalesced (CORE-STRUCTURED-CONTENT-AUTHORITY-R1): a flush
+        // inside the transaction let another request refill the cache with the
+        // old committed data under the new version.
         $flush = static function (): void {
             try {
-                app('cms.public_cache')->flush();
+                app('cms.public_cache')->flushAfterCommit();
             } catch (\Throwable $e) {
                 report($e);
             }
@@ -1030,6 +1101,27 @@ class CmsServiceProvider extends ServiceProvider
     }
 
     /**
+     * Sitemap chunk boundaries depend only on which content and terms exist in
+     * which locale, so only those models bump Core's sitemap version
+     * (CORE-SITEMAP-R1 ADR D5). Children are rendered live and need no hook.
+     */
+    private function registerSitemapInvalidation(): void
+    {
+        $bump = static function (): void {
+            try {
+                app('cms.sitemap')->invalidateCore();
+            } catch (\Throwable $e) {
+                report($e);
+            }
+        };
+
+        foreach ([Content::class, ContentTranslation::class, Term::class, TermTranslation::class] as $model) {
+            $model::saved($bump);
+            $model::deleted($bump);
+        }
+    }
+
+    /**
      * Register the active theme + plugin JSON translation paths with Laravel's
      * translator. Runs after loadRoutes() (so active plugins are known) and is
      * best-effort — it never breaks boot.
@@ -1056,6 +1148,17 @@ class CmsServiceProvider extends ServiceProvider
         } catch (\Throwable) {
             // Extension booting is best-effort; never break application boot.
         }
+
+        // Persist permission definitions of plugins activated / re-installed on
+        // a previous request, now that their providers have registered them
+        // (CORE-STRUCTURED-CONTENT-AUTHORITY-R1). Never grants or removes a role.
+        $this->app->booted(function (): void {
+            try {
+                $this->app->make('cms.plugin_lifecycle')->syncPendingPermissions();
+            } catch (\Throwable $e) {
+                report($e);
+            }
+        });
     }
 
     /**
@@ -1561,6 +1664,7 @@ class CmsServiceProvider extends ServiceProvider
         // frontend group AND active plugins can strip a duplicate default-locale
         // prefix (301 → canonical). Registered before any route file loads.
         $this->app['router']->aliasMiddleware('cms.canonical-locale', RedirectDefaultLocalePrefix::class);
+        $this->app['router']->aliasMiddleware('cms.plugin-active', \TheNguyen\CMS\Http\Middleware\EnsurePluginActive::class);
 
         // CORE-L10N A1: the ONE Core locale-apply runtime. Any route group (core
         // or plugin) attaches "cms.locale" to establish the request's public
@@ -1627,10 +1731,81 @@ class CmsServiceProvider extends ServiceProvider
             $this->bootExtensions();
         }
 
+        // Normally already finalized between plugin passes; this covers boots that
+        // skip plugins (pre-install). Idempotent (CORE-PLATFORM-SEAMS-R1).
+        $this->finalizeLocalizedRoutes();
+        $this->warnOnUnsupportedRuntime();
+
         // Frontend routes load last so the catch-all page route is registered
         // after cms-health, reserved routes, and plugin routes.
         if (file_exists(self::ROUTES_FRONTEND)) {
             $this->loadRoutesFrom(self::ROUTES_FRONTEND);
+        }
+    }
+
+    /**
+     * The store (Core base) plus the plugin sources Core's policy accepts.
+     *
+     * @return list<\TheNguyen\CMS\Localization\Dictionary\Composition\RouteDictionarySourceInterface>
+     */
+    private static function acceptedDictionarySources(\Illuminate\Contracts\Foundation\Application $app): array
+    {
+        $store = new \TheNguyen\CMS\Localization\Dictionary\Composition\StoreRouteDictionarySource(
+            $app->make(\TheNguyen\CMS\Localization\Dictionary\Persistence\RouteDictionaryStoreInterface::class),
+        );
+        $registry = $app->make(\TheNguyen\CMS\Localization\Dictionary\Composition\RouteDictionarySourceRegistry::class);
+
+        // CORE-PLATFORM-SEAMS-R2: composing locks the registry, so only Core's
+        // finalization (or a post-boot read) may trigger it — never an early read.
+        $app->make('cms.localized_routes')->assertReadable(
+            ! $app instanceof \Illuminate\Foundation\Application || $app->isBooted(),
+        );
+
+        $sources = $registry->all();
+
+        try {
+            $default = $app->make('cms.language')->defaultCode();
+        } catch (\Throwable) {
+            $default = (string) config('app.locale', 'en');
+        }
+
+        $evaluation = (new \TheNguyen\CMS\Localization\Dictionary\Composition\PluginRouteSourcePolicy)->evaluate(
+            (new \TheNguyen\CMS\Localization\Dictionary\Composition\RouteDictionaryComposer([$store]))->compose(),
+            $sources,
+            array_values(array_filter(explode('|', LanguageManager::routeLocalePattern()))),
+            $default,
+            (string) config('cms.admin_path', 'admin'),
+        );
+
+        $registry->recordEvaluation($evaluation['refused'], $evaluation['fallbacks']);
+
+        foreach ($evaluation['refused'] as $id => $reasons) {
+            \Illuminate\Support\Facades\Log::warning('TN CMS route dictionary source refused', ['source' => $id, 'reasons' => $reasons]);
+        }
+
+        return [$store, ...$evaluation['accepted']];
+    }
+
+    /**
+     * Long-running workers (Octane / Swoole / RoadRunner / FrankenPHP worker mode)
+     * are NOT a supported TN CMS runtime (CORE-PLATFORM-SEAMS-R2): plugin view
+     * namespaces and boot-time registries are per worker. Warn once per worker so
+     * operators see it; persisted-state checks (cms.plugin-active, cms_plugin_view)
+     * still fail closed for a deactivated plugin.
+     */
+    private function warnOnUnsupportedRuntime(): void
+    {
+        if (\TheNguyen\CMS\Support\CmsInfo::isLongRunningWorker()) {
+            \Illuminate\Support\Facades\Log::warning('TN CMS: long-running worker runtime detected; it is not a supported runtime. Restart workers after activating or deactivating plugins or switching themes.');
+        }
+    }
+
+    private function finalizeLocalizedRoutes(): void
+    {
+        try {
+            $this->app->make('cms.localized_routes')->finalize();
+        } catch (\Throwable $e) {
+            report($e);
         }
     }
 
@@ -1645,6 +1820,9 @@ class CmsServiceProvider extends ServiceProvider
                 PluginActivateCommand::class,
                 PluginDeactivateCommand::class,
                 PluginListCommand::class,
+                \TheNguyen\CMS\Console\Commands\ContentOwnerCommand::class,
+                \TheNguyen\CMS\Console\Commands\ContentOwnershipReconcileCommand::class,
+                \TheNguyen\CMS\Console\Commands\ContentOwnershipAdoptersCommand::class,
                 SlugRebuildCommand::class,
                 MenuLocalizedUrlRepairCommand::class,
                 ThemePublishCommand::class,

@@ -65,6 +65,7 @@ class RecentPostsWidget extends Widget
         $posts = Content::query()
             ->posts()
             ->published()
+            ->discoverable()
             ->whereHas('translations', static fn ($q) => $q->where('locale', $locale)->whereNotNull('slug'))
             ->with('translations')
             ->orderByDesc('published_at')

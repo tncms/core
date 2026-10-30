@@ -143,6 +143,17 @@ return [
     ))),
 
     /*
+     | Structured-content authority (CORE-STRUCTURED-CONTENT-AUTHORITY-R1).
+     | Extra bounded reasons host code may use for ContentWriteContext::system()
+     | (unattended host jobs that write content without a user). Core's own
+     | reasons (install_seed, demo_import) are always allowed. Plugin code can
+     | never mint a system context, whatever is listed here.
+     */
+    'content_authority' => [
+        'system_reasons' => [],
+    ],
+
+    /*
      | Preview (v1.0.0-beta.7.1.16). Secure, temporary, signed frontend previews
      | of unpublished content. `default_ttl_minutes` bounds how long a generated
      | preview link stays valid; `route_prefix` is the signed endpoint's path.
@@ -213,5 +224,20 @@ return [
         'channel' => env('CMS_UPDATE_CHANNEL', 'stable'),
         // HTTPS-only feed serving the tncms.update/v1 metadata contract.
         'feed_url' => env('CMS_UPDATE_FEED_URL', ''),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Sitemap (CORE-SITEMAP-R1)
+    |--------------------------------------------------------------------------
+    | /sitemap.xml is an index of chunked child sitemaps. chunk_size is the
+    | number of URLs per child (default 2000, clamped 500..50000); the admin
+    | setting seo.sitemap_chunk_size takes precedence. manifest_ttl bounds how
+    | long chunk boundaries may stay stale after writes that bypass events.
+    */
+    'sitemap' => [
+        'chunk_size' => env('CMS_SITEMAP_CHUNK_SIZE', 2000),
+        'manifest_ttl' => (int) env('CMS_SITEMAP_MANIFEST_TTL', 3600),
+        'max_age' => (int) env('CMS_SITEMAP_MAX_AGE', 300),
     ],
 ];

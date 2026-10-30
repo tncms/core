@@ -22,7 +22,8 @@ final class DictionaryProviderPluginServiceProvider extends ServiceProvider
     {
         $this->app->make(RouteDictionarySourceRegistry::class)->register(
             new PluginRouteDictionarySource('dictionary-provider-plugin', [
-                'faq' => ['vi' => 'cau-hoi-thuong-gap', 'de' => 'faq'],
+                // Every active locale explicitly (CORE-PLATFORM-SEAMS-R2 missing-locale policy).
+                'faq' => ['vi' => 'cau-hoi-thuong-gap', 'en' => 'faq', 'de' => 'faq'],
             ]),
         );
     }

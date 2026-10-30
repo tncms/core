@@ -50,12 +50,29 @@ class RedirectDefaultLocalePrefix
             return $next($request);
         }
 
-        $canonical = '/'.implode('/', array_slice($segments, 1));
+        // Segments are DECODED: percent-encode backslashes, control characters and
+        // "%" so "/vi/%5Cevil.com" or "/vi/%09/evil.com" can never become a browser
+        // protocol-relative (off-site) Location. Other characters stay byte-identical
+        // (CORE-PLATFORM-SEAMS-R2 security HIGH-1).
+        $canonical = '/'.implode('/', array_map(
+            static fn (string $segment): string => (string) preg_replace_callback(
+                '/[\\\\%\x00-\x1F\x7F]/',
+                static fn (array $m): string => rawurlencode($m[0]),
+                $segment,
+            ),
+            array_slice($segments, 1),
+        ));
 
         $query = $request->getQueryString();
         if ($query !== null && $query !== '') {
             $canonical .= '?'.$query;
         }
+
+        // CORE-PLATFORM-SEAMS-R2: a default-locale base spelled with its dictionary
+        // projection (/vi/tim-kiem) goes straight to the canonical key path (/search)
+        // in one hop, instead of to an unrouted /tim-kiem.
+        $canonical = app(\TheNguyen\CMS\Localization\DefaultLocaleCanonicalPath::class)
+            ->forSegments(array_values(array_slice($segments, 1)), $query) ?? $canonical;
 
         // Emit a ROOT-RELATIVE Location (e.g. "/docs?x=1"), built straight from
         // the request path — NOT through the URL generator / request root /

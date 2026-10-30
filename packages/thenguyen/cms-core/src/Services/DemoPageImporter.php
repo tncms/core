@@ -137,9 +137,9 @@ class DemoPageImporter
                     }
 
                     if ($content === null) {
-                        $content = $this->contents->create($payload);
+                        $content = $this->contents->create($payload, \TheNguyen\CMS\ContentAuthority\ContentWriteContext::system('demo_import'));
                     } else {
-                        $this->contents->update($content, $payload);
+                        $this->contents->update($content, $payload, null, \TheNguyen\CMS\ContentAuthority\ContentWriteContext::system('demo_import'));
                     }
                 }
             } catch (\Throwable $e) {
@@ -194,7 +194,7 @@ class DemoPageImporter
                 continue;
             }
 
-            if (! $content->trashed() && ! $this->contents->delete($content)) {
+            if (! $content->trashed() && ! $this->contents->delete($content, null, \TheNguyen\CMS\ContentAuthority\ContentWriteContext::system('demo_import'))) {
                 continue;
             }
 

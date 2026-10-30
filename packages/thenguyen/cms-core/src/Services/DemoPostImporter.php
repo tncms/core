@@ -159,9 +159,9 @@ class DemoPostImporter
                     }
 
                     if ($post === null) {
-                        $post = $this->contents->create($payload);
+                        $post = $this->contents->create($payload, \TheNguyen\CMS\ContentAuthority\ContentWriteContext::system('demo_import'));
                     } else {
-                        $this->contents->update($post, $payload);
+                        $this->contents->update($post, $payload, null, \TheNguyen\CMS\ContentAuthority\ContentWriteContext::system('demo_import'));
                     }
 
                     $first = false;
@@ -302,7 +302,7 @@ class DemoPostImporter
                 continue;
             }
 
-            if (! $post->trashed() && ! $this->contents->delete($post)) {
+            if (! $post->trashed() && ! $this->contents->delete($post, null, \TheNguyen\CMS\ContentAuthority\ContentWriteContext::system('demo_import'))) {
                 continue;
             }
 

@@ -70,7 +70,7 @@ final class PageTemplateResolutionTest extends TestCase
             'locale' => app('cms.language')->defaultCode(),
             'content' => '<p>Body of '.$title.'</p>',
             'template' => $template,
-        ]);
+        ], \Tests\Support\ContentFixtures::context());
     }
 
     public function test_default_template_renders_canonical_page_view(): void

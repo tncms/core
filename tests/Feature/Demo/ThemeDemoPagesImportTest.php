@@ -190,7 +190,7 @@ final class ThemeDemoPagesImportTest extends TestCase
         $own = app(ContentManager::class)->create([
             'type' => 'page', 'status' => 'published', 'title' => 'My own page',
             'slug' => 'my-own-page', 'locale' => 'vi', 'content' => '<p>mine</p>',
-        ]);
+        ], \Tests\Support\ContentFixtures::context());
 
         settings()->set('reading.homepage_display', 'latest_posts');
 

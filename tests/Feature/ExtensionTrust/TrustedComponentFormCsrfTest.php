@@ -74,7 +74,7 @@ final class TrustedComponentFormCsrfTest extends TestCase
             return redirect('/contact')->with('s2_status', 'sent');
         });
 
-        app('cms.content')->create(['type' => 'page', 'status' => 'published', 'locale' => 'en', 'title' => 'Contact', 'slug' => 'contact', 'content' => '<p>Write to us</p>[s2_form]']);
+        app('cms.content')->create(['type' => 'page', 'status' => 'published', 'locale' => 'en', 'title' => 'Contact', 'slug' => 'contact', 'content' => '<p>Write to us</p>[s2_form]'], \Tests\Support\ContentFixtures::context());
     }
 
     /** GET the page and return the CSRF token the final HTML form carries. */

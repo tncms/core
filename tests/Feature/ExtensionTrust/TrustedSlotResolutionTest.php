@@ -53,7 +53,7 @@ final class TrustedSlotResolutionTest extends TestCase
 
     private function page(string $slug, string $title, string $content): void
     {
-        app('cms.content')->create(['type' => 'page', 'status' => 'published', 'locale' => 'en', 'title' => $title, 'slug' => $slug, 'content' => $content]);
+        app('cms.content')->create(['type' => 'page', 'status' => 'published', 'locale' => 'en', 'title' => $title, 'slug' => $slug, 'content' => $content], \Tests\Support\ContentFixtures::context());
     }
 
     private function main(string $html): string

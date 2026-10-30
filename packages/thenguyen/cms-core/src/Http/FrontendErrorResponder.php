@@ -41,7 +41,7 @@ use Throwable;
 final class FrontendErrorResponder
 {
     /** HTTP statuses branded for public frontend HTML requests. */
-    private const THEMED_STATUSES = [403, 404, 419, 429, 500, 503];
+    private const THEMED_STATUSES = [403, 404, 410, 419, 429, 500, 503];
 
     public function render(Throwable $e, Request $request): ?Response
     {
@@ -174,7 +174,7 @@ final class FrontendErrorResponder
      */
     private function errorData(int $status, Request $request): array
     {
-        $searchUrl = Route::has('cms.search') ? route('cms.search') : null;
+        $searchUrl = Route::has('cms.search') ? cms_search_url() : null;
 
         return [
             'status' => $status,
@@ -193,6 +193,7 @@ final class FrontendErrorResponder
         return core_trans(match ($status) {
             403 => 'Access denied',
             404 => 'Page not found',
+            410 => 'Content no longer available',
             419 => 'Page expired',
             429 => 'Too many requests',
             503 => 'Service unavailable',
@@ -205,6 +206,7 @@ final class FrontendErrorResponder
         return core_trans(match ($status) {
             403 => 'You do not have permission to view this page.',
             404 => 'The page you are looking for does not exist or has moved.',
+            410 => 'This content has been permanently removed.',
             419 => 'Your session has expired. Please refresh the page and try again.',
             429 => 'You have made too many requests. Please slow down and try again shortly.',
             503 => 'The site is temporarily unavailable. Please check back soon.',

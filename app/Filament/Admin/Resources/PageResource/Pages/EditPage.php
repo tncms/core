@@ -4,11 +4,12 @@ declare(strict_types=1);
 
 namespace App\Filament\Admin\Resources\PageResource\Pages;
 
+use App\Filament\Admin\Resources\Concerns\WritesContentThroughAuthority;
 use App\Filament\Admin\Resources\PageResource;
-use Filament\Actions\DeleteAction;
 use Filament\Resources\Pages\EditRecord;
 use Filament\Support\Enums\Width;
 use Illuminate\Database\Eloquent\Model;
+use TheNguyen\CMS\ContentAuthority\ContentWriteContext;
 use TheNguyen\CMS\Filament\Concerns\HasTranslations;
 use TheNguyen\CMS\Filament\Concerns\TranslationSwitcher;
 use TheNguyen\CMS\Models\Content;
@@ -18,6 +19,7 @@ class EditPage extends EditRecord
 {
     use HasTranslations;
     use TranslationSwitcher;
+    use WritesContentThroughAuthority;
 
     protected static string $resource = PageResource::class;
 
@@ -30,7 +32,7 @@ class EditPage extends EditRecord
     {
         return [
             $this->translationSwitcher(),
-            DeleteAction::make(),
+            $this->contentDeleteHeaderAction(),
         ];
     }
 
@@ -41,6 +43,9 @@ class EditPage extends EditRecord
 
         $locale = $this->selectedLocale();
         $translation = $record->translations()->where('locale', $locale)->first();
+
+        // The revision this form state is based on (expected on save).
+        $this->captureContentRevision($record);
 
         // Live-load the selected locale's translation; clear the translatable
         // fields when it does not exist yet so a new translation can be created
@@ -67,12 +72,17 @@ class EditPage extends EditRecord
 
         // The Classic Editor field dehydrates a cleared editor as null, but a
         // null body means "not provided" to ContentManager (its null-merge
-        // keeps the existing translation body). The form always submits the
-        // content field, so an explicit empty save must persist empty instead
-        // of resurrecting the old body (CORE-EDITOR-1B).
-        $data['content'] = (string) ($data['content'] ?? '');
+        // keeps the existing translation body). When the form submits the
+        // content field, an explicit empty save persists empty instead of
+        // resurrecting the old body (CORE-EDITOR-1B); when a schema hook
+        // removed the field it is absent and the stored body is preserved.
+        if (array_key_exists('content', $data)) {
+            $data['content'] = (string) ($data['content'] ?? '');
+        }
 
         /** @var Content $record */
-        return $contents->update($record, $data);
+        return $this->writeThroughContentAuthority(
+            fn (): Model => $contents->update($record, $data, $this->contentRevision, ContentWriteContext::interactive()),
+        );
     }
 }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace TheNguyen\CMS\View;
 
 use DateTimeInterface;
+use TheNguyen\CMS\Content\Extension\ContentOwnershipMarker;
 
 /**
  * Previous/next post navigation item (CORE-BLOG-1). Immutable presentation
@@ -17,10 +18,11 @@ final class AdjacentPostViewModel
         public readonly string $title,
         public readonly string $url,
         public readonly ?DateTimeInterface $publishedAt = null,
+        public readonly ?ContentOwnershipMarker $ownership = null,
     ) {}
 
     /**
-     * @return array{title: string, url: string, published_at: ?string}
+     * @return array{title: string, url: string, published_at: ?string, ownership?: array{owner: string, state: string}}
      */
     public function toArray(): array
     {
@@ -28,6 +30,6 @@ final class AdjacentPostViewModel
             'title' => $this->title,
             'url' => $this->url,
             'published_at' => $this->publishedAt?->format(DATE_ATOM),
-        ];
+        ] + ($this->ownership !== null ? ['ownership' => $this->ownership->toArray()] : []);
     }
 }

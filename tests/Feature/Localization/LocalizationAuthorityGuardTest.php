@@ -49,11 +49,11 @@ final class LocalizationAuthorityGuardTest extends TestCase
         $page = app('cms.content')->create([
             'type' => 'page', 'status' => 'published', 'locale' => 'en',
             'title' => 'Home', 'slug' => 'home', 'content' => '<p>en</p>',
-        ]);
+        ], \Tests\Support\ContentFixtures::context());
 
         return app('cms.content')->update($page, [
             'type' => 'page', 'locale' => 'vi', 'title' => 'Trang chủ', 'slug' => 'trang-chu',
-        ]);
+        ], null, \Tests\Support\ContentFixtures::context());
     }
 
     private function bilingualCategory(): Term
@@ -88,7 +88,7 @@ final class LocalizationAuthorityGuardTest extends TestCase
         $page = app('cms.content')->create([
             'type' => 'page', 'status' => 'published', 'locale' => 'en',
             'title' => 'English only', 'slug' => 'english-only', 'content' => '<p>x</p>',
-        ]);
+        ], \Tests\Support\ContentFixtures::context());
 
         $this->assertNull($this->service()->forResource($page, 'vi'));
         $this->assertSame('#', content_url($page, 'vi'));

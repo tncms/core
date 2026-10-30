@@ -71,8 +71,12 @@ final class LocaleSwitchTargetService
                 // to the canonical base for locales/keys without a dictionary entry), preserving
                 // the remaining route parameters (slug/id/…). One prefix authority applies the
                 // locale prefix.
+                // CORE-PLATFORM-SEAMS-R2: the default locale renders the canonical route
+                // key (same rule as the content/term/commerce resolvers), never its projection.
                 $targetBase = $genericBase['key'] instanceof RouteKey
-                    ? $this->dictionary->projectSegment($genericBase['key'], $this->config->normalize($locale))
+                    ? ($this->config->normalize($locale) === $this->config->defaultLocale()
+                        ? $genericBase['key']->value
+                        : $this->dictionary->projectSegment($genericBase['key'], $this->config->normalize($locale)))
                     : $genericBase['base'];
 
                 $path = '/' . implode('/', array_merge([$targetBase], $genericBase['rest']));

@@ -49,6 +49,7 @@ class DefaultAdjacentPostResolver implements AdjacentPostResolver
         $query = Content::query()
             ->posts()
             ->published()
+            ->discoverable()
             ->whereNotNull('published_at')
             ->whereKeyNot($pivotId)
             ->whereHas('translations', static fn ($q) => $q->where('locale', $locale)->whereNotNull('slug'))
@@ -92,6 +93,7 @@ class DefaultAdjacentPostResolver implements AdjacentPostResolver
             title: $found->translatedTitle($locale),
             url: $url,
             publishedAt: $found->published_at,
+            ownership: app('cms.content_ownership')->markerFor((int) $found->getKey()),
         );
     }
 }

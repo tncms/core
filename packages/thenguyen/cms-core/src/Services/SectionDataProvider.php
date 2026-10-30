@@ -644,7 +644,7 @@ class SectionDataProvider
      */
     private function applyVisibility(Builder $query): void
     {
-        $query->published();
+        $query->published()->discoverable();
     }
 
     /**

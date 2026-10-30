@@ -7,6 +7,7 @@ namespace TheNguyen\CMS\Services;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Public-content resolution cache (v1.0.0-beta.6.3).
@@ -25,6 +26,11 @@ use Illuminate\Support\Facades\Cache;
  */
 class PublicContentCacheManager
 {
+    /** Flush requests / completions for after-commit coalescing. */
+    private int $flushRequested = 0;
+
+    private int $flushCompleted = 0;
+
     private const VERSION_KEY = 'tncms.public.version';
 
     private const KEY_PREFIX = 'tncms.public';
@@ -120,6 +126,28 @@ class PublicContentCacheManager
         } catch (\Throwable $e) {
             report($e);
         }
+    }
+
+    /**
+     * Invalidate after the OUTERMOST database transaction commits
+     * (CORE-STRUCTURED-CONTENT-AUTHORITY-R1). Outside a transaction it flushes at
+     * once. A rolled-back write never flushes, and a reader that refills the cache
+     * from the old committed data while the write is still uncommitted only fills
+     * the OLD version, which the commit then orphans. Several requests made
+     * before one commit coalesce into a single version bump.
+     */
+    public function flushAfterCommit(): void
+    {
+        $sequence = ++$this->flushRequested;
+
+        DB::afterCommit(function () use ($sequence): void {
+            if ($this->flushCompleted >= $sequence) {
+                return; // already covered by a flush of this commit
+            }
+
+            $this->flushCompleted = $this->flushRequested;
+            $this->flush();
+        });
     }
 
     /**

@@ -62,6 +62,7 @@ class Content extends Model implements Previewable, RevisionableInterface
         'comments_count' => 'integer',
         'is_featured' => 'boolean',
         'show_page_title' => 'boolean',
+        'revision' => 'integer',
     ];
 
     /**
@@ -69,16 +70,54 @@ class Content extends Model implements Previewable, RevisionableInterface
      * model's Eloquent events so EVERY delete path — Filament DeleteAction, the
      * ContentManager, a cascade, or a programmatic delete — emits the hooks
      * exactly once. Best-effort: a broken listener never blocks a delete.
+     *
+     * Also the model-level backstop of CORE-STRUCTURED-CONTENT-AUTHORITY-R1: an
+     * Eloquent write to EXTENSION-MANAGED content (or one that sets/changes the
+     * `managed_by` marker) outside a ContentManager write is refused. Ordinary
+     * content is unaffected. Query-builder/raw SQL and pivot writes do not fire
+     * model events and are outside this boundary.
      */
     protected static function booted(): void
     {
+        static::saving(static function (self $content): void {
+            self::assertSanctionedWrite($content);
+        });
+
+        static::restoring(static function (self $content): void {
+            self::assertSanctionedWrite($content);
+        });
+
         static::deleting(static function (self $content): void {
+            self::assertSanctionedWrite($content);
             self::fireContentLifecycle('cms.content.deleting', $content);
         });
 
         static::deleted(static function (self $content): void {
             self::fireContentLifecycle('cms.content.deleted', $content);
         });
+    }
+
+    /** Refuse an unsanctioned Eloquent write to managed content or to the marker. */
+    public static function assertSanctionedWrite(self $content): void
+    {
+        $managed = $content->getOriginal('managed_by') !== null || $content->isDirty('managed_by');
+
+        if (! $managed) {
+            return;
+        }
+
+        $id = $content->exists ? (int) $content->getKey() : null;
+
+        if (app('cms.content.gate')->isSanctioned($id)) {
+            return;
+        }
+
+        throw new \TheNguyen\CMS\ContentAuthority\ContentWriteDenied(
+            'unsanctioned_write',
+            'This content is managed by an extension and can only be changed through the content service.',
+            $id,
+            (string) ($content->getOriginal('managed_by') ?? $content->managed_by),
+        );
     }
 
     private static function fireContentLifecycle(string $hook, self $content): void
@@ -194,6 +233,16 @@ class Content extends Model implements Previewable, RevisionableInterface
     public function scopePublished(Builder $query): Builder
     {
         return $query->where('status', 'published');
+    }
+
+    /**
+     * Exclude plugin-managed content that is not publicly available right now
+     * (CORE-CONTENT-EXT-R1). Chain after published() on every public discovery
+     * surface; Core content is never affected.
+     */
+    public function scopeDiscoverable(Builder $query, ?string $locale = null): Builder
+    {
+        return app('cms.content_ownership')->constrainDiscoverable($query, $locale);
     }
 
     public function scopeDraft(Builder $query): Builder

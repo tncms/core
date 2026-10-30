@@ -11,7 +11,7 @@
 <div class="container tn-search">
     <h1 class="tn-search-heading">{{ __('Search') }}</h1>
 
-    <form method="GET" action="{{ route('cms.search') }}" role="search" class="tn-search-form">
+    <form method="GET" action="{{ cms_search_url() }}" role="search" class="tn-search-form">
         <input
             type="search"
             name="q"

@@ -201,10 +201,53 @@ class PluginDatabaseManager
             }
         }
 
-        // require_once was a no-op (already loaded): infer from the file name.
-        $guess = pathinfo($file, PATHINFO_FILENAME);
+        // require_once was a no-op (already loaded, e.g. by the plugin autoloader):
+        // infer the class from the file's declared namespace + file name, then
+        // the legacy un-namespaced file-name convention.
+        $name = pathinfo($file, PATHINFO_FILENAME);
+        $namespace = $this->declaredNamespace($file);
 
-        return class_exists($guess) && is_subclass_of($guess, Seeder::class) ? $guess : null;
+        foreach (array_filter([$namespace !== '' ? $namespace.'\\'.$name : null, $name]) as $guess) {
+            if (class_exists($guess, false) && is_subclass_of($guess, Seeder::class)) {
+                return $guess;
+            }
+        }
+
+        return null;
+    }
+
+    /** The namespace declared by a PHP file ('' when none), read with the tokenizer. */
+    private function declaredNamespace(string $file): string
+    {
+        $source = @file_get_contents($file);
+
+        if (! is_string($source)) {
+            return '';
+        }
+
+        $tokens = token_get_all($source);
+
+        foreach ($tokens as $i => $token) {
+            if (! is_array($token) || $token[0] !== T_NAMESPACE) {
+                continue;
+            }
+
+            $name = '';
+
+            for ($j = $i + 1, $n = count($tokens); $j < $n; $j++) {
+                $part = $tokens[$j];
+
+                if (is_array($part) && in_array($part[0], [T_NAME_QUALIFIED, T_STRING, T_NS_SEPARATOR], true)) {
+                    $name .= $part[1];
+                } elseif (! is_array($part) || $part[0] !== T_WHITESPACE) {
+                    break;
+                }
+            }
+
+            return trim($name, '\\');
+        }
+
+        return '';
     }
 
     /**

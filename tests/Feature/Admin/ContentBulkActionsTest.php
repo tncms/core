@@ -38,9 +38,13 @@ final class ContentBulkActionsTest extends TestCase
         // vi (default) + en, exactly like an installed site.
         $this->seed(CmsLanguageSeeder::class);
 
-        // A plain authenticated user: RBAC fails open until roles are seeded, so
-        // this user is authorized (matches the existing admin test baseline).
-        $this->actingAs(User::factory()->create());
+        // A plain authenticated user: RBAC fails open until roles are seeded for
+        // base permissions. R1: publication / others' content use strict checks
+        // that never fail open, so this admin is an explicitly configured
+        // super-admin (other tests here seed restricted roles).
+        $admin = User::factory()->create();
+        config(['cms.super_admin_emails' => [$admin->email]]);
+        $this->actingAs($admin);
     }
 
     private function contents(): ContentManager
@@ -64,13 +68,13 @@ final class ContentBulkActionsTest extends TestCase
             'meta_title' => "Meta $marker",
             'featured_image' => "https://cdn.example.test/$marker.jpg",
             'author_id' => $author->id,
-        ]);
+        ], \Tests\Support\ContentFixtures::context());
 
         return $this->contents()->update($post, [
             'locale' => 'vi', 'title' => "Post $marker VI", 'slug' => "post-$marker-vi",
             'excerpt' => "Excerpt $marker VI",
             'content' => "<p>Body $marker VI</p>",
-        ]);
+        ], null, \Tests\Support\ContentFixtures::context());
     }
 
     private function makePage(string $marker, string $status = 'published'): Content
@@ -79,7 +83,7 @@ final class ContentBulkActionsTest extends TestCase
             'type' => 'page', 'status' => $status, 'locale' => 'en',
             'title' => "Page $marker", 'slug' => "page-$marker",
             'content' => "<p>Page body $marker</p>",
-        ]);
+        ], \Tests\Support\ContentFixtures::context());
     }
 
     // ---------------------------------------------------------------------
@@ -393,12 +397,15 @@ final class ContentBulkActionsTest extends TestCase
         // Two identical published posts; transition one via the narrow
         // changeStatus() authority and the other via a full update() save that
         // only changes status (what the edit form does single-record).
+        // Frozen clock: both are first published "now", so a second boundary
+        // between the two creates must not make their published_at differ.
+        $this->freezeSecond();
         $viaChange = $this->makePost('eq-change');
         $viaUpdate = $this->makePost('eq-update');
 
         $enBefore = $viaChange->translations()->where('locale', 'en')->first()->toArray();
 
-        app('cms.content')->changeStatus($viaChange, 'draft');
+        app('cms.content')->changeStatus($viaChange, 'draft', null, \Tests\Support\ContentFixtures::context());
 
         app('cms.content')->update($viaUpdate, [
             'locale' => 'en',
@@ -407,7 +414,7 @@ final class ContentBulkActionsTest extends TestCase
             'slug' => 'post-eq-update-en',
             'excerpt' => 'Excerpt eq-update EN',
             'content' => '<p>Body eq-update EN</p>',
-        ]);
+        ], null, \Tests\Support\ContentFixtures::context());
 
         $viaChange->refresh();
         $viaUpdate->refresh();

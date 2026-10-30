@@ -47,7 +47,7 @@ final class ContentSearchProviderTest extends TestCase
         return app('cms.content')->create([
             'type' => 'post', 'status' => $status, 'locale' => 'en',
             'title' => $title, 'slug' => $slug, 'content' => $body, 'excerpt' => $excerpt,
-        ]);
+        ], \Tests\Support\ContentFixtures::context());
     }
 
     // ── Core works with no optional plugins ─────────────────────────────────────
@@ -80,7 +80,7 @@ final class ContentSearchProviderTest extends TestCase
         app('cms.content')->create([
             'type' => 'page', 'status' => 'published', 'locale' => 'en',
             'title' => 'About Laravel', 'slug' => 'about', 'content' => '<p>x</p>',
-        ]);
+        ], \Tests\Support\ContentFixtures::context());
 
         $results = $this->search('About');
 
@@ -123,10 +123,10 @@ final class ContentSearchProviderTest extends TestCase
         $post = app('cms.content')->create([
             'type' => 'post', 'status' => 'published', 'locale' => 'en',
             'title' => 'Elephant', 'slug' => 'elephant', 'content' => '<p>en</p>',
-        ]);
+        ], \Tests\Support\ContentFixtures::context());
         app('cms.content')->update($post, [
             'type' => 'post', 'locale' => 'vi', 'title' => 'Con Voi', 'slug' => 'con-voi', 'content' => '<p>vi</p>',
-        ]);
+        ], null, \Tests\Support\ContentFixtures::context());
 
         // English keyword resolves in English, not in Vietnamese scope.
         $this->assertCount(1, $this->search('Elephant', 'en'));

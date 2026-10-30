@@ -56,7 +56,7 @@ final class TrustedComponentPreviewTest extends TestCase
 
     private function draft(string $shortcode): Content
     {
-        return app('cms.content')->create(['type' => 'page', 'status' => 'draft', 'locale' => 'en', 'title' => 'Draft '.$shortcode, 'slug' => 'draft-'.str_replace('_', '-', $shortcode), 'content' => '<p>Draft body</p>['.$shortcode.']']);
+        return app('cms.content')->create(['type' => 'page', 'status' => 'draft', 'locale' => 'en', 'title' => 'Draft '.$shortcode, 'slug' => 'draft-'.str_replace('_', '-', $shortcode), 'content' => '<p>Draft body</p>['.$shortcode.']'], \Tests\Support\ContentFixtures::context());
     }
 
     private function preview(Content $content): \Illuminate\Testing\TestResponse
@@ -111,7 +111,7 @@ final class TrustedComponentPreviewTest extends TestCase
     public function test_the_same_provider_may_write_on_a_public_page_contrast(): void
     {
         $this->register('writer', '<p>public write ok</p>', ['public', 'preview'], 'write');
-        app('cms.content')->create(['type' => 'page', 'status' => 'published', 'locale' => 'en', 'title' => 'Pub', 'slug' => 'pub', 'content' => '[s2_writer]']);
+        app('cms.content')->create(['type' => 'page', 'status' => 'published', 'locale' => 'en', 'title' => 'Pub', 'slug' => 'pub', 'content' => '[s2_writer]'], \Tests\Support\ContentFixtures::context());
 
         $html = (string) $this->get('/pub')->assertOk()->getContent();
 

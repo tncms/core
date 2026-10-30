@@ -95,7 +95,7 @@ final class ThemeDemoPostsRollbackTest extends TestCase
         $userPost = app(ContentManager::class)->create([
             'type' => 'post', 'status' => 'published', 'locale' => 'vi', 'title' => 'User Post', 'slug' => 'user-post',
             'content' => '<p>mine</p>', 'term_ids' => [$userCat->id],
-        ]);
+        ], \Tests\Support\ContentFixtures::context());
 
         $this->importer()->import($this->package());
         $this->assertTrue($this->importer()->reset($this->package())->success);
@@ -118,7 +118,7 @@ final class ThemeDemoPostsRollbackTest extends TestCase
         $userPost = app(ContentManager::class)->create([
             'type' => 'post', 'status' => 'published', 'locale' => 'vi', 'title' => 'User uses demo cat',
             'slug' => 'user-uses-demo-cat', 'content' => '<p>x</p>', 'term_ids' => [$newsId],
-        ]);
+        ], \Tests\Support\ContentFixtures::context());
 
         $result = $this->importer()->reset($this->package());
         $this->assertTrue($result->success);

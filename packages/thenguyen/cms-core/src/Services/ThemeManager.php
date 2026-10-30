@@ -464,6 +464,8 @@ class ThemeManager
         } catch (\Throwable) {
             // Never break application boot over theme view registration.
         }
+
+        $this->refreshPluginViews();
     }
 
     /**
@@ -487,6 +489,23 @@ class ThemeManager
             }
         } catch (\Throwable) {
             // Never break application boot over theme view registration.
+        }
+
+        $this->refreshPluginViews();
+    }
+
+    /**
+     * Plugin view overrides follow the theme authority (CORE-PLATFORM-SEAMS-R1):
+     * whenever "theme::" changes, every active plugin namespace is recomputed.
+     */
+    private function refreshPluginViews(): void
+    {
+        try {
+            if (app()->bound('cms.plugin_views')) {
+                app('cms.plugin_views')->refresh();
+            }
+        } catch (\Throwable) {
+            // Best-effort, like theme view registration itself.
         }
     }
 

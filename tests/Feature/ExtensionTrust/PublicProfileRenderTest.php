@@ -83,7 +83,7 @@ final class PublicProfileRenderTest extends TestCase
 
     private function page(string $slug, string $shortcode, string $status = 'published'): Content
     {
-        return app('cms.content')->create(['type' => 'page', 'status' => $status, 'locale' => 'en', 'title' => 'Team '.$slug, 'slug' => $slug, 'content' => '<p>Team</p>'.$shortcode]);
+        return app('cms.content')->create(['type' => 'page', 'status' => $status, 'locale' => 'en', 'title' => 'Team '.$slug, 'slug' => $slug, 'content' => '<p>Team</p>'.$shortcode], \Tests\Support\ContentFixtures::context());
     }
 
     private function shortcodeFor(int|string $id): string

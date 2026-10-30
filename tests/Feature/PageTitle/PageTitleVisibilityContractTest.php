@@ -57,7 +57,7 @@ class PageTitleVisibilityContractTest extends TestCase
 
     public function test_new_page_defaults_to_show(): void
     {
-        $page = $this->contents()->create(['type' => 'page', 'status' => 'draft', 'title' => 'Home', 'locale' => 'en']);
+        $page = $this->contents()->create(['type' => 'page', 'status' => 'draft', 'title' => 'Home', 'locale' => 'en'], \Tests\Support\ContentFixtures::context());
 
         $this->assertTrue($page->fresh()->show_page_title);
     }
@@ -81,40 +81,40 @@ class PageTitleVisibilityContractTest extends TestCase
 
     public function test_false_persists_and_round_trips_through_content_manager(): void
     {
-        $page = $this->contents()->create(['type' => 'page', 'title' => 'Home', 'locale' => 'en']);
+        $page = $this->contents()->create(['type' => 'page', 'title' => 'Home', 'locale' => 'en'], \Tests\Support\ContentFixtures::context());
 
-        $this->contents()->update($page, ['show_page_title' => false, 'title' => 'Home', 'locale' => 'en']);
+        $this->contents()->update($page, ['show_page_title' => false, 'title' => 'Home', 'locale' => 'en'], null, \Tests\Support\ContentFixtures::context());
 
         $this->assertFalse($page->fresh()->show_page_title);
     }
 
     public function test_update_omitting_flag_preserves_stored_value(): void
     {
-        $page = $this->contents()->create(['type' => 'page', 'title' => 'Home', 'locale' => 'en', 'show_page_title' => false]);
+        $page = $this->contents()->create(['type' => 'page', 'title' => 'Home', 'locale' => 'en', 'show_page_title' => false], \Tests\Support\ContentFixtures::context());
 
         // An update that does not submit the flag (e.g. a plugin-driven partial
         // save) must not silently flip it back to the default.
-        $this->contents()->update($page, ['title' => 'Home v2', 'locale' => 'en']);
+        $this->contents()->update($page, ['title' => 'Home v2', 'locale' => 'en'], null, \Tests\Support\ContentFixtures::context());
 
         $this->assertFalse($page->fresh()->show_page_title);
     }
 
     public function test_flag_is_invariant_across_editing_locales(): void
     {
-        $page = $this->contents()->create(['type' => 'page', 'title' => 'Home', 'locale' => 'en', 'show_page_title' => false]);
+        $page = $this->contents()->create(['type' => 'page', 'title' => 'Home', 'locale' => 'en', 'show_page_title' => false], \Tests\Support\ContentFixtures::context());
 
         // Author a second locale; the base flag must not change or fork per locale.
-        $this->contents()->update($page, ['title' => 'Trang chủ', 'locale' => 'vi']);
+        $this->contents()->update($page, ['title' => 'Trang chủ', 'locale' => 'vi'], null, \Tests\Support\ContentFixtures::context());
 
         $this->assertFalse($page->fresh()->show_page_title);
     }
 
     public function test_updating_flag_does_not_overwrite_translations(): void
     {
-        $page = $this->contents()->create(['type' => 'page', 'title' => 'Home', 'locale' => 'en']);
-        $this->contents()->update($page, ['title' => 'Trang chủ', 'locale' => 'vi']);
+        $page = $this->contents()->create(['type' => 'page', 'title' => 'Home', 'locale' => 'en'], \Tests\Support\ContentFixtures::context());
+        $this->contents()->update($page, ['title' => 'Trang chủ', 'locale' => 'vi'], null, \Tests\Support\ContentFixtures::context());
 
-        $this->contents()->update($page, ['show_page_title' => false, 'title' => 'Home', 'locale' => 'en']);
+        $this->contents()->update($page, ['show_page_title' => false, 'title' => 'Home', 'locale' => 'en'], null, \Tests\Support\ContentFixtures::context());
 
         $page->refresh();
         $this->assertSame('Home', $page->translations()->where('locale', 'en')->first()->title);

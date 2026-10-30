@@ -7,7 +7,6 @@ namespace TheNguyen\CMS\Services;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\View;
 use Illuminate\Support\Str;
 use TheNguyen\CMS\Support\ExtensionDiscovery;
 use TheNguyen\CMS\Support\Plugin;
@@ -252,6 +251,7 @@ class ExtensionManager
         if (! in_array($slug, $active, true)) {
             $active[] = $slug;
             $this->storeActive($active);
+            $this->invalidateRouteCache();
         }
 
         return true;
@@ -275,8 +275,38 @@ class ExtensionManager
         )));
 
         $this->revokeTrustedScriptApprovals($slug);
+        $this->forgetPluginViews($slug);
+        $this->invalidateRouteCache();
 
         return true;
+    }
+
+    /**
+     * A cached route table (`route:cache`) bakes in the active plugins' routes and
+     * the localized segments they were generated from; drop it so the next boot
+     * rebuilds from the new active set (CORE-LOTTERY-P05-SEAMS-1).
+     */
+    private function invalidateRouteCache(): void
+    {
+        try {
+            if (app()->routesAreCached()) {
+                File::delete(app()->getCachedRoutesPath());
+            }
+        } catch (\Throwable $e) {
+            report($e);
+        }
+    }
+
+    /** An inactive plugin's views and theme overrides stop resolving immediately. */
+    private function forgetPluginViews(string $slug): void
+    {
+        try {
+            if (app()->bound('cms.plugin_views')) {
+                app('cms.plugin_views')->forget($slug);
+            }
+        } catch (\Throwable) {
+            // Best-effort: the namespace is not registered on the next boot anyway.
+        }
     }
 
     /**
@@ -319,17 +349,48 @@ class ExtensionManager
         // earliest boot-time consumer of the localized Route Dictionary (e.g. ecommerce's
         // reverse-route generation), so the source set must be complete first. For a single
         // active plugin the two passes are identical to the old per-plugin order.
+        // CORE-PLATFORM-SEAMS-R2: pass 1 is the dictionary registration window; a
+        // plugin that reads the dictionary here fails alone (lifecycle exception).
+        try {
+            if (app()->bound('cms.localized_routes')) {
+                app('cms.localized_routes')->openRegistration();
+            }
+        } catch (\Throwable $e) {
+            report($e);
+        }
+
+        $failed = [];
+
         foreach ($plugins as $plugin) {
             try {
                 $this->registerPlugin($plugin);
             } catch (\Throwable $e) {
+                $failed[$plugin->slug] = true;
                 Log::error('TN CMS: failed to register plugin "'.$plugin->slug.'": '.$e->getMessage(), [
                     'exception' => $e,
                 ]);
             }
         }
 
+        // Every source is registered: compose the Route Dictionary once and run
+        // routes deferred by earlier providers, ahead of plugin routes
+        // (CORE-PLATFORM-SEAMS-R1).
+        try {
+            if (app()->bound('cms.localized_routes')) {
+                app('cms.localized_routes')->finalize();
+            }
+        } catch (\Throwable $e) {
+            report($e);
+        }
+
         foreach ($plugins as $plugin) {
+            // A plugin whose registration failed serves no routes (no half-booted plugin).
+            if (isset($failed[$plugin->slug])) {
+                Log::warning('TN CMS: routes skipped for plugin "'.$plugin->slug.'": its registration failed.');
+
+                continue;
+            }
+
             try {
                 $this->loadPluginRoutes($plugin);
             } catch (\Throwable $e) {
@@ -352,11 +413,9 @@ class ExtensionManager
             }
         }
 
-        // 3. View namespace: view('{slug}::name').
-        $views = $plugin->viewsPath();
-        if ($views !== null) {
-            View::addNamespace($plugin->slug, $views);
-        }
+        // 3. View namespace: view('{slug}::name'), theme override first
+        //    (themes/{theme}/views/plugins/{slug}/), then the plugin's views.
+        app('cms.plugin_views')->register($plugin);
 
         // 4. Migration discovery: make every configured (or conventional)
         // migration directory visible to the migrator, so `php artisan migrate`
@@ -368,10 +427,24 @@ class ExtensionManager
 
     private function loadPluginRoutes(Plugin $plugin): void
     {
+        // A plugin whose route-segment source Core refused serves no routes: its
+        // localized URLs would be wrong, so it fails closed alone (CORE-LOTTERY-P05-SEAMS-1).
+        try {
+            if (app(\TheNguyen\CMS\Localization\Dictionary\Composition\RouteDictionarySourceRegistry::class)->isRefused('plugin:'.$plugin->slug)) {
+                Log::warning('TN CMS: routes skipped for plugin "'.$plugin->slug.'": its route dictionary source was refused.');
+
+                return;
+            }
+        } catch (\Throwable) {
+            // No registry (pre-install boot): load routes as before.
+        }
+
         // 5. Web routes (wrapped in the web middleware group).
         $routes = $plugin->webRoutesFile();
         if ($routes !== null) {
-            Route::middleware('web')->group($routes);
+            // cms.plugin-active: a route table that outlives a deactivation (route cache,
+            // a long-running worker) answers 404 for this plugin (CORE-PLATFORM-SEAMS-R2).
+            Route::middleware(['web', 'cms.plugin-active:'.$plugin->slug])->group($routes);
         }
     }
 

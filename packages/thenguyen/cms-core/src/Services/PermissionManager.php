@@ -47,9 +47,25 @@ class PermissionManager
 
     private ?bool $initialized = null;
 
+    public const CORE_OWNER = 'core';
+
+    /** @var array<string, string> slug => owner */
+    private array $owners = [];
+
+    /** @var list<array{slug: string, owner: string, reason: string}> */
+    private array $diagnostics = [];
+
+    private bool $registeringCore = false;
+
     public function __construct()
     {
-        $this->registerCorePermissions();
+        $this->registeringCore = true;
+
+        try {
+            $this->registerCorePermissions();
+        } finally {
+            $this->registeringCore = false;
+        }
     }
 
     // ---------------------------------------------------------------------
@@ -67,12 +83,111 @@ class PermissionManager
             return;
         }
 
+        // Definition ownership (CORE-STRUCTURED-CONTENT-AUTHORITY-R1): a slug
+        // belongs to whoever registered it first (Core or a plugin, derived from
+        // the calling file); another owner can never redefine it.
+        $owner = $this->registeringCore ? self::CORE_OWNER : $this->callerOwner();
+        $existing = $this->owners[$slug] ?? null;
+
+        if ($existing !== null && $existing !== $owner) {
+            $this->diagnostics[] = ['slug' => $slug, 'owner' => $owner, 'reason' => 'owned by '.$existing];
+
+            return;
+        }
+
+        $this->owners[$slug] = $owner;
         $this->registered[$slug] = [
             'slug' => $slug,
             'name' => $name,
             'group' => $group,
             'description' => $description,
         ];
+    }
+
+    /** Owner of a registered slug: 'core', a plugin slug, or null when unregistered. */
+    public function ownerOf(string $slug): ?string
+    {
+        return $this->owners[$slug] ?? null;
+    }
+
+    /** @return list<array{slug: string, owner: string, reason: string}> refused registrations */
+    public function diagnostics(): array
+    {
+        return $this->diagnostics;
+    }
+
+    /**
+     * Persist a subset of REGISTERED definitions into cms_permissions (idempotent
+     * upsert by slug). A plugin caller can only persist slugs it owns; Core can
+     * persist any. Never grants or removes a role permission, never deletes a row.
+     *
+     * @param  array<int, string>  $slugs
+     * @return list<string> the slugs persisted
+     */
+    public function persist(array $slugs): array
+    {
+        if (! Schema::hasTable('cms_permissions')) {
+            return [];
+        }
+
+        $caller = $this->callerOwner();
+        $persisted = [];
+
+        foreach (array_unique($slugs) as $slug) {
+            $definition = $this->registered[$slug] ?? null;
+
+            if ($definition === null || ($caller !== self::CORE_OWNER && ($this->owners[$slug] ?? null) !== $caller)) {
+                continue;
+            }
+
+            Permission::query()->updateOrCreate(
+                ['slug' => $slug],
+                ['name' => $definition['name'], 'group' => $definition['group'], 'description' => $definition['description']],
+            );
+            $persisted[] = $slug;
+        }
+
+        return $persisted;
+    }
+
+    /**
+     * Persist every registered definition owned by one plugin.
+     *
+     * @return list<string>
+     */
+    public function persistOwnedBy(string $owner): array
+    {
+        return $this->persist(array_keys(array_filter($this->owners, static fn (string $o): bool => $o === $owner)));
+    }
+
+    /** Whether a slug has a cms_permissions row. */
+    public function isPersisted(string $slug): bool
+    {
+        try {
+            return Schema::hasTable('cms_permissions') && Permission::query()->where('slug', $slug)->exists();
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
+    /** 'core' for host/Core code, the owning plugin slug for plugin code ('' when unowned). */
+    private function callerOwner(): string
+    {
+        try {
+            $identity = app('cms.extension_identity');
+
+            foreach (debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS) as $frame) {
+                $file = $frame['file'] ?? null;
+
+                if (is_string($file) && $identity->isUnderPluginsRoot($file)) {
+                    return $identity->ownerOfFile($file) ?? '';
+                }
+            }
+        } catch (\Throwable) {
+            // identity unavailable (isolated unit tests): treat as Core
+        }
+
+        return self::CORE_OWNER;
     }
 
     /**
@@ -170,6 +285,35 @@ class PermissionManager
         }
 
         return $this->systemInitialized() && in_array($permission, $resolved['slugs'], true);
+    }
+
+    /**
+     * Explicit-grant check for the most sensitive authority
+     * (CORE-UNIFIED-OWNERSHIP-R1): true only when one of the user's roles
+     * OTHER than super-admin carries the permission in an initialised RBAC
+     * system. Super-admin status (role or configured email) never implies it,
+     * so the grant is always a deliberate operator decision.
+     */
+    public function userHasExplicitGrant(?Authenticatable $user, string $permission): bool
+    {
+        $id = $user === null ? null : $this->userId($user);
+
+        if ($id === null || ! $this->systemInitialized()) {
+            return false;
+        }
+
+        try {
+            return DB::table('cms_role_user')
+                ->join('cms_roles', 'cms_roles.id', '=', 'cms_role_user.role_id')
+                ->join('cms_role_permissions', 'cms_role_permissions.role_id', '=', 'cms_roles.id')
+                ->join('cms_permissions', 'cms_permissions.id', '=', 'cms_role_permissions.permission_id')
+                ->where('cms_role_user.user_id', $id)
+                ->where('cms_roles.slug', '!=', Role::SUPER_ADMIN)
+                ->where('cms_permissions.slug', $permission)
+                ->exists();
+        } catch (\Throwable) {
+            return false;
+        }
     }
 
     /**
@@ -335,6 +479,8 @@ class PermissionManager
             ['content.edit', 'Edit content', 'Content'],
             ['content.delete', 'Delete content', 'Content'],
             ['content.publish', 'Publish content', 'Content'],
+            ['content.authority.recover', 'Detach extension-managed content', 'Content'],
+            ['content.ownership.adopt', 'Let an extension adopt existing content', 'Content'],
 
             // Pages
             ['pages.view', 'View pages', 'Pages'],
@@ -342,6 +488,8 @@ class PermissionManager
             ['pages.edit', 'Edit pages', 'Pages'],
             ['pages.delete', 'Delete pages', 'Pages'],
             ['pages.publish', 'Publish pages', 'Pages'],
+            ['pages.edit_others', "Edit other users' pages", 'Pages'],
+            ['pages.delete_others', "Delete other users' pages", 'Pages'],
 
             // Posts
             ['posts.view', 'View posts', 'Posts'],
@@ -349,6 +497,8 @@ class PermissionManager
             ['posts.edit', 'Edit posts', 'Posts'],
             ['posts.delete', 'Delete posts', 'Posts'],
             ['posts.publish', 'Publish posts', 'Posts'],
+            ['posts.edit_others', "Edit other users' posts", 'Posts'],
+            ['posts.delete_others', "Delete other users' posts", 'Posts'],
 
             // Taxonomy
             ['taxonomy.manage', 'Manage taxonomies & terms', 'Taxonomy'],

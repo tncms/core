@@ -228,6 +228,10 @@ class RoleResource extends Resource
             $ids = Permission::query()->pluck('id')->all();
         } else {
             $slugs = self::selectedSlugsFromState($state);
+            // A selected definition that is registered but has no row yet (e.g. a
+            // plugin activated on this request) is persisted first instead of
+            // being silently dropped. Unregistered slugs are never created.
+            app('cms.permission')->persist($slugs);
             $ids = Permission::query()->whereIn('slug', $slugs)->pluck('id')->all();
         }
 

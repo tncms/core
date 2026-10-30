@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace TheNguyen\CMS\View;
 
 use DateTimeInterface;
+use TheNguyen\CMS\Content\Extension\ContentOwnershipMarker;
 use TheNguyen\CMS\Models\Content;
 
 /**
@@ -27,6 +28,7 @@ final class PostCardViewModel
         public readonly ?DateTimeInterface $publishedAt = null,
         public readonly ?MediaViewModel $featuredMedia = null,
         public readonly ?TaxonomyLinkViewModel $primaryCategory = null,
+        public readonly ?ContentOwnershipMarker $ownership = null,
     ) {}
 
     /**
@@ -37,6 +39,7 @@ final class PostCardViewModel
         Content $post,
         string $locale,
         ?TaxonomyLinkViewModel $primaryCategory = null,
+        ?ContentOwnershipMarker $ownership = null,
     ): ?self {
         $url = content_url($post, $locale);
 
@@ -56,6 +59,7 @@ final class PostCardViewModel
             publishedAt: $post->published_at,
             featuredMedia: $featured,
             primaryCategory: $primaryCategory,
+            ownership: $ownership,
         );
     }
 
@@ -87,6 +91,6 @@ final class PostCardViewModel
             'published_at' => $this->publishedAt?->format(DATE_ATOM),
             'featured_media' => $this->featuredMedia?->toArray(),
             'primary_category' => $this->primaryCategory?->toArray(),
-        ];
+        ] + ($this->ownership !== null ? ['ownership' => $this->ownership->toArray()] : []);
     }
 }

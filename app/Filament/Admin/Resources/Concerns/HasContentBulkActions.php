@@ -4,11 +4,24 @@ declare(strict_types=1);
 
 namespace App\Filament\Admin\Resources\Concerns;
 
+use Filament\Actions\Action;
 use Filament\Actions\BulkAction;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\EditAction;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
+use Filament\Support\Exceptions\Halt;
 use Filament\Tables\Columns\ImageColumn;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
+use TheNguyen\CMS\ContentAuthority\ContentRevisionConflict;
+use TheNguyen\CMS\ContentAuthority\ContentWriteContext;
+use TheNguyen\CMS\ContentAuthority\ContentWriteDenied;
+use TheNguyen\CMS\ContentAuthority\ContentWriteException;
+use TheNguyen\CMS\ContentAuthority\ManagedContentEditUrl;
 use TheNguyen\CMS\Models\Content;
 
 /**
@@ -61,6 +74,176 @@ trait HasContentBulkActions
      */
     abstract protected static function contentPermissionPrefix(): string;
 
+    // ---------------------------------------------------------------------
+    // Authority mirror (CORE-STRUCTURED-CONTENT-AUTHORITY-R1). UI only: the
+    // ContentManager re-checks every rule on the locked row at write time.
+    // ---------------------------------------------------------------------
+
+    /** Whether the current user may publish / unpublish / change published content. */
+    public static function mayPublishContent(): bool
+    {
+        return app('cms.permission')->userCanStrict(auth()->user(), static::contentPermissionPrefix().'.publish');
+    }
+
+    /** Base edit permission plus ownership (own record, or `{prefix}.edit_others`). */
+    public static function mayEditContent(Model $record): bool
+    {
+        return cms_can(static::contentPermissionPrefix().'.edit')
+            && (static::isOwnContent($record) || app('cms.permission')->userCanStrict(auth()->user(), static::contentPermissionPrefix().'.edit_others'));
+    }
+
+    /** Base delete permission plus ownership (own record, or `{prefix}.delete_others`). */
+    public static function mayDeleteContent(Model $record): bool
+    {
+        return cms_can(static::contentPermissionPrefix().'.delete')
+            && (static::isOwnContent($record) || app('cms.permission')->userCanStrict(auth()->user(), static::contentPermissionPrefix().'.delete_others'));
+    }
+
+    protected static function isOwnContent(Model $record): bool
+    {
+        $author = $record->getAttribute('author_id');
+
+        return $author !== null && auth()->check() && (string) $author === (string) auth()->id();
+    }
+
+    /**
+     * Status options offered to the current user: `published` only with publish
+     * rights (kept for display on an already-published record, whose status
+     * field is then locked — see {@see contentStatusLocked()}).
+     *
+     * @return array<string, string>
+     */
+    public static function contentStatusOptionsFor(?Model $record): array
+    {
+        $options = static::contentStatusOptions();
+
+        if (! static::mayPublishContent() && $record?->getAttribute('status') !== 'published') {
+            unset($options['published']);
+        }
+
+        return $options;
+    }
+
+    /** A published record's status is read-only for users without publish rights. */
+    public static function contentStatusLocked(?Model $record): bool
+    {
+        return $record?->getAttribute('status') === 'published' && ! static::mayPublishContent();
+    }
+
+    /** Row URL: the native editor, or the managing extension's editor for managed content. */
+    public static function contentRecordUrl(Content $record): ?string
+    {
+        if (! static::canEdit($record)) {
+            return null;
+        }
+
+        return $record->managed_by !== null
+            ? ManagedContentEditUrl::for($record)
+            : static::getUrl('edit', ['record' => $record]);
+    }
+
+    protected static function contentEditAction(): EditAction
+    {
+        return EditAction::make()
+            ->url(static fn (Content $record): ?string => static::contentRecordUrl($record))
+            ->visible(static fn (Content $record): bool => static::contentRecordUrl($record) !== null);
+    }
+
+    /** Row delete through ContentManager::delete() with the revision captured when the modal opened. */
+    protected static function contentDeleteAction(): DeleteAction
+    {
+        return DeleteAction::make()
+            ->schema([Hidden::make('revision')])
+            ->fillForm(static fn (Content $record): array => ['revision' => (int) $record->revision])
+            ->using(static fn (array $data, Content $record): bool => static::deleteContentThroughService(
+                $record,
+                is_numeric($data['revision'] ?? null) ? (int) $data['revision'] : null,
+            ));
+    }
+
+    /**
+     * Delete through the Core authority; a refusal is reported and halts the
+     * action (no false success notification).
+     */
+    public static function deleteContentThroughService(Content $record, ?int $expectedRevision): bool
+    {
+        try {
+            return app('cms.content')->delete($record, $expectedRevision, ContentWriteContext::interactive());
+        } catch (ContentWriteException $e) {
+            static::notifyContentWriteFailure($e);
+
+            throw new Halt;
+        }
+    }
+
+    /** Administrative detach of extension-managed content (strict `content.authority.recover`). */
+    protected static function contentDetachAction(): Action
+    {
+        return Action::make('detachOwnership')
+            ->label(tn_trans('Detach from extension'))
+            ->icon('heroicon-o-link-slash')
+            ->color('danger')
+            ->visible(static fn (Content $record): bool => $record->managed_by !== null
+                && app('cms.permission')->userCanStrict(auth()->user(), 'content.authority.recover'))
+            ->modalHeading(tn_trans('Detach from extension'))
+            ->modalDescription(tn_trans('The extension will no longer protect this content and it becomes ordinary content. Its structured data is kept by the extension. This is recorded in the audit log.'))
+            ->schema([
+                Hidden::make('revision'),
+                TextInput::make('confirmation')
+                    ->label(static fn (Content $record): string => tn_trans('Type :owner to confirm', ['owner' => (string) $record->managed_by]))
+                    ->required(),
+                Textarea::make('reason')
+                    ->label(tn_trans('Reason'))
+                    ->required()
+                    ->maxLength(255),
+            ])
+            ->fillForm(static fn (Content $record): array => ['revision' => (int) $record->revision])
+            ->action(static function (array $data, Content $record): void {
+                try {
+                    app('cms.content')->detachOwnership(
+                        $record,
+                        (int) ($data['revision'] ?? -1),
+                        (string) ($data['confirmation'] ?? ''),
+                        (string) ($data['reason'] ?? ''),
+                        ContentWriteContext::interactive(),
+                    );
+
+                    Notification::make()->title(tn_trans('The content was detached from its extension.'))->success()->send();
+                } catch (ContentWriteException $e) {
+                    static::notifyContentWriteFailure($e);
+                }
+            });
+    }
+
+    public static function notifyContentWriteFailure(ContentWriteException $e): void
+    {
+        Notification::make()
+            ->title($e instanceof ContentRevisionConflict ? tn_trans('Changed by someone else') : tn_trans('Not saved'))
+            ->body(tn_trans($e->getMessage()))
+            ->danger()
+            ->persistent()
+            ->send();
+    }
+
+    /**
+     * id => revision map of the selected records, captured when the bulk modal
+     * opens so a stale selection is reported as a conflict.
+     */
+    protected static function capturedRevisions(Collection $records): string
+    {
+        return (string) json_encode($records->mapWithKeys(
+            static fn ($record): array => $record instanceof Content ? [(string) $record->getKey() => (int) $record->revision] : [],
+        )->all());
+    }
+
+    /** @return array<string, int> */
+    protected static function revisionsFromState(mixed $state): array
+    {
+        $map = is_string($state) ? json_decode($state, true) : null;
+
+        return is_array($map) ? array_map('intval', array_filter($map, 'is_numeric')) : [];
+    }
+
     /**
      * Toolbar (bulk) actions for the content list. Adding these to the table
      * also enables Filament's row-selection checkboxes and select-all.
@@ -91,10 +274,12 @@ trait HasContentBulkActions
             ->schema([
                 Select::make('status')
                     ->label(tn_trans('Status'))
-                    ->options(static::contentStatusOptions())
+                    ->options(static fn (): array => static::contentStatusOptionsFor(null))
                     ->required()
                     ->native(false),
+                Hidden::make('revisions'),
             ])
+            ->fillForm(static fn (Collection $records): array => ['revisions' => static::capturedRevisions($records)])
             ->modalHeading(tn_trans('Change status'))
             ->modalDescription(tn_trans('Apply the selected status to the selected items. Titles, content, translations, slug, SEO, taxonomy and featured image are preserved.'))
             ->modalSubmitActionLabel(tn_trans('Set status'))
@@ -114,7 +299,9 @@ trait HasContentBulkActions
                 $changed = 0;
                 $skipped = 0;
                 $denied = 0;
+                $conflicts = 0;
                 $failed = 0;
+                $revisions = static::revisionsFromState($data['revisions'] ?? null);
 
                 foreach ($records as $record) {
                     if (! $record instanceof Content) {
@@ -138,8 +325,12 @@ trait HasContentBulkActions
                     }
 
                     try {
-                        app('cms.content')->changeStatus($record, $target);
+                        app('cms.content')->changeStatus($record, $target, $revisions[(string) $record->getKey()] ?? null, ContentWriteContext::interactive());
                         $changed++;
+                    } catch (ContentRevisionConflict) {
+                        $conflicts++;
+                    } catch (ContentWriteDenied) {
+                        $denied++;
                     } catch (\Throwable $e) {
                         report($e);
                         $failed++;
@@ -157,6 +348,7 @@ trait HasContentBulkActions
                     $skipped,
                     $denied,
                     $failed,
+                    $conflicts,
                 );
             });
     }
@@ -178,11 +370,15 @@ trait HasContentBulkActions
             ->requiresConfirmation()
             ->modalHeading(tn_trans('Delete selected'))
             ->modalDescription(tn_trans('The selected items will be deleted and removed from public listings and routes.'))
+            ->schema([Hidden::make('revisions')])
+            ->fillForm(static fn (Collection $records): array => ['revisions' => static::capturedRevisions($records)])
             ->deselectRecordsAfterCompletion()
-            ->action(static function (Collection $records): void {
+            ->action(static function (array $data, Collection $records): void {
                 $deleted = 0;
                 $denied = 0;
+                $conflicts = 0;
                 $failed = 0;
+                $revisions = static::revisionsFromState($data['revisions'] ?? null);
 
                 foreach ($records as $record) {
                     if (! $record instanceof Content) {
@@ -198,8 +394,12 @@ trait HasContentBulkActions
                     }
 
                     try {
-                        app('cms.content')->delete($record);
+                        app('cms.content')->delete($record, $revisions[(string) $record->getKey()] ?? null, ContentWriteContext::interactive());
                         $deleted++;
+                    } catch (ContentRevisionConflict) {
+                        $conflicts++;
+                    } catch (ContentWriteDenied) {
+                        $denied++;
                     } catch (\Throwable $e) {
                         report($e);
                         $failed++;
@@ -214,6 +414,7 @@ trait HasContentBulkActions
                     0,
                     $denied,
                     $failed,
+                    $conflicts,
                 );
             });
     }
@@ -249,9 +450,13 @@ trait HasContentBulkActions
      * Compose and send the per-batch outcome notification with an accurate
      * tally. Never claims success when nothing changed.
      */
-    private static function sendBulkOutcome(string $title, bool $success, int $skipped, int $denied, int $failed): void
+    private static function sendBulkOutcome(string $title, bool $success, int $skipped, int $denied, int $failed, int $conflicts = 0): void
     {
         $lines = [];
+
+        if ($conflicts > 0) {
+            $lines[] = tn_trans('Changed by someone else (reload and retry): :count.', ['count' => $conflicts]);
+        }
 
         if ($skipped > 0) {
             $lines[] = tn_trans('Already set: :count.', ['count' => $skipped]);

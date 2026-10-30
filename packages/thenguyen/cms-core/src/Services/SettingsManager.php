@@ -34,6 +34,17 @@ class SettingsManager
     private ?bool $translationsTableExists = null;
 
     /**
+     * Read memo for a bounded batch ({@see withinReadScope()}): key => [found, value].
+     * Null outside a scope, so ordinary reads always see the current store.
+     *
+     * @var array<string, array{0: bool, 1: mixed}>|null
+     */
+    private ?array $readScope = null;
+
+    /** @var array<string, mixed>|null autoload map memoized for the current read scope */
+    private ?array $scopeAutoload = null;
+
+    /**
      * Settings whose value may differ per language. Everything else is global
      * (stored only in cms_settings). Permalink bases are deliberately NOT here:
      * localized bases affect routing/sitemap/hreflang and belong to a separate
@@ -66,6 +77,10 @@ class SettingsManager
             return $autoload[$key];
         }
 
+        if ($this->readScope !== null && isset($this->readScope[$key])) {
+            return $this->readScope[$key][0] ? $this->readScope[$key][1] : $default;
+        }
+
         [$group, $name] = $this->parseKey($key);
 
         $record = Setting::query()
@@ -73,11 +88,37 @@ class SettingsManager
             ->where('key', $name)
             ->first();
 
-        if (! $record) {
-            return $default;
+        $value = $record ? $this->castValue($record->value, $record->type) : null;
+
+        if ($this->readScope !== null) {
+            $this->readScope[$key] = [$record !== null, $value];
         }
 
-        return $this->castValue($record->value, $record->type);
+        return $record ? $value : $default;
+    }
+
+    /**
+     * Run a bounded batch (e.g. one sitemap chunk) with the autoload map and
+     * non-autoloaded reads (including misses) memoized for its duration only. Writes made through
+     * this manager inside the scope drop their key from the memo.
+     *
+     * @template T
+     *
+     * @param  callable(): T  $callback
+     * @return T
+     */
+    public function withinReadScope(callable $callback): mixed
+    {
+        $outer = $this->readScope;
+        $outerAutoload = $this->scopeAutoload;
+        $this->readScope ??= [];
+
+        try {
+            return $callback();
+        } finally {
+            $this->readScope = $outer;
+            $this->scopeAutoload = $outer === null ? null : $outerAutoload;
+        }
     }
 
     /**
@@ -356,6 +397,11 @@ class SettingsManager
 
     public function clearCache(): void
     {
+        if ($this->readScope !== null) {
+            $this->readScope = [];
+            $this->scopeAutoload = null;
+        }
+
         Cache::forget($this->cacheKey());
         $this->clearTranslationsCache();
         $this->settingsTableExists = null;
@@ -446,6 +492,16 @@ class SettingsManager
      * @return array<string, mixed>
      */
     private function loadAutoload(): array
+    {
+        if ($this->readScope !== null) {
+            return $this->scopeAutoload ??= $this->loadAutoloadFromStore();
+        }
+
+        return $this->loadAutoloadFromStore();
+    }
+
+    /** @return array<string, mixed> */
+    private function loadAutoloadFromStore(): array
     {
         return Cache::rememberForever($this->cacheKey(), function (): array {
             return Setting::query()

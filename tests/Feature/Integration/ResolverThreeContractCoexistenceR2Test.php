@@ -65,6 +65,9 @@ final class ResolverThreeContractCoexistenceR2Test extends TestCase
 
     private function admin(): User
     {
+        // R1: strict publication checks never fail open; configured super-admin.
+        config(['cms.super_admin_emails' => ['r2-admin@example.test']]);
+
         return User::query()->create([
             'name' => 'Admin', 'email' => 'r2-admin@example.test', 'password' => bcrypt('secret-password'),
         ]);
@@ -75,11 +78,11 @@ final class ResolverThreeContractCoexistenceR2Test extends TestCase
         $page = $this->contents()->create([
             'type' => 'page', 'status' => 'published', 'locale' => 'vi',
             'title' => 'Chính sách', 'slug' => 'chinh-sach', 'content' => '<p>vi</p>',
-        ]);
+        ], \Tests\Support\ContentFixtures::context());
 
         return $this->contents()->update($page, [
             'locale' => 'en', 'title' => 'Privacy', 'slug' => 'privacy', 'content' => '<p>en</p>',
-        ]);
+        ], null, \Tests\Support\ContentFixtures::context());
     }
 
     // 1. The resolver registry is intact and frozen in the integrated build.
@@ -185,7 +188,7 @@ final class ResolverThreeContractCoexistenceR2Test extends TestCase
         $post = $this->contents()->create([
             'type' => 'post', 'status' => 'published', 'locale' => 'vi',
             'title' => 'Bài viết', 'slug' => 'bai-viet', 'content' => '<p>p</p>',
-        ]);
+        ], \Tests\Support\ContentFixtures::context());
         app('cms.theme_option')->set(self::KEY, $post->id, self::THEME);
 
         $this->assertNull(theme_page_url(self::KEY, 'vi'));

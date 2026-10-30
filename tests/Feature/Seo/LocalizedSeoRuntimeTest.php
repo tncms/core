@@ -152,11 +152,11 @@ final class LocalizedSeoRuntimeTest extends TestCase
         $page = app('cms.content')->create([
             'type' => 'page', 'status' => 'published', 'locale' => 'en',
             'title' => 'Home', 'slug' => 'home', 'content' => '<p>en</p>',
-        ]);
+        ], \Tests\Support\ContentFixtures::context());
 
         return app('cms.content')->update($page, [
             'type' => 'page', 'locale' => 'vi',
             'title' => 'Trang chủ', 'slug' => 'trang-chu', 'content' => '<p>vi</p>',
-        ]);
+        ], null, \Tests\Support\ContentFixtures::context());
     }
 }

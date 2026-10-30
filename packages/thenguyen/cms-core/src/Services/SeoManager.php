@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace TheNguyen\CMS\Services;
 
-use Illuminate\Support\Facades\Schema;
+use TheNguyen\CMS\Content\Extension\ContentSeoOverride;
+use TheNguyen\CMS\Content\Extension\RobotsRestriction;
 use TheNguyen\CMS\Models\Content;
 use TheNguyen\CMS\Models\ContentTranslation;
 use TheNguyen\CMS\Models\Term;
 use TheNguyen\CMS\Models\TermTranslation;
+use TheNguyen\CMS\Sitemap\CoreSitemapProvider;
+use TheNguyen\CMS\Sitemap\SitemapManager;
 
 /**
  * Lightweight SEO foundation (Phase 7.5).
@@ -54,6 +57,9 @@ class SeoManager
 
     private ?string $robotsOverride = null;
 
+    /** Owner-supplied override for managed content (CORE-CONTENT-EXT-R1). */
+    private ?ContentSeoOverride $contentOverride = null;
+
     /**
      * Reset to a neutral (site-default) context.
      */
@@ -69,6 +75,7 @@ class SeoManager
         $this->customTitle = null;
         $this->customDescription = null;
         $this->robotsOverride = null;
+        $this->contentOverride = null;
 
         return $this;
     }
@@ -135,6 +142,21 @@ class SeoManager
     }
 
     /**
+     * Apply a verified content owner's sanitized SEO override
+     * (CORE-CONTENT-EXT-R1). Only valid after forContent(); canonical,
+     * hreflang, og:url, og:type and keywords stay Core's. Robots can only
+     * become more restrictive.
+     */
+    public function applyContentOverride(ContentSeoOverride $override): self
+    {
+        if ($this->content !== null && $this->customTitle === null) {
+            $this->contentOverride = $override;
+        }
+
+        return $this;
+    }
+
+    /**
      * Force a non-indexable robots policy for the current context — utility
      * frontend pages such as search results and error pages that must not be
      * indexed while their links stay followable (CORE-FRONTEND-1). Chain after a
@@ -152,6 +174,10 @@ class SeoManager
     {
         if ($this->customTitle !== null) {
             return $this->customTitle;
+        }
+
+        if ($this->contentOverride?->title !== null) {
+            return $this->contentOverride->title;
         }
 
         return match ($this->context) {
@@ -177,6 +203,10 @@ class SeoManager
     {
         if ($this->customDescription !== null) {
             return $this->customDescription;
+        }
+
+        if ($this->contentOverride?->description !== null) {
+            return $this->contentOverride->description;
         }
 
         return match ($this->context) {
@@ -219,13 +249,52 @@ class SeoManager
         // A per-context override (search/error utility pages) wins over the
         // configured site default but not the site-wide discourage toggle above.
         if ($this->robotsOverride !== null) {
-            return $this->robotsOverride;
+            $robots = $this->robotsOverride;
+        } else {
+            // Prefer the v0.9.6 key, then the legacy seo.robots, then the default.
+            $value = settings('seo.robots_default') ?? settings('seo.robots');
+            $robots = is_string($value) && $value !== '' ? $value : self::DEFAULT_ROBOTS;
         }
 
-        // Prefer the v0.9.6 key, then the legacy seo.robots, then the default.
-        $value = settings('seo.robots_default') ?? settings('seo.robots');
+        // A content owner can only add restrictions (CORE-CONTENT-EXT-R1).
+        $restriction = $this->contentOverride?->robots;
 
-        return is_string($value) && $value !== '' ? $value : self::DEFAULT_ROBOTS;
+        return $restriction !== null ? self::restrictRobots($robots, $restriction) : $robots;
+    }
+
+    /**
+     * Whether the site as a whole may be indexed: false under "discourage
+     * search engines" or when the default robots policy every page inherits
+     * is noindex (or none). The sitemap and robots.txt follow this decision.
+     */
+    public function siteIndexable(): bool
+    {
+        if ((bool) settings('seo.noindex_site', false)) {
+            return false;
+        }
+
+        $value = settings('seo.robots_default') ?? settings('seo.robots');
+        $tokens = is_string($value) ? array_map(static fn (string $t): string => strtolower(trim($t)), explode(',', $value)) : [];
+
+        return ! in_array('noindex', $tokens, true) && ! in_array('none', $tokens, true);
+    }
+
+    /**
+     * Merge per directive: noindex/nofollow from either side win; any other
+     * directives in the Core value (e.g. max-image-preview) are kept.
+     */
+    private static function restrictRobots(string $robots, RobotsRestriction $restriction): string
+    {
+        $tokens = array_values(array_filter(array_map(
+            static fn (string $t): string => strtolower(trim($t)),
+            explode(',', $robots),
+        ), static fn (string $t): bool => $t !== ''));
+
+        $noindex = in_array('noindex', $tokens, true) || in_array('none', $tokens, true) || $restriction->noindex();
+        $nofollow = in_array('nofollow', $tokens, true) || in_array('none', $tokens, true) || $restriction->nofollow();
+        $other = array_values(array_diff($tokens, ['index', 'noindex', 'follow', 'nofollow', 'none', 'all']));
+
+        return implode(',', [$noindex ? 'noindex' : 'index', $nofollow ? 'nofollow' : 'follow', ...$other]);
     }
 
     /**
@@ -241,12 +310,12 @@ class SeoManager
 
     public function ogTitle(): string
     {
-        return $this->title();
+        return $this->contentOverride?->ogTitle ?? $this->title();
     }
 
     public function ogDescription(): string
     {
-        return $this->description();
+        return $this->contentOverride?->ogDescription ?? $this->description();
     }
 
     public function ogType(): string
@@ -256,8 +325,9 @@ class SeoManager
 
     public function ogImage(): ?string
     {
-        // Content featured image first, then the configured default OG image.
-        return $this->absoluteUrl($this->content?->featured_image)
+        // Owner override, then content featured image, then the configured default.
+        return $this->absoluteUrl($this->contentOverride?->ogImage)
+            ?? $this->absoluteUrl($this->content?->featured_image)
             ?? $this->absoluteUrl($this->stringSetting('seo.default_og_image'));
     }
 
@@ -268,12 +338,12 @@ class SeoManager
 
     public function twitterTitle(): string
     {
-        return $this->title();
+        return $this->ogTitle();
     }
 
     public function twitterDescription(): string
     {
-        return $this->description();
+        return $this->ogDescription();
     }
 
     public function twitterImage(): ?string
@@ -379,85 +449,65 @@ class SeoManager
             return "User-agent: *\nDisallow: /\n";
         }
 
+        // A noindex default disables the sitemap: do not advertise it.
+        if (! $this->siteIndexable()) {
+            return "User-agent: *\nAllow: /\n";
+        }
+
         return "User-agent: *\nAllow: /\n\nSitemap: {$siteUrl}/sitemap.xml\n";
     }
 
     /**
-     * Ordered list of sitemap entries (homepage, pages, posts, categories,
-     * tags). Only published content is included. Defensive: returns at least
-     * the homepage even before the content tables exist.
+     * Core sitemap entries as one flat list (home, pages, posts, categories,
+     * tags per public locale), capped at 50,000.
+     *
+     * @deprecated CORE-SITEMAP-R1: /sitemap.xml is an index served by
+     *             `cms.sitemap`. Kept for existing callers; it is a bounded
+     *             projection of the Core sitemap provider (same visibility
+     *             rules) read in keyset batches.
      *
      * @return list<array{loc: string, lastmod: string|null}>
      */
     public function sitemap(): array
     {
-        $lang = app('cms.language');
-        $codes = $lang->getPublicLocales();
+        return settings()->withinReadScope(fn (): array => $this->legacySitemapEntries());
+    }
 
-        if ($codes === []) {
-            $codes = [self::DEFAULT_LOCALE];
-        }
-
-        // One homepage entry per active language (localized home).
+    /** @return list<array{loc: string, lastmod: string|null}> */
+    private function legacySitemapEntries(): array
+    {
+        $provider = app(CoreSitemapProvider::class);
         $entries = [];
-        foreach ($codes as $code) {
-            $entries[] = ['loc' => url($lang->localizedUrl($code, '/')), 'lastmod' => null];
-        }
 
-        if (! Schema::hasTable('cms_contents') || ! Schema::hasTable('cms_content_translations')) {
-            return $entries;
-        }
+        foreach ($provider->types() as $type) {
+            foreach (SitemapManager::locales() as $locale) {
+                $after = null;
 
-        $contents = Content::query()
-            ->whereIn('type', ['page', 'post'])
-            ->where('status', 'published')
-            ->with('translations')
-            ->orderByDesc('updated_at')
-            ->limit(self::SITEMAP_MAX_URLS)
-            ->get();
+                while (true) {
+                    foreach ($provider->entries($type, $locale, $after, null, 1000) as $entry) {
+                        $entries[] = ['loc' => $entry->loc, 'lastmod' => $this->lastmod($entry->lastmod)];
 
-        foreach ($contents as $content) {
-            foreach ($codes as $code) {
-                // Only published translations that actually exist for the locale.
-                if ($content->localeSlug($code) === null) {
-                    continue;
-                }
-
-                $entries[] = [
-                    'loc' => url(content_url($content, $code)),
-                    'lastmod' => $this->lastmod($content->updated_at ?? $content->published_at),
-                ];
-            }
-        }
-
-        if (Schema::hasTable('cms_terms')
-            && Schema::hasTable('cms_term_translations')
-            && Schema::hasTable('cms_taxonomies')) {
-            $terms = Term::query()
-                ->whereHas('taxonomy', fn ($q) => $q->whereIn('type', ['category', 'tag']))
-                ->with(['taxonomy', 'translations'])
-                ->limit(self::SITEMAP_MAX_URLS)
-                ->get();
-
-            foreach ($terms as $term) {
-                foreach ($codes as $code) {
-                    if ($term->localeSlug($code) === null) {
-                        continue;
+                        if (count($entries) >= self::SITEMAP_MAX_URLS) {
+                            return $entries;
+                        }
                     }
 
-                    $entries[] = [
-                        'loc' => url(term_url($term, $code)),
-                        'lastmod' => $this->lastmod($term->updated_at),
-                    ];
+                    $after = $provider->keyAt($type, $locale, $after, 999);
+
+                    if ($after === null) {
+                        break;
+                    }
                 }
             }
         }
 
-        return array_slice($entries, 0, self::SITEMAP_MAX_URLS);
+        return $entries;
     }
 
     /**
      * Render the sitemap entries as a urlset XML document.
+     *
+     * @deprecated CORE-SITEMAP-R1: no longer routed; see {@see sitemap()}.
      */
     public function sitemapXml(): string
     {

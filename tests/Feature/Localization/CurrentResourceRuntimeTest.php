@@ -154,12 +154,12 @@ final class CurrentResourceRuntimeTest extends TestCase
         $page = app('cms.content')->create([
             'type' => 'page', 'status' => 'published', 'locale' => 'en',
             'title' => 'Home', 'slug' => 'home', 'content' => '<p>en</p>',
-        ]);
+        ], \Tests\Support\ContentFixtures::context());
 
         return app('cms.content')->update($page, [
             'type' => 'page', 'locale' => 'vi',
             'title' => 'Trang chủ', 'slug' => 'trang-chu', 'content' => '<p>vi</p>',
-        ]);
+        ], null, \Tests\Support\ContentFixtures::context());
     }
 
     private function bilingualPost(): Content
@@ -167,12 +167,12 @@ final class CurrentResourceRuntimeTest extends TestCase
         $post = app('cms.content')->create([
             'type' => 'post', 'status' => 'published', 'locale' => 'en',
             'title' => 'Hello', 'slug' => 'hello', 'content' => '<p>en</p>',
-        ]);
+        ], \Tests\Support\ContentFixtures::context());
 
         return app('cms.content')->update($post, [
             'type' => 'post', 'locale' => 'vi',
             'title' => 'Xin chào', 'slug' => 'xin-chao', 'content' => '<p>vi</p>',
-        ]);
+        ], null, \Tests\Support\ContentFixtures::context());
     }
 
     private function bilingualCategory(): object

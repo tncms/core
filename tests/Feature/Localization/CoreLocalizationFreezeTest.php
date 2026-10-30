@@ -62,7 +62,7 @@ final class CoreLocalizationFreezeTest extends TestCase
         $page = app('cms.content')->create([
             'type' => 'page', 'status' => 'published', 'locale' => 'en',
             'title' => 'Home', 'slug' => 'home', 'content' => '<p>en</p>',
-        ]);
+        ], \Tests\Support\ContentFixtures::context());
 
         seo()->forContent($page->fresh(['translations']), 'en');
 

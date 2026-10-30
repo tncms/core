@@ -127,7 +127,7 @@ final class TrustedComponentFormTargetTest extends TestCase
             $atts .= ' '.$key.'="'.$value.'"';
         }
 
-        app('cms.content')->create(['type' => 'page', 'status' => 'published', 'locale' => 'en', 'title' => 'Contact', 'slug' => 'contact', 'content' => '<p>Write to us</p>[s2r1_form'.$atts.']']);
+        app('cms.content')->create(['type' => 'page', 'status' => 'published', 'locale' => 'en', 'title' => 'Contact', 'slug' => 'contact', 'content' => '<p>Write to us</p>[s2r1_form'.$atts.']'], \Tests\Support\ContentFixtures::context());
 
         return (string) $this->get($uri)->assertOk()->getContent();
     }
@@ -189,7 +189,7 @@ final class TrustedComponentFormTargetTest extends TestCase
         $provider = $this->provider(self::OWNER, 'form', self::form('/s2r1/submit'), ['public'], ['@host'], null, [], '', [self::SUBMIT]);
         $this->assertTrue($this->code->register($provider));
         $this->code->shortcode('s2r1_form', self::OWNER.'/form');
-        app('cms.content')->create(['type' => 'page', 'status' => 'published', 'locale' => 'en', 'title' => 'Contact', 'slug' => 'contact', 'content' => '[s2r1_form]']);
+        app('cms.content')->create(['type' => 'page', 'status' => 'published', 'locale' => 'en', 'title' => 'Contact', 'slug' => 'contact', 'content' => '[s2r1_form]'], \Tests\Support\ContentFixtures::context());
 
         $response = $this->get('/contact')->assertOk();
 
@@ -252,7 +252,7 @@ final class TrustedComponentFormTargetTest extends TestCase
         $provider = $this->provider(self::OTHER, 'form', self::form('/s2r1/submit'), ['public'], ['@host'], null, [], '', [self::SUBMIT]);
         $this->assertTrue($this->other->register($provider));
         $this->other->shortcode('s2r1_other', self::OTHER.'/form');
-        app('cms.content')->create(['type' => 'page', 'status' => 'published', 'locale' => 'en', 'title' => 'O', 'slug' => 'o', 'content' => '[s2r1_other]']);
+        app('cms.content')->create(['type' => 'page', 'status' => 'published', 'locale' => 'en', 'title' => 'O', 'slug' => 'o', 'content' => '[s2r1_other]'], \Tests\Support\ContentFixtures::context());
 
         $this->assertDenied((string) $this->get('/o')->assertOk()->getContent(), 'form target: not owned');
     }
@@ -267,7 +267,7 @@ final class TrustedComponentFormTargetTest extends TestCase
         $provider = $this->provider(self::OWNER, 'form', self::form('/s2r1/submit'), ['public'], ['@host'], null, [], '', [self::SUBMIT]);
         $this->assertTrue($this->code->register($provider));
         $this->code->shortcode('s2r1_form', self::OWNER.'/form');
-        app('cms.content')->create(['type' => 'page', 'status' => 'published', 'locale' => 'en', 'title' => 'Contact', 'slug' => 'contact', 'content' => '[s2r1_form]']);
+        app('cms.content')->create(['type' => 'page', 'status' => 'published', 'locale' => 'en', 'title' => 'Contact', 'slug' => 'contact', 'content' => '[s2r1_form]'], \Tests\Support\ContentFixtures::context());
         app('cms.extension')->deactivatePlugin(self::OWNER);
         app('cms.extension')->flushRegistry();
 
@@ -291,7 +291,7 @@ final class TrustedComponentFormTargetTest extends TestCase
         // Changing the provider's declaration afterwards has no effect.
         (fn () => $this->targets = [['s2r1-form.undeclared', ['POST']]])->call($provider);
         $this->code->shortcode('s2r1_form', self::OWNER.'/form');
-        app('cms.content')->create(['type' => 'page', 'status' => 'published', 'locale' => 'en', 'title' => 'Contact', 'slug' => 'contact', 'content' => '[s2r1_form]']);
+        app('cms.content')->create(['type' => 'page', 'status' => 'published', 'locale' => 'en', 'title' => 'Contact', 'slug' => 'contact', 'content' => '[s2r1_form]'], \Tests\Support\ContentFixtures::context());
 
         $this->assertDenied((string) $this->get('/contact')->assertOk()->getContent(), 'form target: undeclared');
     }
@@ -746,7 +746,7 @@ final class TrustedComponentFormTargetTest extends TestCase
         $provider = $this->provider(self::OWNER, 'form', self::form('/s2r1/submit'), ['public', 'preview'], ['@host'], null, [], '', [self::SUBMIT]);
         $this->assertTrue($this->code->register($provider));
         $this->code->shortcode('s2r1_form', self::OWNER.'/form');
-        $draft = app('cms.content')->create(['type' => 'page', 'status' => 'draft', 'locale' => 'en', 'title' => 'D', 'slug' => 'd', 'content' => '[s2r1_form]']);
+        $draft = app('cms.content')->create(['type' => 'page', 'status' => 'draft', 'locale' => 'en', 'title' => 'D', 'slug' => 'd', 'content' => '[s2r1_form]'], \Tests\Support\ContentFixtures::context());
 
         $response = $this->get(app('cms.preview')->temporaryUrl($draft))->assertOk();
 
@@ -759,7 +759,7 @@ final class TrustedComponentFormTargetTest extends TestCase
     {
         $this->assertDenied($this->render(self::form('/s2r1/undeclared'), [self::SUBMIT]), 'form target: undeclared');
 
-        $about = app('cms.content')->create(['type' => 'page', 'status' => 'published', 'locale' => 'en', 'title' => 'About', 'slug' => 'about', 'content' => '<p>About us</p>']);
+        $about = app('cms.content')->create(['type' => 'page', 'status' => 'published', 'locale' => 'en', 'title' => 'About', 'slug' => 'about', 'content' => '<p>About us</p>'], \Tests\Support\ContentFixtures::context());
         $response = $this->get('/about')->assertOk();
 
         $this->assertNotNull($about);
@@ -771,7 +771,7 @@ final class TrustedComponentFormTargetTest extends TestCase
     public function test_forged_placeholders_in_content_are_still_stripped(): void
     {
         $html = $this->render(self::form('/s2r1/submit'), [self::SUBMIT]);
-        app('cms.content')->create(['type' => 'page', 'status' => 'published', 'locale' => 'en', 'title' => 'F', 'slug' => 'f', 'content' => '<div class="tncms-slot">TNCMSSLOT'.str_repeat('a', 32).'</div><p>f</p>']);
+        app('cms.content')->create(['type' => 'page', 'status' => 'published', 'locale' => 'en', 'title' => 'F', 'slug' => 'f', 'content' => '<div class="tncms-slot">TNCMSSLOT'.str_repeat('a', 32).'</div><p>f</p>'], \Tests\Support\ContentFixtures::context());
 
         $forged = (string) $this->get('/f')->assertOk()->getContent();
 

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace TheNguyen\CMS\Database\Seeders;
 
 use Illuminate\Database\Seeder;
+use TheNguyen\CMS\ContentAuthority\ContentWriteContext;
 use TheNguyen\CMS\Models\Content;
 use TheNguyen\CMS\Models\Term;
 use TheNguyen\CMS\Services\ContentManager;
@@ -41,7 +42,7 @@ class CmsContentSeeder extends Seeder
                 'title' => 'Trang chủ',
                 'slug' => 'trang-chu',
                 'content' => 'Welcome to TN CMS',
-            ]);
+            ], ContentWriteContext::system('install_seed'));
         }
 
         $hasPosts = Content::query()->where('type', 'post')->exists();
@@ -59,7 +60,7 @@ class CmsContentSeeder extends Seeder
                     $category?->id,
                     $tag?->id,
                 ]),
-            ]);
+            ], ContentWriteContext::system('install_seed'));
 
             if ($samplePost && ($category || $tag)) {
                 $samplePost->terms()->sync(array_filter([

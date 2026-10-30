@@ -73,6 +73,7 @@ final class ThemePageReferenceResolver
             ->whereKey($id)
             ->where('type', 'page')
             ->where('status', 'published')
+            ->discoverable()
             ->first();
     }
 

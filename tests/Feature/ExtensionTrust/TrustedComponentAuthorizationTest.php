@@ -47,7 +47,7 @@ final class TrustedComponentAuthorizationTest extends TestCase
         $code->shortcode('s2_private', 's2-auth/private');
         $code->shortcode('s2_open', 's2-auth/open');
 
-        app('cms.content')->create(['type' => 'page', 'status' => 'published', 'locale' => 'en', 'title' => 'Panel', 'slug' => 'panel', 'content' => '[s2_open][s2_private]']);
+        app('cms.content')->create(['type' => 'page', 'status' => 'published', 'locale' => 'en', 'title' => 'Panel', 'slug' => 'panel', 'content' => '[s2_open][s2_private]'], \Tests\Support\ContentFixtures::context());
     }
 
     private function userWithRole(string $slug): User

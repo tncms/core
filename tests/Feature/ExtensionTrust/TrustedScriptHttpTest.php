@@ -32,7 +32,7 @@ final class TrustedScriptHttpTest extends TestCase
         app('cms.language')->setCurrent('en');
 
         foreach (['contact', 'about'] as $slug) {
-            app('cms.content')->create(['type' => 'page', 'status' => 'published', 'locale' => 'en', 'title' => ucfirst($slug), 'slug' => $slug, 'content' => '<p>'.$slug.'</p>']);
+            app('cms.content')->create(['type' => 'page', 'status' => 'published', 'locale' => 'en', 'title' => ucfirst($slug), 'slug' => $slug, 'content' => '<p>'.$slug.'</p>'], \Tests\Support\ContentFixtures::context());
         }
 
         $this->useFixturePlugins();

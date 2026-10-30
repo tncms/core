@@ -43,6 +43,12 @@ class CmsRolePermissionSeeder extends Seeder
         $allSlugs = Permission::query()->pluck('slug')->all();
 
         // 2. Create/update the core roles + their grants.
+        // content.ownership.adopt (CORE-UNIFIED-OWNERSHIP-R1) is an explicit
+        // operator grant: never synced onto any built-in role, super-admin
+        // included (super-admin status does not imply it either).
+        $explicitOnly = ['content.ownership.adopt'];
+        $allSlugs = array_values(array_diff($allSlugs, $explicitOnly));
+
         $this->syncRole('super-admin', 'Super Admin', 'Full, unrestricted access.', true, $allSlugs);
 
         // trusted_scripts.manage (CORE-EXTENSION-TRUST S1) is never granted to a
@@ -50,7 +56,13 @@ class CmsRolePermissionSeeder extends Seeder
         // until an owner assigns it to a dedicated role explicitly.
         $this->syncRole('admin', 'Administrator', 'Manage the whole site except role/user removal.', true, array_values(array_filter(
             $allSlugs,
-            static fn (string $slug): bool => ! in_array($slug, ['roles.manage', 'users.delete', 'trusted_scripts.manage'], true),
+            // Ownership-override and recovery rights (CORE-STRUCTURED-CONTENT-AUTHORITY-R1)
+            // are never granted automatically; an owner grants them in Roles.
+            static fn (string $slug): bool => ! in_array($slug, [
+                'roles.manage', 'users.delete', 'trusted_scripts.manage',
+                'posts.edit_others', 'posts.delete_others', 'pages.edit_others', 'pages.delete_others',
+                'content.authority.recover',
+            ], true),
         )));
 
         $this->syncRole('editor', 'Editor', 'Manage all content, media, taxonomy and menus.', false, [

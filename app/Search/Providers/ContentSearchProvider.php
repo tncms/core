@@ -62,6 +62,7 @@ final class ContentSearchProvider implements SearchProvider
         $contents = Content::query()
             ->whereIn('type', ['post', 'page'])
             ->published()
+            ->discoverable()
             ->whereHas('translations', function ($q) use ($locale, $like): void {
                 $q->where('locale', $locale)
                     ->whereNotNull('slug')

@@ -35,7 +35,11 @@ final class ClassicEditorPersistenceTest extends TestCase
         // both authoring locales, exactly like an installed site.
         $this->seed(CmsLanguageSeeder::class);
 
-        $this->actingAs(User::factory()->create());
+        // R1: publication / others' content use strict permissions that never fail
+        // open, so the acting admin is an explicitly configured super-admin.
+        $admin = User::factory()->create();
+        config(['cms.super_admin_emails' => [$admin->email]]);
+        $this->actingAs($admin);
     }
 
     private function contents(): ContentManager
@@ -51,13 +55,13 @@ final class ClassicEditorPersistenceTest extends TestCase
             'title' => 'CE1 Post', 'slug' => 'ce1-post',
             'excerpt' => 'CE1 excerpt EN',
             'content' => '<p>OLD_EN_v1 original content</p>',
-        ]);
+        ], \Tests\Support\ContentFixtures::context());
 
         return $this->contents()->update($post, [
             'locale' => 'vi', 'title' => 'CE1 Bài viết', 'slug' => 'ce1-bai-viet',
             'excerpt' => 'CE1 excerpt VI',
             'content' => '<p>OLD_VI_v1 nội dung gốc</p>',
-        ]);
+        ], null, \Tests\Support\ContentFixtures::context());
     }
 
     private function translation(Content $content, string $locale): ?string
@@ -200,7 +204,7 @@ final class ClassicEditorPersistenceTest extends TestCase
         $legacy = $this->contents()->create([
             'type' => 'post', 'status' => 'draft', 'locale' => 'en',
             'title' => 'Legacy', 'slug' => 'legacy-post', 'content' => null,
-        ]);
+        ], \Tests\Support\ContentFixtures::context());
 
         Livewire::test(EditPost::class, ['record' => $legacy->getRouteKey(), 'translationLocale' => 'en'])
             ->fillForm(['content' => '<p>FROM_NULL body</p>'])

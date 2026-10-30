@@ -1434,3 +1434,50 @@ if (! function_exists('is_frontend_authenticated')) {
         return app('cms.frontend_auth')->guard()->check();
     }
 }
+
+if (! function_exists('cms_plugin_view')) {
+    /**
+     * Render a plugin view theme-first (CORE-LOTTERY-P05-SEAMS-1): the active
+     * theme's `views/plugins/{plugin}/…` override, else the plugin's own view.
+     * Throws PluginViewException for invalid input, an inactive plugin, or a
+     * view that exists in neither place.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    function cms_plugin_view(string $plugin, string $view, array $data = []): \Illuminate\Contracts\View\View
+    {
+        return view(app('cms.plugin_views')->resolve($plugin, $view), $data);
+    }
+}
+
+if (! function_exists('cms_plugin_view_override_path')) {
+    /** The theme-relative override path Core looks for (`plugins/{plugin}/…blade.php`). */
+    function cms_plugin_view_override_path(string $plugin, string $view): string
+    {
+        return app('cms.plugin_views')->overridePath($plugin, $view);
+    }
+}
+
+if (! function_exists('cms_search_url')) {
+    /**
+     * The canonical public search URL for a locale (CORE-PLATFORM-SEAMS-R2): the
+     * default locale's "/search", or the locale's dictionary-generated search route.
+     */
+    function cms_search_url(?string $locale = null): string
+    {
+        $languages = app('cms.language');
+        $locale = $languages->normalizeCode($locale ?? app()->getLocale());
+        $name = 'cms.search.localized.'.$locale;
+
+        // The unprefixed default locale's canonical search is the route key path.
+        if ($locale === $languages->defaultCode() && ! $languages->shouldPrefixDefaultLocale()) {
+            return route('cms.search');
+        }
+
+        if (\Illuminate\Support\Facades\Route::has($name)) {
+            return route($name, ['locale' => $locale]);
+        }
+
+        return route('cms.search');
+    }
+}
