@@ -15,12 +15,19 @@ final class PreparedContent
     public function __construct(
         public readonly ?ContentOwnershipMarker $ownership = null,
         public readonly ?ContentSeoOverride $seoOverride = null,
+        public readonly bool $neutralSeo = false,
     ) {}
 
-    /** Apply the owner's override after SeoManager::forContent(). */
+    /**
+     * Apply the owner's override after SeoManager::forContent(), or the
+     * neutral noindex head when the owner's SEO provider failed
+     * (CORE-38-TOPLIST-SEAMS-R1).
+     */
     public function applySeo(SeoManager $seo): void
     {
-        if ($this->seoOverride !== null) {
+        if ($this->neutralSeo) {
+            $seo->applyNeutralContentSeo();
+        } elseif ($this->seoOverride !== null) {
             $seo->applyContentOverride($this->seoOverride);
         }
     }

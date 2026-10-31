@@ -44,6 +44,15 @@ class ExtensionManager
     private array $autoloaded = [];
 
     /**
+     * Active plugins whose runtime could not be loaded by bootActivePlugins()
+     * this request: registration threw, or a declared provider class does
+     * not exist (CORE-38-TOPLIST-SEAMS-R1).
+     *
+     * @var array<string, true>
+     */
+    private array $unloadable = [];
+
+    /**
      * Per-request registry memo for the plugins directory scan (valid +
      * invalid). The directory only changes on install/delete, so one scan per
      * request is enough; reset by {@see flushRegistry()}.
@@ -237,6 +246,17 @@ class ExtensionManager
     }
 
     /**
+     * Configured active but its runtime failed to load this request (see
+     * $unloadable). Configured-active alone does not mean the plugin's code is
+     * running; owner-sensitive callers such as content ownership check this.
+     */
+    public function isPluginUnloadable(string $slug): bool
+    {
+        // Deactivated since the failed boot: it is simply inactive now.
+        return isset($this->unloadable[$slug]) && $this->isPluginActive($slug);
+    }
+
+    /**
      * Activate a plugin. The plugin must exist with a valid manifest. Idempotent.
      * Booting happens on the next request (or call bootActivePlugins()).
      */
@@ -366,6 +386,7 @@ class ExtensionManager
                 $this->registerPlugin($plugin);
             } catch (\Throwable $e) {
                 $failed[$plugin->slug] = true;
+                $this->unloadable[$plugin->slug] = true;
                 Log::error('TN CMS: failed to register plugin "'.$plugin->slug.'": '.$e->getMessage(), [
                     'exception' => $e,
                 ]);
@@ -410,6 +431,10 @@ class ExtensionManager
         foreach ($plugin->providers as $providerClass) {
             if ($providerClass !== '' && class_exists($providerClass)) {
                 app()->register($providerClass);
+            } elseif ($providerClass !== '') {
+                // A declared runtime that is not there: the plugin is not running.
+                $this->unloadable[$plugin->slug] = true;
+                Log::warning('TN CMS: provider class missing for plugin "'.$plugin->slug.'".');
             }
         }
 

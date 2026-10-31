@@ -94,6 +94,7 @@ class DefaultAdjacentPostResolver implements AdjacentPostResolver
             url: $url,
             publishedAt: $found->published_at,
             ownership: app('cms.content_ownership')->markerFor((int) $found->getKey()),
+            id: (int) $found->getKey(),
         );
     }
 }

@@ -361,6 +361,9 @@ class CmsServiceProvider extends ServiceProvider
         $this->app->alias('cms.content.guards', \TheNguyen\CMS\ContentAuthority\ContentWriteGuardRegistry::class);
         $this->app->singleton('cms.content.gate', fn ($app) => new \TheNguyen\CMS\ContentAuthority\ContentWriteGate($app->make('cms.permission'), $app->make('cms.content.guards')));
         $this->app->alias('cms.content.gate', \TheNguyen\CMS\ContentAuthority\ContentWriteGate::class);
+        // Public read-only content action decisions (CORE-CONTENT-ACTION-AUTHORIZATION-R1).
+        $this->app->singleton('cms.content.actions', fn ($app) => new \TheNguyen\CMS\ContentAuthority\ContentActionAuthority($app->make('cms.permission')));
+        $this->app->alias('cms.content.actions', \TheNguyen\CMS\ContentAuthority\ContentActionAuthority::class);
 
         $this->app->singleton('cms.taxonomy', fn ($app) => new TaxonomyManager(
             $app->make('cms.slug'),

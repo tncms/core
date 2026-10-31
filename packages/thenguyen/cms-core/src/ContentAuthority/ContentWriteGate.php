@@ -32,9 +32,6 @@ final class ContentWriteGate
         'views_count', 'comments_count', 'is_featured', 'show_page_title', 'published_at',
     ];
 
-    /** Content types whose writes are governed by `{type}s.*` permissions. */
-    private const RBAC_PREFIXES = ['post' => 'posts', 'page' => 'pages'];
-
     /** @var array<int, int> content id => sanction depth */
     private array $sanctioned = [];
 
@@ -221,7 +218,7 @@ final class ContentWriteGate
             $this->deny($intent, 'ownership_requires_signed_in_user', 'Content ownership can only change for the signed-in user.');
         }
 
-        if (! isset(self::RBAC_PREFIXES[$intent->type])) {
+        if (ContentRbac::prefixFor($intent->type) === null) {
             $this->deny($intent, 'unsupported_content_type', 'This type of content cannot be managed by an extension.');
         }
 
@@ -286,7 +283,7 @@ final class ContentWriteGate
             return;
         }
 
-        $prefix = self::RBAC_PREFIXES[$intent->type] ?? null;
+        $prefix = ContentRbac::prefixFor($intent->type);
 
         if ($prefix === null) {
             return;
@@ -296,34 +293,34 @@ final class ContentWriteGate
 
         switch ($intent->operation) {
             case ContentOperation::Create:
-                $this->require($intent, $actor, $prefix.'.create', 'unauthorized_create', 'You are not allowed to create this content.');
+                $this->require($intent, $actor, $prefix, 'create', 'unauthorized_create', 'You are not allowed to create this content.');
 
                 // Creating content in someone else's name is editing others' content.
                 if (! $isOwn) {
-                    $this->require($intent, $actor, $prefix.'.edit_others', 'unauthorized_edit_others', 'You are not allowed to create content in another user\'s name.', strict: true);
+                    $this->require($intent, $actor, $prefix, 'edit_others', 'unauthorized_edit_others', 'You are not allowed to create content in another user\'s name.');
                 }
                 break;
             case ContentOperation::Delete:
-                $this->require($intent, $actor, $prefix.'.delete', 'unauthorized_delete', 'You are not allowed to delete this content.');
+                $this->require($intent, $actor, $prefix, 'delete', 'unauthorized_delete', 'You are not allowed to delete this content.');
 
                 if (! $isOwn) {
-                    $this->require($intent, $actor, $prefix.'.delete_others', 'unauthorized_delete_others', 'You are not allowed to delete content written by someone else.', strict: true);
+                    $this->require($intent, $actor, $prefix, 'delete_others', 'unauthorized_delete_others', 'You are not allowed to delete content written by someone else.');
                 }
                 break;
             default:
-                $this->require($intent, $actor, $prefix.'.edit', 'unauthorized_edit', 'You are not allowed to edit this content.');
+                $this->require($intent, $actor, $prefix, 'edit', 'unauthorized_edit', 'You are not allowed to edit this content.');
 
                 if (! $isOwn) {
-                    $this->require($intent, $actor, $prefix.'.edit_others', 'unauthorized_edit_others', 'You are not allowed to edit content written by someone else.', strict: true);
+                    $this->require($intent, $actor, $prefix, 'edit_others', 'unauthorized_edit_others', 'You are not allowed to edit content written by someone else.');
                 }
         }
 
         if ($intent->changesField('author_id') && $intent->operation !== ContentOperation::Create) {
-            $this->require($intent, $actor, $prefix.'.edit_others', 'unauthorized_author_change', 'You are not allowed to change the author of this content.', strict: true);
+            $this->require($intent, $actor, $prefix, 'edit_others', 'unauthorized_author_change', 'You are not allowed to change the author of this content.');
         }
 
         if ($this->affectsPublicOutput($intent)) {
-            $this->require($intent, $actor, $prefix.'.publish', 'unauthorized_publish', 'You are not allowed to publish, unpublish or change published content.', strict: true);
+            $this->require($intent, $actor, $prefix, 'publish', 'unauthorized_publish', 'You are not allowed to publish, unpublish or change published content.');
         }
     }
 
@@ -334,7 +331,7 @@ final class ContentWriteGate
             ? ($intent->changes['row']['author_id'] ?? null)
             : ($intent->current['row']['author_id'] ?? null);
 
-        return $author !== null && (string) $author === (string) $actor->getAuthIdentifier();
+        return ContentRbac::isAuthor($author, $actor);
     }
 
     /** Whether the write creates, removes or changes publicly visible output. */
@@ -367,13 +364,9 @@ final class ContentWriteGate
         return false;
     }
 
-    private function require(ContentWriteIntent $intent, Authenticatable $actor, string $permission, string $code, string $message, bool $strict = false): void
+    private function require(ContentWriteIntent $intent, Authenticatable $actor, string $prefix, string $ability, string $code, string $message): void
     {
-        $granted = $strict
-            ? $this->permissions->userCanStrict($actor, $permission)
-            : $this->permissions->userCan($actor, $permission);
-
-        if (! $granted) {
+        if (! (new ContentRbac($this->permissions))->grants($actor, $prefix, $ability)) {
             $this->deny($intent, $code, $message);
         }
     }

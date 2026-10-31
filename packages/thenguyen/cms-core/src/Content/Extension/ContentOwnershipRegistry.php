@@ -126,10 +126,19 @@ final class ContentOwnershipRegistry
         );
     }
 
+    /**
+     * A plugin that is configured active but whose runtime failed to load is
+     * Missing: its code is not there to own anything this request
+     * (CORE-38-TOPLIST-SEAMS-R1).
+     */
     public function ownerState(string $owner): OwnerState
     {
         if (in_array($owner, $this->activeOwnerSlugs(), true)) {
             return OwnerState::Active;
+        }
+
+        if ($this->extensions->isPluginUnloadable($owner)) {
+            return OwnerState::Missing;
         }
 
         return $this->extensions->findPlugin($owner) !== null ? OwnerState::Inactive : OwnerState::Missing;
@@ -238,10 +247,17 @@ final class ContentOwnershipRegistry
         return is_string($body) && trim($body) !== '';
     }
 
-    /** @return list<string> installed AND active plugin slugs */
+    /** @return list<string> installed, active AND loaded plugin slugs */
     public function activeOwnerSlugs(): array
     {
-        return array_values(array_map(static fn (Plugin $p): string => $p->slug, $this->extensions->activePlugins()));
+        $slugs = [];
+        foreach ($this->extensions->activePlugins() as $plugin) {
+            if (! $this->extensions->isPluginUnloadable($plugin->slug)) {
+                $slugs[] = $plugin->slug;
+            }
+        }
+
+        return $slugs;
     }
 
     public static function clampRetry(int $seconds): int

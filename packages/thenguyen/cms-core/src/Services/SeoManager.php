@@ -60,6 +60,9 @@ class SeoManager
     /** Owner-supplied override for managed content (CORE-CONTENT-EXT-R1). */
     private ?ContentSeoOverride $contentOverride = null;
 
+    /** Owner metadata could not be obtained: site-default text only (CORE-38-TOPLIST-SEAMS-R1). */
+    private bool $neutralContent = false;
+
     /**
      * Reset to a neutral (site-default) context.
      */
@@ -76,6 +79,7 @@ class SeoManager
         $this->customDescription = null;
         $this->robotsOverride = null;
         $this->contentOverride = null;
+        $this->neutralContent = false;
 
         return $this;
     }
@@ -157,6 +161,24 @@ class SeoManager
     }
 
     /**
+     * Neutral head for managed content whose owner metadata could not be
+     * obtained (CORE-38-TOPLIST-SEAMS-R1): the editable Core title,
+     * description, keywords and images may have drifted from what the owner
+     * approved, so the site defaults are used, no social image is emitted and
+     * the page is noindex. Canonical and hreflang stay Core's. Only valid
+     * after forContent().
+     */
+    public function applyNeutralContentSeo(): self
+    {
+        if ($this->content !== null && $this->customTitle === null) {
+            $this->neutralContent = true;
+            $this->contentOverride = new ContentSeoOverride(robots: RobotsRestriction::NoIndex, suppressOgImage: true);
+        }
+
+        return $this;
+    }
+
+    /**
      * Force a non-indexable robots policy for the current context — utility
      * frontend pages such as search results and error pages that must not be
      * indexed while their links stay followable (CORE-FRONTEND-1). Chain after a
@@ -174,6 +196,10 @@ class SeoManager
     {
         if ($this->customTitle !== null) {
             return $this->customTitle;
+        }
+
+        if ($this->neutralContent) {
+            return $this->defaultTitle();
         }
 
         if ($this->contentOverride?->title !== null) {
@@ -205,6 +231,10 @@ class SeoManager
             return $this->customDescription;
         }
 
+        if ($this->neutralContent) {
+            return $this->defaultDescription();
+        }
+
         if ($this->contentOverride?->description !== null) {
             return $this->contentOverride->description;
         }
@@ -228,6 +258,10 @@ class SeoManager
 
     public function keywords(): string
     {
+        if ($this->neutralContent) {
+            return '';
+        }
+
         return match ($this->context) {
             'page', 'post' => (string) ($this->translation?->meta_keywords ?? ''),
             default => '',
@@ -325,6 +359,11 @@ class SeoManager
 
     public function ogImage(): ?string
     {
+        // An owner's explicit suppression means no image at all (CORE-38-TOPLIST-SEAMS-R1).
+        if ($this->contentOverride?->suppressOgImage) {
+            return null;
+        }
+
         // Owner override, then content featured image, then the configured default.
         return $this->absoluteUrl($this->contentOverride?->ogImage)
             ?? $this->absoluteUrl($this->content?->featured_image)

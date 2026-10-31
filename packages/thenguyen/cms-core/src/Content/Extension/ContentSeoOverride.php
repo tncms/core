@@ -9,6 +9,11 @@ namespace TheNguyen\CMS\Content\Extension;
  * og:url, og:type, locale and keywords are deliberately absent: Core owns them.
  * Core sanitizes every field ({@see sanitized()}); an invalid field is dropped
  * on its own, an empty one means "keep Core's value".
+ *
+ * The image is the exception (CORE-38-TOPLIST-SEAMS-R1): a null ogImage keeps
+ * Core's fallback (featured image, then site default), but suppressOgImage —
+ * or a supplied image that is empty or invalid — means the owner approved no
+ * image, so Core emits none rather than substituting an unrelated one.
  */
 final class ContentSeoOverride
 {
@@ -25,17 +30,22 @@ final class ContentSeoOverride
         public readonly ?string $ogDescription = null,
         public readonly ?string $ogImage = null,
         public readonly ?RobotsRestriction $robots = null,
+        public readonly bool $suppressOgImage = false,
     ) {}
 
     public function sanitized(): self
     {
+        $image = self::image($this->ogImage);
+        $suppress = $this->suppressOgImage || ($this->ogImage !== null && $image === null);
+
         return new self(
             title: self::text($this->title, self::TITLE_MAX),
             description: self::text($this->description, self::DESCRIPTION_MAX),
             ogTitle: self::text($this->ogTitle, self::TITLE_MAX),
             ogDescription: self::text($this->ogDescription, self::DESCRIPTION_MAX),
-            ogImage: self::image($this->ogImage),
+            ogImage: $suppress ? null : $image,
             robots: $this->robots,
+            suppressOgImage: $suppress,
         );
     }
 
@@ -44,13 +54,14 @@ final class ContentSeoOverride
     {
         $robots = $this->robots?->nofollow() ? RobotsRestriction::NoIndexNoFollow : RobotsRestriction::NoIndex;
 
-        return new self($this->title, $this->description, $this->ogTitle, $this->ogDescription, $this->ogImage, $robots);
+        return new self($this->title, $this->description, $this->ogTitle, $this->ogDescription, $this->ogImage, $robots, $this->suppressOgImage);
     }
 
     public function isEmpty(): bool
     {
         return $this->title === null && $this->description === null && $this->ogTitle === null
-            && $this->ogDescription === null && $this->ogImage === null && $this->robots === null;
+            && $this->ogDescription === null && $this->ogImage === null && $this->robots === null
+            && ! $this->suppressOgImage;
     }
 
     /** Plain text: tags and control characters removed, whitespace collapsed, bounded. */

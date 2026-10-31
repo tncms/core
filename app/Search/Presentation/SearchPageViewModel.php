@@ -57,8 +57,13 @@ final class SearchPageViewModel
 
         if ($response !== null) {
             $searched = true;
+            $markers = self::ownershipMarkers($response->results);
             foreach ($response->results as $result) {
-                $results[] = SearchResultView::fromResult($result, $labels[$result->type] ?? $result->type);
+                $results[] = SearchResultView::fromResult(
+                    $result,
+                    $labels[$result->type] ?? $result->type,
+                    $markers[SearchResultView::contentIdOf($result) ?? 0] ?? null,
+                );
             }
             $total = $response->total;
             $page = $response->page;
@@ -81,6 +86,26 @@ final class SearchPageViewModel
             minLength: $minLength,
             warnings: $warnings,
         );
+    }
+
+    /**
+     * Ownership markers for the content hits of this page: one batched lookup
+     * at render time (never cached with the results, so a plugin's lifecycle
+     * change shows immediately), owner state resolved once per owner.
+     *
+     * @param  iterable<\App\Search\SearchResult>  $results
+     * @return array<int, \TheNguyen\CMS\Content\Extension\ContentOwnershipMarker>
+     */
+    private static function ownershipMarkers(iterable $results): array
+    {
+        $ids = [];
+        foreach ($results as $result) {
+            if (($id = SearchResultView::contentIdOf($result)) !== null) {
+                $ids[] = $id;
+            }
+        }
+
+        return $ids === [] ? [] : app('cms.content_ownership')->markersFor($ids);
     }
 
     public function hasResults(): bool

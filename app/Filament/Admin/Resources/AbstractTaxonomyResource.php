@@ -97,7 +97,22 @@ abstract class AbstractTaxonomyResource extends Resource
 
         return parent::getEloquentQuery()
             ->when($taxonomyId, fn (Builder $q) => $q->where('taxonomy_id', $taxonomyId))
-            ->with(['translations' => fn ($q) => $q->where('locale', $locale)]);
+            ->with(['translations' => fn ($q) => $q->where('locale', $locale)])
+            ->withCount(['contents as posts_count' => static::countedContents(...)]);
+    }
+
+    /**
+     * The "Posts" column: published, non-trashed contents of this taxonomy's
+     * content type assigned directly to the term — the Core published-post
+     * count (same rows the term archive lists, before locale discoverability).
+     * One correlated aggregate for the whole page; the dormant cms_terms.count
+     * column is never maintained and is not read.
+     */
+    protected static function countedContents(Builder $query): Builder
+    {
+        return $query
+            ->where('cms_contents.type', static::contentType())
+            ->where('cms_contents.status', 'published');
     }
 
     public static function form(Schema $schema): Schema
@@ -226,7 +241,7 @@ abstract class AbstractTaxonomyResource extends Resource
                 ->toggleable();
         }
 
-        $columns[] = TextColumn::make('count')
+        $columns[] = TextColumn::make('posts_count')
             ->label(tn_trans('Posts'))
             ->sortable();
         $columns[] = TextColumn::make('updated_at')

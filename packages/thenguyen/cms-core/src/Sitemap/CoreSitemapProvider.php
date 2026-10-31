@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use TheNguyen\CMS\Content\Extension\ContentSitemapPolicy;
+use TheNguyen\CMS\Content\Extension\LocalizedContentSitemapPolicy;
 use TheNguyen\CMS\Content\Extension\OwnerState;
 use TheNguyen\CMS\Models\Content;
 use TheNguyen\CMS\Models\ContentTranslation;
@@ -101,7 +102,7 @@ final class CoreSitemapProvider extends KeysetSitemapProvider
 
         if (isset(self::CONTENT_TYPES[$type])) {
             $this->attachTranslations($rows, ContentTranslation::class, 'content_id', $locales);
-            $excluded = $this->ownerExclusions($rows->modelKeys());
+            $excluded = $this->ownerExclusions($rows->modelKeys(), $locale);
         } else {
             $rows->load('taxonomy:id,type');
             $this->attachTranslations($rows, TermTranslation::class, 'term_id', $locales);
@@ -181,12 +182,14 @@ final class CoreSitemapProvider extends KeysetSitemapProvider
     /**
      * Owner noindex exclusions: one marker query, then one policy call per
      * active owner (ADR D9). Owners with an SEO provider but no
-     * ContentSitemapPolicy, and throwing policies, exclude their ids.
+     * ContentSitemapPolicy, and throwing policies, exclude their ids. A
+     * LocalizedContentSitemapPolicy is asked for the chunk locale
+     * (CORE-38-TOPLIST-SEAMS-R1).
      *
      * @param  list<int|string>  $ids
      * @return array<int, true>
      */
-    private function ownerExclusions(array $ids): array
+    private function ownerExclusions(array $ids, string $locale): array
     {
         $byOwner = [];
         foreach (app('cms.content_ownership')->markersFor(array_map('intval', $ids)) as $id => $marker) {
@@ -206,9 +209,11 @@ final class CoreSitemapProvider extends KeysetSitemapProvider
 
                 // A provider that can restrict robots but cannot answer in
                 // batch would make the sitemap guess: fail closed.
-                $drop = $policy instanceof ContentSitemapPolicy
-                    ? array_intersect($ownedIds, array_map('intval', $policy->sitemapExcludedIds($ownedIds)))
-                    : $ownedIds;
+                $drop = match (true) {
+                    $policy instanceof LocalizedContentSitemapPolicy => array_intersect($ownedIds, array_map('intval', $policy->sitemapExcludedIdsForLocale($ownedIds, $locale))),
+                    $policy instanceof ContentSitemapPolicy => array_intersect($ownedIds, array_map('intval', $policy->sitemapExcludedIds($ownedIds))),
+                    default => $ownedIds,
+                };
             } catch (Throwable $e) {
                 Log::warning('TN CMS sitemap policy failed', ['owner' => $owner, 'exception' => $e::class]);
                 $drop = $ownedIds;

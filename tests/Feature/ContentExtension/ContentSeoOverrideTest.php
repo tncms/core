@@ -112,7 +112,9 @@ final class ContentSeoOverrideTest extends TestCase
         $this->assertStringNotContainsString('<script>alert', $html);
         $this->assertStringNotContainsString(str_repeat('x', 501), $html);
         $this->assertStringContainsString('<meta property="og:title" content="Line break">', $html);
-        $this->assertStringContainsString('<meta property="og:image" content="'.url('/media/core.jpg').'">', $html);
+        // CORE-38-TOPLIST-SEAMS-R1 (ADR-4): an invalid supplied image is suppression, not a fallback to the featured image.
+        $this->assertStringNotContainsString('og:image', $html);
+        $this->assertStringNotContainsString(url('/media/core.jpg'), $html);
         $this->assertStringNotContainsString('javascript:', $html);
 
         foreach (['http://insecure.test/x.jpg', '//cdn.test/x.jpg', 'https://user:pw@cdn.test/x.jpg', 'https:///nohost', '/ok/"quote.jpg'] as $bad) {
@@ -136,7 +138,8 @@ final class ContentSeoOverrideTest extends TestCase
         $this->assertStringContainsString('<meta name="robots" content="noindex,nofollow">', $this->get($this->path($post))->getContent());
     }
 
-    public function test_provider_exception_keeps_core_metadata_and_logs_class_only(): void
+    /** CORE-38-TOPLIST-SEAMS-R1 (ADR-3): a throw no longer falls back to (possibly drifted) Core metadata. */
+    public function test_provider_exception_renders_a_neutral_noindex_head_and_logs_class_only(): void
     {
         Log::spy();
         $this->cxPlugin('cx-alpha')->registerSeo($this->cxSeoProvider('cx-alpha', null, 'throw'));
@@ -145,7 +148,10 @@ final class ContentSeoOverrideTest extends TestCase
         $response = $this->get($this->path($post));
 
         $response->assertOk();
-        $this->assertStringContainsString('<title>Seo Throws</title>', $response->getContent());
+        $head = substr((string) $response->getContent(), 0, (int) strpos((string) $response->getContent(), '</head>'));
+        $this->assertStringNotContainsString('Seo Throws', $head);
+        $this->assertMatchesRegularExpression('/<meta name="robots" content="noindex[^"]*">/', $head);
+        $this->assertStringNotContainsString('og:image', $head);
         $this->assertStringNotContainsString('hunter2', $response->getContent());
         Log::shouldHaveReceived('warning')->withArgs(fn ($message, $context) => $message === 'TN CMS content SEO provider failed'
             && $context['exception'] === \RuntimeException::class

@@ -9,5 +9,5 @@ enum OwnerState: string
 {
     case Active = 'active';       // installed and active
     case Inactive = 'inactive';   // installed, not active
-    case Missing = 'missing';     // no longer installed
+    case Missing = 'missing';     // no longer installed, or active but its runtime failed to load
 }

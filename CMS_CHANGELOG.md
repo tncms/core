@@ -16,6 +16,42 @@ this project adheres to [Semantic Versioning](https://semver.org).
 
 ---
 
+## [1.0.0-beta.7.1.39] — Content action authorization, private drafts, owning-extension decisions, extension presentation seams and category post counts — 2026-10-31
+
+### Upgrade notes
+
+- **No migrations, settings, routes or permissions are added.** Upgrade from 1.0.0-beta.7.1.38 with the `/upgrade` wizard or the upgrade package as usual.
+- **Plugins:** decide editor and publish access with `app('cms.content.actions')->decision(...)` instead of re-implementing Core RBAC. Page editors that keep a private draft of published content pass `ContentActionContext::privateDraft()`; a plugin acting on content it manages passes `ContentActionContext::asOwningExtension()`.
+
+### Added
+
+- **Content action authorization** (`cms.content.actions`, `ContentActionAuthority`). It answers `view`, `edit`, `publish`, `unpublish`, `create_translation` and `edit_translation` for Core posts and pages.
+  - Decisions are side-effect free, fail closed and are never more permissive than the admin write authority.
+  - Bounded reasons: `allowed`, `unauthenticated`, `permission_denied`, `ownership_denied`, `status_denied`, `locale_denied`, `unsupported_action`, `unsupported_subject`.
+  - `ContentActionDenied` maps a denial to a leak-free 403.
+- **`ContentActionContext::privateDraft()`** for `edit` / `edit_translation`. It lets an editor without publish permission keep a private draft of published content; publishing still requires publish permission. Any other action answers `unsupported_action`.
+- **`ContentActionContext::asOwningExtension()`.** The claim is verified from the calling file: it must sit inside an active, loadable plugin whose slug equals the content's `managed_by`. The context cannot be serialized, so a claim cannot be forged.
+- **Owned-content seams for content-owning plugins:**
+  - `ContentAvailabilityProbe`;
+  - `LocalizedContentSitemapPolicy`, which excludes content from a single locale;
+  - `ContentSeoOverride::$suppressOgImage`;
+  - a content `id` on `AdjacentPostViewModel` and on search result views.
+
+### Changed
+
+- **A failing content SEO provider now renders a neutral `noindex` head** (site defaults, no image) instead of the editable Core metadata. An empty or invalid owner image suppresses the social image.
+- **A plugin configured as active whose code failed to load is treated as a missing owner,** so its stored fallback applies to its content.
+- Core RBAC rules are shared between the write gate and the decision API (`ContentRbac`). Existing behaviour is unchanged.
+
+### Fixed
+
+- **The Categories and Tags admin lists always showed 0 posts.** The "Posts" column read the never-maintained `cms_terms.count` column.
+  - It now shows the published-post count: published, non-trashed posts assigned directly to the term, computed in one aggregate query.
+  - It does not depend on the viewing language, does not include child categories and never counts pages.
+  - The public Categories widget's optional count is unchanged in this release.
+
+---
+
 ## [1.0.0-beta.7.1.38] — Unified content ownership, hardened adoption, plugin extension seams and scalable sitemap — 2026-10-30
 
 The first public release after 1.0.0-beta.7.1.36. It includes the structured-content authority work prepared as 1.0.0-beta.7.1.37, which was **never published** (there is no public .37 release; details at the end of this entry).
