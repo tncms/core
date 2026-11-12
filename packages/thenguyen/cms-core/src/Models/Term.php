@@ -22,6 +22,7 @@ use TheNguyen\CMS\Taxonomy\Translation\TaxonomyTranslationFields;
  * @property string|null $featured_image
  * @property int $sort_order
  * @property int $count
+ * @property string|null $seo_robots
  */
 class Term extends Model implements RevisionableInterface, TaxonomyTranslationEntityInterface
 {
@@ -35,6 +36,7 @@ class Term extends Model implements RevisionableInterface, TaxonomyTranslationEn
         'featured_image',
         'sort_order',
         'count',
+        'seo_robots',
     ];
 
     protected $casts = [

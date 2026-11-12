@@ -10,6 +10,8 @@ use DOMElement;
 use DOMNode;
 use DOMText;
 use DOMXPath;
+use TheNguyen\CMS\Support\Html\AccessibleAttributePolicy;
+use TheNguyen\CMS\Support\Html\SafeHtmlId;
 
 /**
  * Minimal, dependency-free HTML sanitizer for rich-editor (TinyMCE) content.
@@ -19,6 +21,12 @@ use DOMXPath;
  * iframe, …) are dropped entirely; unknown-but-harmless wrappers are unwrapped
  * so their text survives. URLs are scheme-checked to block javascript:/data:
  * vectors. External `target="_blank"` links get `rel="noopener noreferrer"`.
+ *
+ * A bounded accessibility contract (CORE-HTML-SANITIZER-A11Y-R1) additionally keeps an `id` in the Core-reserved
+ * authored-content namespace `cms-content-*` (`SafeHtmlId`; first occurrence wins) on any kept element and the
+ * three `AccessibleAttributePolicy` ARIA attributes on their element sets; `aria-labelledby` must resolve to
+ * ids kept in the same fragment. Every other id is removed, so content can never claim a runtime id. Invalid
+ * values lose only the attribute.
  *
  * This is intentionally simple — no external Composer package required.
  */
@@ -94,6 +102,7 @@ class HtmlSanitizer
         }
 
         $this->cleanChildren($root);
+        $this->resolveReferences($dom, $root);
 
         $out = '';
         foreach (iterator_to_array($root->childNodes) as $child) {
@@ -167,8 +176,10 @@ class HtmlSanitizer
             $name = strtolower($attr->name);
 
             // Never keep event handlers / styles / anything off the allow-list.
-            if (! in_array($name, $allowed, true)) {
-                $node->removeAttribute($attr->name);
+            if (! in_array($name, $allowed, true) && ! $this->isValidAccessibleAttribute($tag, $name, $attr->value)) {
+                // By node, not by name: removeAttribute() resolves `xml:*` / `xmlns*` names through namespace
+                // lookup and silently misses the null-namespace attribute the HTML parser produced.
+                $node->removeAttributeNode($attr);
             }
         }
 
@@ -191,6 +202,48 @@ class HtmlSanitizer
         // External links opening in a new tab must not leak the opener.
         if ($tag === 'a' && strtolower($node->getAttribute('target')) === '_blank') {
             $node->setAttribute('rel', 'noopener noreferrer');
+        }
+    }
+
+    /** The additive R1 attributes: `id` on any kept element, bounded ARIA on its element set. */
+    private function isValidAccessibleAttribute(string $tag, string $name, string $value): bool
+    {
+        return match (true) {
+            $name === 'id' => SafeHtmlId::isValid($value),
+            ! AccessibleAttributePolicy::allows($tag, $name) => false,
+            $name === 'aria-label' => AccessibleAttributePolicy::isValidLabel($value),
+            $name === 'aria-current' => AccessibleAttributePolicy::isValidCurrent($value),
+            $name === 'aria-labelledby' => AccessibleAttributePolicy::idRefTokens($value) !== null,
+            default => false,
+        };
+    }
+
+    /**
+     * Post-pass over the cleaned fragment: the first `id` in document order wins, later duplicates lose the
+     * attribute; then every `aria-labelledby` token must name a surviving id, otherwise it is removed.
+     */
+    private function resolveReferences(DOMDocument $dom, DOMElement $root): void
+    {
+        $xpath = new DOMXPath($dom);
+        $ids = [];
+
+        foreach (iterator_to_array($xpath->query('.//*[@id]', $root) ?: []) as $element) {
+            $id = $element->getAttribute('id');
+
+            if (isset($ids[$id])) {
+                $element->removeAttribute('id');
+            } else {
+                $ids[$id] = true;
+            }
+        }
+
+        foreach (iterator_to_array($xpath->query('.//*[@aria-labelledby]', $root) ?: []) as $element) {
+            foreach (explode(' ', $element->getAttribute('aria-labelledby')) as $token) {
+                if (! isset($ids[$token])) {
+                    $element->removeAttribute('aria-labelledby');
+                    break;
+                }
+            }
         }
     }
 

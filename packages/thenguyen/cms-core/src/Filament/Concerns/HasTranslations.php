@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace TheNguyen\CMS\Filament\Concerns;
 
 use Filament\Forms\Components\Select;
+use Filament\Notifications\Notification;
+use Filament\Support\Exceptions\Halt;
 use Filament\Tables\Columns\TextColumn;
+use Livewire\Attributes\Locked;
 use TheNguyen\CMS\Contracts\TranslatablePluginContent;
 
 /**
@@ -43,6 +46,8 @@ trait HasTranslations
         return Select::make('locale')
             ->label(tn_trans('Language'))
             ->options(fn (): array => app('cms.language')->optionList())
+            // ER-5 (WCAG 3.1.2): option labels are native language names; select-a11y marks them with lang.
+            ->extraAlpineAttributes(fn (): array => ['data-tn-option-lang' => implode(' ', app('cms.language')->nativeNameCodes())], merge: true)
             ->default(fn (): string => static::defaultTranslationLocale())
             ->required()
             ->hiddenOn('edit')
@@ -102,7 +107,13 @@ trait HasTranslations
      * translation row (e.g. saving an `en` edit would clobber the `vi` row).
      * Memoising the resolved value keeps fill, render, and save pinned to the
      * same locale across the stateless commit.
+     *
+     * Locked (CORE-P12-4): the browser sends this state back on every update, so
+     * a client may not change it. The instance keeps the locale it was opened
+     * in; another tab switching the shared editing-locale preference does not
+     * move it, and a forged value is refused by Livewire.
      */
+    #[Locked]
     public ?string $translationLocale = null;
 
     /**
@@ -118,6 +129,29 @@ trait HasTranslations
         }
 
         return $this->translationLocale = $this->resolveRequestedLocale();
+    }
+
+    /**
+     * The pinned locale a save may write into (CORE-P12-4). It must still be an
+     * active language: if it was deactivated after the editor opened, the save
+     * is stopped with a notice instead of writing a translation for a language
+     * the site no longer serves.
+     */
+    protected function writableTranslationLocale(): string
+    {
+        $locale = $this->selectedLocale();
+        $languages = app('cms.language');
+
+        if (! $languages->isActive($languages->normalizeCode($locale))) {
+            Notification::make()
+                ->danger()
+                ->title(tn_trans('This language is no longer active. Reload the page to continue editing.'))
+                ->send();
+
+            throw new Halt;
+        }
+
+        return $locale;
     }
 
     /**

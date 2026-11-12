@@ -12,6 +12,11 @@ use TheNguyen\CMS\Models\Media;
  * Single source of truth for the image list shown by both the Rich Editor
  * "Insert Media" modal and the Featured Image media modal. Keeping the query +
  * normalisation here guarantees both modals show identical data.
+ *
+ * It is also the server-side read boundary of admin media discovery: every
+ * lookup returns nothing unless the current user holds media.view
+ * (AdminMediaLibraryGate), re-checked on each call and therefore on every
+ * Livewire request.
  */
 class MediaItems
 {
@@ -22,7 +27,7 @@ class MediaItems
      */
     public static function imageItems(int $limit = 50): array
     {
-        if (! Schema::hasTable('cms_media')) {
+        if (! AdminMediaLibraryGate::allows() || ! Schema::hasTable('cms_media')) {
             return [];
         }
 
@@ -82,7 +87,7 @@ class MediaItems
      */
     public static function findByUrl(string $url): ?array
     {
-        if ($url === '' || ! Schema::hasTable('cms_media')) {
+        if ($url === '' || ! AdminMediaLibraryGate::allows() || ! Schema::hasTable('cms_media')) {
             return null;
         }
 
@@ -101,7 +106,7 @@ class MediaItems
      */
     public static function searchImages(string $search, int $limit = 50): array
     {
-        if (! Schema::hasTable('cms_media')) {
+        if (! AdminMediaLibraryGate::allows() || ! Schema::hasTable('cms_media')) {
             return [];
         }
 

@@ -171,7 +171,7 @@ class MenuItem extends Model
         }
 
         if ($this->reference_type === 'content') {
-            $content = Content::query()->discoverable()->find($this->reference_id);
+            $content = Content::query()->published()->discoverable()->find($this->reference_id);
             $url = $content !== null ? content_url($content, $locale) : '#';
 
             return $url !== '#' ? $url : null;

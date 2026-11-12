@@ -1058,7 +1058,9 @@ button.lang-switcher__link {
 
 .site-footer__copy {
     margin: 0;
-    color: #94a3b8;
+    /* TG-DEFAULT-A1 (WCAG 1.4.3): the footer's own secondary text colour (.footer-brand__desc),
+       7.24:1 on the #f8fafc footer; the former #94a3b8 was 2.45:1. */
+    color: #475569;
     font-size: 0.95rem;
 }
 
@@ -1211,4 +1213,25 @@ button.lang-switcher__link {
     .tn-footer-widgets[data-columns="3"] {
         grid-template-columns: minmax(0, 1fr);
     }
+}
+
+/* Links that sit inside running text (TG-DEFAULT-A2, WCAG 1.4.1). The global `a` rule above removes
+   underlines, so these links were marked by colour alone (2.84:1 against the body text):
+   - the Core search view (resources/views/frontend/search/index.blade.php): a result title link inline
+     beside its plain-text type label, and the prev / next links beside the "Page x of y" text;
+   - plain links inside post / page body content (.entry-content). Classed anchors there are components
+     (buttons, cards, e.g. Page Builder blocks rendered inside .entry-content) that style themselves.
+   They keep a persistent underline; hover thickens it; focus keeps the focus ring. Navigation, cards,
+   buttons and the non-linked <span> search title are not affected. */
+a.tn-search-result-title,
+.tn-search-pagination a,
+.entry-content a:not([class]) {
+    text-decoration-line: underline;
+    text-underline-offset: 0.18em;
+}
+
+a.tn-search-result-title:hover,
+.tn-search-pagination a:hover,
+.entry-content a:not([class]):hover {
+    text-decoration-thickness: 2px;
 }

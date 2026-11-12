@@ -53,13 +53,14 @@
                 <dt class="font-medium text-gray-500 dark:text-gray-400">{{ tn_trans('Deployment mode') }}</dt>
                 <dd class="text-gray-950 dark:text-white">{{ $deploymentMode }}</dd>
             </div>
+            {{-- ER-7 (WCAG 1.4.12, CORE-H-Z1-REMEDIATION-R3): the paths wrap instead of being cut with an ellipsis. --}}
             <div class="flex justify-between gap-4 sm:col-span-2">
                 <dt class="font-medium text-gray-500 dark:text-gray-400">{{ tn_trans('Base path') }}</dt>
-                <dd class="truncate text-gray-950 dark:text-white">{{ $basePath }}</dd>
+                <dd class="text-gray-950 dark:text-white" style="min-width:0;overflow-wrap:anywhere;">{{ $basePath }}</dd>
             </div>
             <div class="flex justify-between gap-4 sm:col-span-2">
                 <dt class="font-medium text-gray-500 dark:text-gray-400">{{ tn_trans('Public path') }}</dt>
-                <dd class="truncate text-gray-950 dark:text-white">{{ $publicPath }}</dd>
+                <dd class="text-gray-950 dark:text-white" style="min-width:0;overflow-wrap:anywhere;">{{ $publicPath }}</dd>
             </div>
         </dl>
     </x-filament::section>

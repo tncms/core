@@ -16,7 +16,7 @@
         @elseif (\App\Filament\Admin\Pages\ImportDemoPage::canAccess())
             <x-filament::section>
                 <div class="text-sm text-gray-500 dark:text-gray-400">
-                    {!! tn_trans('Need starter content? :link to populate the homepage with the demo.', ['link' => '<a class="text-primary-600 dark:text-primary-400 font-medium" href="' . e(\App\Filament\Admin\Pages\ImportDemoPage::getUrl()) . '">' . e(tn_trans('Import the Company demo')) . '</a>']) !!}
+                    {!! tn_trans('Need starter content? :link to populate the homepage with the demo.', ['link' => '<a class="tn-admin-link" href="' . e(\App\Filament\Admin\Pages\ImportDemoPage::getUrl()) . '">' . e(tn_trans('Import the Company demo')) . '</a>']) !!}
                 </div>
             </x-filament::section>
         @endif

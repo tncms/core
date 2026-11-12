@@ -23,6 +23,7 @@ use TheNguyen\CMS\Models\Content;
 use TheNguyen\CMS\Models\ContentTranslation;
 use TheNguyen\CMS\Models\Slug;
 use TheNguyen\CMS\Revision\DTOs\RevisionContext;
+use TheNguyen\CMS\Seo\ResourceRobotsPolicy;
 
 /**
  * The Core write authority for content rows, their translations, slugs and
@@ -656,7 +657,7 @@ class ContentManager
 
     private const ROW_FIELDS = [
         'type', 'status', 'author_id', 'parent_id', 'template', 'featured_image', 'sort_order', 'comment_status',
-        'views_count', 'comments_count', 'is_featured', 'show_page_title', 'published_at',
+        'views_count', 'comments_count', 'is_featured', 'show_page_title', 'published_at', 'seo_robots',
     ];
 
     private const TRANSLATION_FIELDS = ['title', 'slug', 'excerpt', 'content', 'meta_title', 'meta_description', 'meta_keywords'];
@@ -788,6 +789,12 @@ class ContentManager
             // so an update that omits it preserves the stored value.
             'show_page_title' => (bool) ($data['show_page_title'] ?? ($current->show_page_title ?? true)),
             'published_at' => $publishedAt,
+            // Per-item robots restriction (CORE-SEO-POLICY-AND-ADMIN-LOCALE-R1):
+            // validated here, the single write authority; an explicit null resets
+            // to "inherit", an update that omits the key keeps the stored value.
+            'seo_robots' => array_key_exists('seo_robots', $data)
+                ? ResourceRobotsPolicy::normalize($data['seo_robots'])
+                : ($current->seo_robots ?? null),
         ];
     }
 

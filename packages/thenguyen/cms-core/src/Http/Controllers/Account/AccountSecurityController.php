@@ -11,6 +11,7 @@ use Illuminate\Http\Response;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use TheNguyen\CMS\Services\AccountManager;
+use TheNguyen\CMS\Validation\Rules\SafeEmailAddress;
 use TheNguyen\CMS\View\SystemViewResolver;
 
 /**
@@ -46,7 +47,7 @@ class AccountSecurityController
 
         $this->account->updatePassword($user, $validated['password'], $request);
 
-        return redirect()->route('cms.account.security')->with('status', __('Password updated.'));
+        return redirect()->to(cms_localized_route('cms.account.security'))->with('status', __('Password updated.'));
     }
 
     public function updateEmail(Request $request): RedirectResponse
@@ -57,7 +58,7 @@ class AccountSecurityController
         $validated = $request->validate([
             'current_password' => ['required', 'string'],
             'email' => [
-                'required', 'string', 'email', 'max:255',
+                'required', 'string', 'email', new SafeEmailAddress, 'max:255',
                 Rule::unique('users', 'email')->ignore($user->getKey()),
             ],
         ]);
@@ -66,7 +67,7 @@ class AccountSecurityController
 
         $this->account->updateEmail($user, $validated['email'], $request);
 
-        return redirect()->route('cms.account.security')->with('status', __('Email updated.'));
+        return redirect()->to(cms_localized_route('cms.account.security'))->with('status', __('Email updated.'));
     }
 
     /** Fail closed if the confirming password is wrong. */

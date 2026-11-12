@@ -8,7 +8,6 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 use Tests\TestCase;
-use TheNguyen\CMS\Models\Language;
 use TheNguyen\CMS\Services\AccountManager;
 use TheNguyen\CMS\Support\Account\AccountNavItem;
 
@@ -45,8 +44,8 @@ class AccountFoundationTest extends TestCase
 
     private function seedLocales(): void
     {
-        Language::create(['code' => 'en', 'name' => 'English', 'is_default' => true, 'is_active' => true]);
-        Language::create(['code' => 'vi', 'name' => 'Vietnamese', 'is_default' => false, 'is_active' => true]);
+        app('cms.language')->create(['code' => 'en', 'name' => 'English', 'is_default' => true, 'is_active' => true]);
+        app('cms.language')->create(['code' => 'vi', 'name' => 'Vietnamese', 'is_default' => false, 'is_active' => true]);
     }
 
     // 1.
@@ -58,6 +57,7 @@ class AccountFoundationTest extends TestCase
     // 2.
     public function test_dashboard_renders_for_logged_in_user(): void
     {
+        app('cms.language')->create(['code' => 'en', 'name' => 'English', 'is_default' => true, 'is_active' => true, 'sort_order' => 1]); // account/auth pages follow the site locale (CORE-40)
         $user = User::factory()->create(['name' => 'Ada']);
 
         $this->actingAs($user)->get('/account')
@@ -69,6 +69,7 @@ class AccountFoundationTest extends TestCase
     // 3.
     public function test_profile_page_renders(): void
     {
+        app('cms.language')->create(['code' => 'en', 'name' => 'English', 'is_default' => true, 'is_active' => true, 'sort_order' => 1]); // account/auth pages follow the site locale (CORE-40)
         $user = User::factory()->create();
 
         $this->actingAs($user)->get('/account/profile')->assertOk()->assertSee('Save profile', false);

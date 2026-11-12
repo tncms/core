@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Illuminate\Support\Facades\Route;
 use TheNguyen\CMS\Http\Controllers\FrontendController;
+use TheNguyen\CMS\Http\Middleware\ApplyCanonicalHost;
 use TheNguyen\CMS\Http\Middleware\CheckMaintenanceMode;
 use TheNguyen\CMS\Http\Middleware\OptimizeResponseHeaders;
 use TheNguyen\CMS\Http\Middleware\QueryInsights;
@@ -53,7 +54,7 @@ $pageSlugConstraint = '^(?!(admin|install|cms-health|livewire|filament|storage|u
 // group — are never blocked. The middleware no-ops when maintenance is disabled.
 // ResolveTrustedSlots (CORE-EXTENSION-TRUST S2) is listed LAST so it is innermost:
 // it resolves trusted component slots before any other middleware sees the body.
-Route::middleware(['web', CheckMaintenanceMode::class, QueryInsights::class, OptimizeResponseHeaders::class, ResolveTrustedSlots::class])->group(function () use ($activeLocales, $pageSlugConstraint, $postBase, $categoryBase, $tagBase, $dictionary): void {
+Route::middleware(['web', ApplyCanonicalHost::class, CheckMaintenanceMode::class, QueryInsights::class, OptimizeResponseHeaders::class, ResolveTrustedSlots::class])->group(function () use ($activeLocales, $pageSlugConstraint, $postBase, $categoryBase, $tagBase, $dictionary): void {
     // 1. Default (unprefixed) routes. Base routes only when the base is set.
     Route::get('/', [FrontendController::class, 'home'])->name('cms.home');
 

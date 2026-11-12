@@ -7,7 +7,7 @@
     <div class="tn-acc-card">
         <h1>{{ __('Change password') }}</h1>
         <p class="tn-acc-muted">{{ __('Changing your password signs out your other sessions.') }}</p>
-        <form method="POST" action="{{ route('cms.account.security.password') }}">
+        <form method="POST" action="{{ cms_localized_route('cms.account.security.password') }}">
             @csrf
             <div class="tn-field">
                 <label for="password_current">{{ __('Current password') }}</label>
@@ -29,7 +29,7 @@
     <div class="tn-acc-card">
         <h2>{{ __('Change email') }}</h2>
         <p class="tn-acc-muted">{{ __('Current email: :email', ['email' => $user?->email]) }}</p>
-        <form method="POST" action="{{ route('cms.account.security.email') }}">
+        <form method="POST" action="{{ cms_localized_route('cms.account.security.email') }}">
             @csrf
             <div class="tn-field">
                 <label for="email">{{ __('New email') }}</label>

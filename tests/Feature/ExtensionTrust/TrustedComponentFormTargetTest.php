@@ -514,6 +514,20 @@ final class TrustedComponentFormTargetTest extends TestCase
 
     public function test_spoofed_host_header_cannot_authorize_an_absolute_action(): void
     {
+        // CORE-SEO-RELEASE-HARDENING-R1: on a foreign host, Core public pages build
+        // absolute URLs from the configured origin, so the placeholder resolves to
+        // the canonical action and the form stays live, pointing at the real site.
+        $html = $this->render(self::form('{url:s2r1-form.submit}'), [self::SUBMIT], uri: 'http://evil.test/contact');
+
+        $this->assertStringNotContainsString('evil.test', $html);
+        $this->assertLive($html, 'http://localhost/s2r1/submit');
+    }
+
+    public function test_spoofed_host_header_cannot_authorize_an_absolute_action_under_the_request_host_policy(): void
+    {
+        // Legacy request-root policy: the action follows the spoofed host and the
+        // authorizer (origin from app.url, never the request) denies it.
+        config(['cms.deployment.canonical_host' => 'request']);
         $html = $this->render(self::form('{url:s2r1-form.submit}'), [self::SUBMIT], uri: 'http://evil.test/contact');
 
         $this->assertStringNotContainsString('evil.test/s2r1', $html);

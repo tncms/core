@@ -23,6 +23,9 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Livewire\Attributes\Locked;
+use TheNguyen\CMS\Filament\Forms\TermPickerOptions;
+use TheNguyen\CMS\Filament\Forms\TermSelect;
+use TheNguyen\CMS\Filament\Tables\BooleanIconState;
 use TheNguyen\CMS\Models\Content;
 use TheNguyen\CMS\Models\MenuItem;
 use TheNguyen\CMS\Models\Taxonomy;
@@ -92,6 +95,10 @@ class MenuItemsRelationManager extends RelationManager
                 Select::make('reference_id')
                     ->label(tn_trans('Linked content'))
                     ->options(fn (Get $get): array => self::referenceOptions((string) ($get('type') ?? 'custom')))
+                    // CORE-P16-1: category/tag search and labels come from the bounded Core
+                    // taxonomy directory (no full term preload); pages/posts keep their list.
+                    ->getSearchResultsUsing(fn (Get $get, ?string $search): array => self::referenceSearch((string) ($get('type') ?? 'custom'), (string) $search))
+                    ->getOptionLabelUsing(fn (Get $get, mixed $value): ?string => self::referenceLabel((string) ($get('type') ?? 'custom'), $value))
                     ->searchable()
                     ->preload()
                     ->visible(fn (Get $get): bool => in_array($get('type'), self::REFERENCE_TYPES, true))
@@ -206,18 +213,20 @@ class MenuItemsRelationManager extends RelationManager
                         // Dynamic mega sources (Phase 11D). Options come from the
                         // shared EditorialOptions service so query logic is not
                         // duplicated in the page; values are ids stored in meta.
-                        Select::make('mega_category_ids')
+                        TermSelect::make('mega_category_ids')
                             ->label(tn_trans('Categories'))
                             ->multiple()
-                            ->options(fn (): array => app(EditorialOptions::class)->termOptions('category'))
-                            ->searchable()
+                            ->taxonomy('category')
+                            ->termLocale(static fn (): string => app('cms.language')->currentCode())
+                            ->requireTermTranslation(false)
                             ->visible(fn (Get $get): bool => $get('display') === 'mega' && $get('mega_source') === 'categories'),
 
-                        Select::make('mega_tag_ids')
+                        TermSelect::make('mega_tag_ids')
                             ->label(tn_trans('Tags'))
                             ->multiple()
-                            ->options(fn (): array => app(EditorialOptions::class)->termOptions('tag'))
-                            ->searchable()
+                            ->taxonomy('tag')
+                            ->termLocale(static fn (): string => app('cms.language')->currentCode())
+                            ->requireTermTranslation(false)
                             ->visible(fn (Get $get): bool => $get('display') === 'mega' && $get('mega_source') === 'tags'),
 
                         Select::make('mega_post_ids')
@@ -283,7 +292,11 @@ class MenuItemsRelationManager extends RelationManager
 
                 IconColumn::make('is_active')
                     ->label(tn_trans('Active'))
-                    ->boolean(),
+                    ->boolean()
+                    // A6 (WCAG 2.4.4/4.1.2): an icon-only cell of a clickable row would be an unnamed
+                    // link; the row stays reachable through its named cells.
+                    ->extraAttributes(fn (mixed $state): array => BooleanIconState::attributes($state))
+                    ->disabledClick(),
 
                 TextColumn::make('sort_order')
                     ->label(tn_trans('Order'))
@@ -351,10 +364,42 @@ class MenuItemsRelationManager extends RelationManager
         return match ($type) {
             'page' => self::contentOptions('page'),
             'post' => self::contentOptions('post'),
-            'category' => self::termOptions('category'),
-            'tag' => self::termOptions('tag'),
+            'category', 'tag' => TermPickerOptions::firstPage($type, editing_locale(), false),
             default => [],
         };
+    }
+
+    /**
+     * Search results for the reference_id select.
+     *
+     * @return array<int, string>
+     */
+    private static function referenceSearch(string $type, string $search): array
+    {
+        if (in_array($type, ['category', 'tag'], true)) {
+            return TermPickerOptions::search($type, editing_locale(), $search, false);
+        }
+
+        $needle = mb_strtolower(trim($search));
+
+        return array_filter(
+            self::referenceOptions($type),
+            static fn (string $label): bool => $needle === '' || str_contains(mb_strtolower($label), $needle),
+        );
+    }
+
+    /** Label (and server-side validity) of the selected reference_id. */
+    private static function referenceLabel(string $type, mixed $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        if (in_array($type, ['category', 'tag'], true)) {
+            return TermPickerOptions::labels([$value], $type, editing_locale(), false)[(int) $value] ?? null;
+        }
+
+        return self::referenceOptions($type)[(int) $value] ?? null;
     }
 
     /**
@@ -369,31 +414,6 @@ class MenuItemsRelationManager extends RelationManager
             ->get()
             ->mapWithKeys(static fn (Content $content): array => [
                 $content->id => $content->translatedTitle(editing_locale()),
-            ])
-            ->all();
-    }
-
-    /**
-     * @return array<int, string>
-     */
-    private static function termOptions(string $taxonomySlug): array
-    {
-        $taxonomyId = Taxonomy::query()
-            ->where('content_type', 'post')
-            ->where('slug', $taxonomySlug)
-            ->value('id');
-
-        if ($taxonomyId === null) {
-            return [];
-        }
-
-        return Term::query()
-            ->where('taxonomy_id', $taxonomyId)
-            ->with(['translations' => fn ($q) => $q->where('locale', editing_locale())])
-            ->orderBy('sort_order')
-            ->get()
-            ->mapWithKeys(static fn (Term $term): array => [
-                $term->id => $term->displayName(editing_locale()),
             ])
             ->all();
     }

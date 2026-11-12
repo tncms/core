@@ -26,7 +26,7 @@ class EnforceFrontendSession
                 abort(401, 'Session invalidated.');
             }
 
-            return redirect()->guest(route('cms.auth.login'));
+            return app(\TheNguyen\CMS\Http\Support\AuthUrlPolicy::class)->redirectToLogin($request);
         }
 
         return $next($request);

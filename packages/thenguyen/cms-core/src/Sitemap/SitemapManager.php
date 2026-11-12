@@ -53,11 +53,13 @@ final class SitemapManager
 
     /**
      * False when the site as a whole is not indexable (the SeoManager policy
-     * every page uses): index and children answer 404, robots.txt omits them.
+     * every page uses) or the operator switched the sitemap off
+     * (CORE-SITEMAP-ADMIN-R1): index and children answer 404, robots.txt
+     * omits them. Switching it off never makes a page noindex.
      */
     public function enabled(): bool
     {
-        return app('cms.seo')->siteIndexable();
+        return app('cms.seo')->siteIndexable() && app('cms.sitemap_settings')->enabled();
     }
 
     /**
@@ -96,10 +98,18 @@ final class SitemapManager
         return $codes !== [] ? $codes : [$language->defaultCode()];
     }
 
-    /** @return array<string, SitemapProvider> provider id => provider; Core first, then plugins by slug */
+    /**
+     * Providers that feed the index: Core first, then active plugins by slug,
+     * minus those an operator excluded (CORE-SITEMAP-ADMIN-R1).
+     *
+     * @return array<string, SitemapProvider> provider id => provider
+     */
     public function providers(): array
     {
-        return [SitemapProviderRegistry::CORE => app(CoreSitemapProvider::class)] + $this->registry->active();
+        $policy = app('cms.sitemap_settings');
+
+        return [SitemapProviderRegistry::CORE => app(CoreSitemapProvider::class)]
+            + array_filter($this->registry->active(), static fn (string $id): bool => $policy->providerIncluded($id), ARRAY_FILTER_USE_KEY);
     }
 
     /**
@@ -111,9 +121,16 @@ final class SitemapManager
     {
         $parts = [];
         $names = [];
+        $policy = app('cms.sitemap_settings');
 
         foreach ($this->providers() as $id => $provider) {
             foreach ($this->manifest($id, $provider) as $part) {
+                // Applied at serve time, so a cached or last-good manifest can
+                // never re-list an excluded type.
+                if (! $policy->typeIncluded($id, $part['type'])) {
+                    continue;
+                }
+
                 if (count($parts) >= self::PROTOCOL_MAX_SITEMAPS) {
                     Log::warning('TN CMS sitemap index full', ['provider' => $id, 'max' => self::PROTOCOL_MAX_SITEMAPS]);
 
@@ -189,6 +206,7 @@ final class SitemapManager
         } catch (Throwable $e) {
             fclose($stream);
             Log::warning('TN CMS sitemap provider failed', ['provider' => $part['provider'], 'exception' => $e::class]);
+            $this->recordStatus($part['provider'], ['failed_at' => time(), 'error' => self::errorName($e)]);
 
             throw new SitemapUnavailableException;
         }
@@ -256,6 +274,141 @@ final class SitemapManager
         $this->bump(SitemapProviderRegistry::CORE);
     }
 
+    /**
+     * @internal Core admin (CORE-SITEMAP-ADMIN-R1): drop the cached manifests
+     * of the given provider ids. Only `cms.sitemap.version.*` keys change;
+     * last-good manifests stay, so a rebuild never serves an empty index.
+     *
+     * @param  list<string>  $ids
+     * @return bool false when any version could not be written
+     */
+    public function invalidateProviders(array $ids): bool
+    {
+        $ok = true;
+
+        foreach (array_unique($ids) as $id) {
+            if (is_string($id) && $id !== '') {
+                $ok = $this->bump($id) && $ok;
+            }
+        }
+
+        return $ok;
+    }
+
+    /**
+     * @internal Core admin: invalidate every known provider (Core, each
+     * registered plugin, each stored exclusion). Regeneration is lazy: the
+     * next request rebuilds under the existing lock.
+     *
+     * @return list<string> provider ids invalidated
+     *
+     * @throws SitemapUnavailableException when the cache refused a write (nothing is claimed)
+     */
+    public function refreshAll(): array
+    {
+        $ids = array_values(array_unique([
+            SitemapProviderRegistry::CORE,
+            ...array_keys($this->registry->registered()),
+            ...app('cms.sitemap_settings')->excludedProviders(),
+        ]));
+        if (! $this->invalidateProviders($ids)) {
+            throw new SitemapUnavailableException('sitemap cache invalidation failed');
+        }
+
+        try {
+            Cache::store()->forever('cms.sitemap.refreshed_at', time());
+        } catch (Throwable $e) {
+            Log::warning('TN CMS sitemap refresh marker failed', ['exception' => $e::class]);
+        }
+
+        return $ids;
+    }
+
+    /** Unix time of the last admin cache refresh, if any. */
+    public function lastRefresh(): ?int
+    {
+        try {
+            $at = Cache::store()->get('cms.sitemap.refreshed_at');
+        } catch (Throwable) {
+            return null;
+        }
+
+        return is_int($at) ? $at : null;
+    }
+
+    /**
+     * Last recorded manifest outcome of one provider (CORE-SITEMAP-ADMIN-R1):
+     * `built_at`, `children`, `degraded`, `failed_at`, `error` (exception
+     * class short name only, never a message).
+     *
+     * @return array{built_at?: int, children?: int, degraded?: bool, failed_at?: int, error?: string|null}
+     */
+    public function status(string $id): array
+    {
+        try {
+            $status = Cache::store()->get('cms.sitemap.status.'.$id);
+        } catch (Throwable) {
+            return [];
+        }
+
+        return is_array($status) ? $status : [];
+    }
+
+    /**
+     * Read the cached manifest of one provider WITHOUT building it: the
+     * current one (fresh or expired), else last-good, else null.
+     *
+     * @return array{children: int, source: string}|null
+     */
+    public function peek(string $id): ?array
+    {
+        $provider = $id === SitemapProviderRegistry::CORE
+            ? app(CoreSitemapProvider::class)
+            : ($this->registry->registered()[$id] ?? null);
+
+        if ($provider === null) {
+            return null;
+        }
+
+        try {
+            $store = Cache::store();
+            $cached = $store->get($this->manifestKey($id, $provider));
+
+            if (is_array($cached) && is_array($cached['parts'] ?? null)) {
+                return ['children' => $this->countIncluded($id, $cached['parts']), 'source' => ($cached['expires'] ?? 0) > time() ? 'current' : 'expired'];
+            }
+
+            $last = $store->get('cms.sitemap.last.'.$id);
+        } catch (Throwable) {
+            return null;
+        }
+
+        return is_array($last) ? ['children' => $this->countIncluded($id, $last), 'source' => 'last-good'] : null;
+    }
+
+    /** @param  array<mixed>  $parts */
+    private function countIncluded(string $id, array $parts): int
+    {
+        $policy = app('cms.sitemap_settings');
+
+        return count(array_filter($parts, static fn ($part): bool => is_array($part) && $policy->typeIncluded($id, (string) ($part['type'] ?? ''))));
+    }
+
+    /** @param  array<string, mixed>  $values */
+    private function recordStatus(string $id, array $values): void
+    {
+        try {
+            Cache::store()->forever('cms.sitemap.status.'.$id, $values + $this->status($id));
+        } catch (Throwable $e) {
+            Log::warning('TN CMS sitemap status not recorded', ['provider' => $id, 'exception' => $e::class]);
+        }
+    }
+
+    private static function errorName(Throwable $e): string
+    {
+        return (new \ReflectionClass($e))->getShortName();
+    }
+
     private function validator(): SitemapUrlValidator
     {
         $language = app('cms.language');
@@ -303,9 +456,7 @@ final class SitemapManager
     private function manifest(string $id, SitemapProvider $provider): array
     {
         $store = Cache::store();
-        $key = 'cms.sitemap.manifest.'.sha1((string) json_encode([
-            self::SCHEMA, $id, $provider::class, $this->version($id), $this->fingerprint($id),
-        ]));
+        $key = $this->manifestKey($id, $provider);
         $lastKey = 'cms.sitemap.last.'.$id;
         $cached = $store->get($key);
 
@@ -344,6 +495,13 @@ final class SitemapManager
         return $this->usable($id, is_array($fresh) ? $fresh['parts'] : $store->get($lastKey));
     }
 
+    private function manifestKey(string $id, SitemapProvider $provider): string
+    {
+        return 'cms.sitemap.manifest.'.sha1((string) json_encode([
+            self::SCHEMA, $id, $provider::class, $this->version($id), $this->fingerprint($id),
+        ]));
+    }
+
     /**
      * No manifest at all: a plugin is omitted for now, but Core's absence
      * would publish an empty index, so that is a 503 instead.
@@ -367,12 +525,17 @@ final class SitemapManager
     private function rebuild(string $id, SitemapProvider $provider, string $key, string $lastKey): ?array
     {
         try {
-            [$parts, $degraded] = $this->build($id, $provider);
+            [$parts, $degraded, $error] = $this->build($id, $provider);
         } catch (Throwable $e) {
             Log::warning('TN CMS sitemap manifest failed', ['provider' => $id, 'exception' => $e::class]);
+            $this->recordStatus($id, ['failed_at' => time(), 'error' => self::errorName($e)]);
 
             return null;
         }
+
+        $this->recordStatus($id, $degraded
+            ? ['degraded' => true, 'failed_at' => time(), 'error' => $error]
+            : ['built_at' => time(), 'children' => count($parts), 'degraded' => false]);
 
         // A degraded Core build (e.g. a database blip) must not replace a good
         // index: serve last-good, or 503 when there is none.
@@ -396,7 +559,7 @@ final class SitemapManager
      * whose provider calls throw is omitted, and the manifest is then marked
      * degraded so it is cached briefly instead of for the full TTL.
      *
-     * @return array{0: list<array{name: string, provider: string, type: string, locale: string, after: int|null, until: int|null, limit?: int}>, 1: bool}
+     * @return array{0: list<array{name: string, provider: string, type: string, locale: string, after: int|null, until: int|null, limit?: int}>, 1: bool, 2: string|null}
      */
     private function build(string $id, SitemapProvider $provider): array
     {
@@ -406,6 +569,7 @@ final class SitemapManager
         sort($types, SORT_STRING);
         $parts = [];
         $degraded = false;
+        $error = null;
         $limit = min(2 * $this->chunkSize(), self::PROTOCOL_MAX_URLS);
 
         foreach ($types as $type) {
@@ -415,6 +579,7 @@ final class SitemapManager
                 } catch (Throwable $e) {
                     Log::warning('TN CMS sitemap set failed', ['provider' => $id, 'type' => $type, 'locale' => $locale, 'exception' => $e::class]);
                     $degraded = true;
+                    $error ??= self::errorName($e);
 
                     continue;
                 }
@@ -428,7 +593,7 @@ final class SitemapManager
             }
         }
 
-        return [$parts, $degraded];
+        return [$parts, $degraded, $error];
     }
 
     /**
@@ -519,12 +684,14 @@ final class SitemapManager
         return $version;
     }
 
-    private function bump(string $id): void
+    private function bump(string $id): bool
     {
         try {
-            Cache::store()->forever('cms.sitemap.version.'.$id, bin2hex(random_bytes(8)));
+            return Cache::store()->forever('cms.sitemap.version.'.$id, bin2hex(random_bytes(8)));
         } catch (Throwable $e) {
             Log::warning('TN CMS sitemap invalidation failed', ['provider' => $id, 'exception' => $e::class]);
+
+            return false;
         }
     }
 

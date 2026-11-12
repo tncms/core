@@ -1,0 +1,8 @@
+{
+    "name": "Sitemap Consumer Fixture",
+    "slug": "sm-consumer",
+    "version": "1.0.0",
+    "author": "TN CMS Core tests",
+    "description": "Test-only plugin exercising the Core sitemap provider contract with Knowledge Library-, Lottery- and Ecommerce-shaped URL families. Never install on a real site.",
+    "providers": ["Plugins\\SmConsumer\\SmConsumerServiceProvider"]
+}

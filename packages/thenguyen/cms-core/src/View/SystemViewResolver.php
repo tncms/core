@@ -71,8 +71,24 @@ final class SystemViewResolver
         'security' => ['theme::account.security', 'cms::account.security'],
         'preferences' => ['theme::account.preferences', 'cms::account.preferences'],
         'sessions' => ['theme::account.sessions', 'cms::account.sessions'],
+        'verify-email' => ['theme::auth.verify-email', 'cms::auth.verify-email'],
         'search' => ['theme::search.index', 'frontend.search.index'],
     ];
+
+    /**
+     * The account shell (CORE-40-ACCOUNT-SHELL-LOCALE-R1): [theme layout, Core shell].
+     *
+     * Every account page — Core's and any plugin's — extends the stable target
+     * `cms::account.layout`, which extends {@see accountLayout()}: the active
+     * theme's `theme::account.layout` when it ships one, otherwise Core's
+     * self-contained `cms::account.shell` (the pre-R1 layout, unchanged).
+     *
+     * @var array{0: string, 1: string}
+     */
+    private const ACCOUNT_LAYOUT = ['theme::account.layout', 'cms::account.shell'];
+
+    /** While true, account pages render in the Core shell (broken-theme-layout retry). */
+    private bool $coreAccountShell = false;
 
     /** The noindex directive applied to private system pages at the HTTP layer. */
     private const NOINDEX = 'noindex, nofollow';
@@ -141,7 +157,65 @@ final class SystemViewResolver
             }
         }
 
-        return View::make($fallbackView, $data)->render();
+        try {
+            return View::make($fallbackView, $data)->render();
+        } catch (Throwable $e) {
+            // The Core page itself is sound; a theme account layout it was framed
+            // in may not be. Retry once in Core's own shell before giving up.
+            if ($this->coreAccountShell || ! View::exists(self::ACCOUNT_LAYOUT[0])) {
+                throw $e;
+            }
+
+            report($e);
+
+            return $this->inCoreAccountShell(static fn (): string => View::make($fallbackView, $data)->render());
+        }
+    }
+
+    /**
+     * The layout `cms::account.layout` extends: the theme's account layout when the
+     * active theme ships one, otherwise Core's shell. `$nested` is true when the
+     * theme layout itself extends `cms::account.layout`; Core's shell is used then,
+     * so a theme can wrap the Core shell without recursing.
+     */
+    public function accountLayout(bool $nested = false): string
+    {
+        [$themeLayout, $coreShell] = self::ACCOUNT_LAYOUT;
+
+        if ($nested || $this->coreAccountShell) {
+            return $coreShell;
+        }
+
+        return View::exists($themeLayout) ? $themeLayout : $coreShell;
+    }
+
+    /** The frozen theme account-layout override target. */
+    public function accountLayoutThemeView(): string
+    {
+        return self::ACCOUNT_LAYOUT[0];
+    }
+
+    /** Core's own account shell (the fallback layout). */
+    public function accountLayoutFallbackView(): string
+    {
+        return self::ACCOUNT_LAYOUT[1];
+    }
+
+    /**
+     * @template T
+     *
+     * @param  callable(): T  $render
+     * @return T
+     */
+    private function inCoreAccountShell(callable $render): mixed
+    {
+        $this->coreAccountShell = true;
+
+        try {
+            return $render();
+        } finally {
+            $this->coreAccountShell = false;
+        }
     }
 
     /**

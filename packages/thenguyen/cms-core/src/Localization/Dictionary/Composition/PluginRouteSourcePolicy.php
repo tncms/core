@@ -45,7 +45,7 @@ final class PluginRouteSourcePolicy
     public const RESERVED_SEGMENTS = [
         'admin', 'api', 'install', 'upgrade', 'livewire', 'filament', 'storage', 'vendor', 'themes', 'plugins',
         'uploads', 'media', 'account', 'login', 'logout', 'register', 'password', 'email', 'search', 'preview',
-        'cms-health', 'up', 'sitemap', 'robots',
+        'cms-health', 'up', 'sitemap', 'robots', 'sitemaps',
     ];
 
     /**

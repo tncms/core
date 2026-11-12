@@ -10,12 +10,14 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use TheNguyen\CMS\Content\Extension\ContentSitemapPolicy;
+use TheNguyen\CMS\Content\Extension\FrontPage;
 use TheNguyen\CMS\Content\Extension\LocalizedContentSitemapPolicy;
 use TheNguyen\CMS\Content\Extension\OwnerState;
 use TheNguyen\CMS\Models\Content;
 use TheNguyen\CMS\Models\ContentTranslation;
 use TheNguyen\CMS\Models\Term;
 use TheNguyen\CMS\Models\TermTranslation;
+use TheNguyen\CMS\Seo\ResourceRobotsPolicy;
 use Throwable;
 
 /**
@@ -30,6 +32,10 @@ final class CoreSitemapProvider extends KeysetSitemapProvider
 
     private const TERM_TYPES = ['categories' => 'category', 'tags' => 'tag'];
 
+    private bool $frontPageResolved = false;
+
+    private ?int $frontPageId = null;
+
     public function types(): array
     {
         return ['home', 'pages', 'posts', 'categories', 'tags'];
@@ -38,7 +44,7 @@ final class CoreSitemapProvider extends KeysetSitemapProvider
     public function keyAt(string $type, string $locale, ?int $after, int $offset): ?int
     {
         if ($type === 'home') {
-            return $after === null && $offset === 0 && $this->isPublicLocale($locale) ? 1 : null;
+            return $after === null && $offset === 0 && $this->isPublicLocale($locale) && ! $this->homeNoindex($locale) ? 1 : null;
         }
 
         return parent::keyAt($type, $locale, $after, $offset);
@@ -62,38 +68,114 @@ final class CoreSitemapProvider extends KeysetSitemapProvider
         }
 
         if (isset(self::CONTENT_TYPES[$type]) && $this->tables('cms_contents', 'cms_content_translations')) {
-            // Same publication + CONTENT-EXT visibility as Content::published()->discoverable().
-            $query = Content::query();
-            $active = app('cms.content_ownership')->activeOwnerSlugs();
-            $query->select(['cms_contents.id', 'cms_contents.type', 'cms_contents.status', 'cms_contents.updated_at', 'cms_contents.published_at'])
-                ->where('cms_contents.type', self::CONTENT_TYPES[$type])
-                ->where('cms_contents.status', 'published')
-                ->whereExists(static fn ($q) => $q->selectRaw('1')->from('cms_content_translations as sm_t')
-                    ->whereColumn('sm_t.content_id', 'cms_contents.id')
-                    ->where('sm_t.locale', $locale)
-                    ->where('sm_t.slug', '!=', '')
-                    // core_render of an inactive owner's content needs a body in THIS
-                    // locale, exactly like the page (CORE-UNIFIED-OWNERSHIP-R1).
-                    ->where(static fn ($w) => $w->whereNull('cms_contents.managed_by')
-                        ->orWhereIn('cms_contents.managed_by', $active)
-                        ->orWhere(static fn ($b) => $b->whereNotNull('sm_t.content')->where('sm_t.content', '!=', ''))));
+            $query = $this->eligibleContent(self::CONTENT_TYPES[$type], $locale)
+                ->select(['cms_contents.id', 'cms_contents.type', 'cms_contents.status', 'cms_contents.updated_at', 'cms_contents.published_at']);
 
-            return app('cms.content_ownership')->constrainDiscoverable($query, $locale);
+            // The page rendered at `/` is the home entry; its own slug URL would
+            // be a duplicate of it (CORE-SITEMAP-S02).
+            if ($type === 'pages' && ($front = $this->frontPageId()) !== null) {
+                $query->where('cms_contents.id', '!=', $front);
+            }
+
+            return $this->withoutNoindexItems($query, 'cms_contents');
         }
 
-        if (isset(self::TERM_TYPES[$type]) && $this->tables('cms_terms', 'cms_term_translations', 'cms_taxonomies')) {
+        if (isset(self::TERM_TYPES[$type]) && $this->tables('cms_terms', 'cms_term_translations', 'cms_taxonomies', 'cms_content_terms')) {
             $query = Term::query();
             $query->whereHas('taxonomy', static fn ($q) => $q->where('type', self::TERM_TYPES[$type]));
             $query->select(['cms_terms.id', 'cms_terms.taxonomy_id', 'cms_terms.updated_at'])
                 ->whereExists(static fn ($q) => $q->selectRaw('1')->from('cms_term_translations as sm_t')
                     ->whereColumn('sm_t.term_id', 'cms_terms.id')
                     ->where('sm_t.locale', $locale)
-                    ->where('sm_t.slug', '!=', ''));
+                    ->where('sm_t.slug', '!=', ''))
+                // An archive is listed only when it has at least one post that is
+                // itself listed in this locale, decided live in SQL, never from
+                // stored counters (CORE-SITEMAP-S02).
+                ->whereExists($this->eligibleContent('post', $locale)
+                    ->selectRaw('1')
+                    ->join('cms_content_terms as sm_ct', 'sm_ct.content_id', '=', 'cms_contents.id')
+                    ->whereColumn('sm_ct.term_id', 'cms_terms.id')
+                    ->toBase());
 
-            return $query;
+            // The archive's OWN robots policy decides its listing; a noindex post
+            // still counts toward its archive's presence above (public content).
+            return $this->withoutNoindexItems($query, 'cms_terms');
         }
 
         return null;
+    }
+
+    /**
+     * Content listed in a locale: the same publication + CONTENT-EXT visibility
+     * as Content::published()->discoverable(), with an exact-locale slug.
+     * Soft-deleted rows are excluded by the model scope.
+     */
+    private function eligibleContent(string $contentType, string $locale): Builder
+    {
+        $query = Content::query();
+        $active = app('cms.content_ownership')->activeOwnerSlugs();
+        $query->where('cms_contents.type', $contentType)
+            ->published()
+            ->whereExists(static fn ($q) => $q->selectRaw('1')->from('cms_content_translations as sm_t')
+                ->whereColumn('sm_t.content_id', 'cms_contents.id')
+                ->where('sm_t.locale', $locale)
+                ->where('sm_t.slug', '!=', '')
+                // core_render of an inactive owner's content needs a body in THIS
+                // locale, exactly like the page (CORE-UNIFIED-OWNERSHIP-R1).
+                ->where(static fn ($w) => $w->whereNull('cms_contents.managed_by')
+                    ->orWhereIn('cms_contents.managed_by', $active)
+                    ->orWhere(static fn ($b) => $b->whereNotNull('sm_t.content')->where('sm_t.content', '!=', ''))));
+
+        return app('cms.content_ownership')->constrainDiscoverable($query, $locale);
+    }
+
+    /**
+     * Leave out items whose per-item robots policy is noindex
+     * (CORE-SEO-POLICY-AND-ADMIN-LOCALE-R1). Applied only to the listed rows,
+     * never to the archive-presence subquery.
+     */
+    private function withoutNoindexItems(Builder $query, string $table): Builder
+    {
+        $column = $table.'.'.ResourceRobotsPolicy::COLUMN;
+
+        return $query->where(static fn ($q) => $q->whereNull($column)
+            ->orWhereNotIn($column, ResourceRobotsPolicy::NOINDEX_VALUES));
+    }
+
+    /**
+     * Whether the Page rendered at `/` is noindex: the home then follows that
+     * policy and has no entry (CORE-SEO-RELEASE-HARDENING-R1, H2). Saving the
+     * page or the front-page selection invalidates Core's manifest. A front
+     * Page without a translation in $locale makes that language's home noindex
+     * too, so it has no entry there (CORE-RELEASE-BLOCKERS-R1, TD-R3).
+     */
+    private function homeNoindex(string $locale): bool
+    {
+        $front = $this->frontPageId();
+
+        if ($front === null) {
+            return false;
+        }
+
+        $page = Content::query()->find($front);
+
+        if ($page === null) {
+            return false;
+        }
+
+        return in_array($page->getAttribute(ResourceRobotsPolicy::COLUMN), ResourceRobotsPolicy::NOINDEX_VALUES, true)
+            || ! $page->hasTranslation($locale);
+    }
+
+    /** Resolved once per provider instance (one instance per sitemap build or child). */
+    private function frontPageId(): ?int
+    {
+        if (! $this->frontPageResolved) {
+            $this->frontPageId = FrontPage::renderedAtRootId();
+            $this->frontPageResolved = true;
+        }
+
+        return $this->frontPageId;
     }
 
     protected function entriesFor(Collection $rows, string $type, string $locale): iterable
@@ -145,7 +227,10 @@ final class CoreSitemapProvider extends KeysetSitemapProvider
         $alternates = [];
 
         foreach ($language->getPublicLocales() as $code) {
-            $alternates[$code] = url($language->localizedUrl($code, '/'));
+            // Policy A: a locale whose `/` is the translation-unavailable 404 is not an alternate.
+            if ($code === $locale || ! FrontPage::staticHomeUnavailableIn($code)) {
+                $alternates[$code] = url($language->localizedUrl($code, '/'));
+            }
         }
 
         return new SitemapEntry(1, $alternates[$locale], null, $this->withDefault($alternates));

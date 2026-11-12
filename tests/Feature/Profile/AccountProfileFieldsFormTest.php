@@ -9,7 +9,6 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 use TheNguyen\CMS\Database\Seeders\CmsRolePermissionSeeder;
-use TheNguyen\CMS\Models\Language;
 use TheNguyen\CMS\Models\UserProfileField;
 use TheNguyen\CMS\Models\UserProfileFieldGroup;
 use TheNguyen\CMS\Models\UserProfileFieldTranslation;
@@ -29,8 +28,8 @@ class AccountProfileFieldsFormTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        Language::create(['code' => 'en', 'name' => 'English', 'is_default' => true, 'is_active' => true]);
-        Language::create(['code' => 'vi', 'name' => 'Vietnamese', 'is_default' => false, 'is_active' => true]);
+        app('cms.language')->create(['code' => 'en', 'name' => 'English', 'is_default' => true, 'is_active' => true]);
+        app('cms.language')->create(['code' => 'vi', 'name' => 'Vietnamese', 'is_default' => false, 'is_active' => true]);
         $this->seed(CmsRolePermissionSeeder::class); // RBAC fail-closed
     }
 
@@ -343,8 +342,10 @@ class AccountProfileFieldsFormTest extends TestCase
         $this->label($f, 'en', 'Headline');
         $this->label($f, 'vi', 'Tiêu đề');
 
-        app()->setLocale('vi');
-        $this->actingAs($user)->get('/account/profile')->assertSee('Tiêu đề', false);
+        // The request locale comes from Core's locale runtime (cms.locale), not from the
+        // test process: English is the default here, Vietnamese the prefixed twin.
+        $this->actingAs($user)->get('/vi/account/profile')->assertSee('Tiêu đề', false);
+        $this->actingAs($user)->get('/account/profile')->assertSee('Headline', false)->assertDontSee('Tiêu đề', false);
     }
 
     // ---------------- theme override seam ----------------

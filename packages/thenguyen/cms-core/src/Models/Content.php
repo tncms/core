@@ -31,6 +31,7 @@ use TheNguyen\CMS\Revision\Contracts\RevisionableInterface;
  * @property int $comments_count
  * @property bool $is_featured
  * @property bool $show_page_title
+ * @property string|null $seo_robots
  * @property \Illuminate\Support\Carbon|null $published_at
  */
 class Content extends Model implements Previewable, RevisionableInterface
@@ -52,6 +53,7 @@ class Content extends Model implements Previewable, RevisionableInterface
         'comments_count',
         'is_featured',
         'show_page_title',
+        'seo_robots',
         'published_at',
     ];
 
@@ -230,9 +232,36 @@ class Content extends Model implements Previewable, RevisionableInterface
         return $query->where('type', 'post');
     }
 
+    /**
+     * Publicly published content (CORE-PUBLISH-1): status `published` AND a
+     * publication time that has arrived. A future `published_at` is a scheduled
+     * item: hidden until then, visible at the boundary without any write, cron
+     * run or cache flush. A NULL `published_at` (pre-existing rows) stays
+     * visible. Compared in the application timezone, like every stored time.
+     */
     public function scopePublished(Builder $query): Builder
     {
-        return $query->where('status', 'published');
+        $status = $query->qualifyColumn('status');
+        $publishedAt = $query->qualifyColumn('published_at');
+
+        return $query
+            ->where($status, 'published')
+            ->where(static fn (Builder $q) => $q->whereNull($publishedAt)->orWhere($publishedAt, '<=', now()));
+    }
+
+    /**
+     * The instance form of {@see scopePublished()}: visible to the public right now.
+     * Fails closed when a stored row was loaded without `published_at` (a partial
+     * select), so an unknown date is never mistaken for a legacy NULL.
+     */
+    public function isPubliclyPublished(): bool
+    {
+        if ($this->exists && ! array_key_exists('published_at', $this->getAttributes())) {
+            return false;
+        }
+
+        return (string) $this->status === 'published'
+            && ($this->published_at === null || ! $this->published_at->isFuture());
     }
 
     /**
@@ -300,6 +329,29 @@ class Content extends Model implements Previewable, RevisionableInterface
         return $title !== null && $title !== ''
             ? $title
             : 'Content #'.$this->id;
+    }
+
+    /**
+     * Locale of the translation whose title translatedTitle() shows, so a list can mark the
+     * title with lang (WCAG 3.1.2, CORE-H-Z1-REMEDIATION-R3 ER-5). Follows the same source as
+     * translatedTitle() (the posts/pages read adapter when active). Null when no translation has a
+     * title and the placeholder (interface language) is shown, or the locale is not a valid tag.
+     */
+    public function translatedTitleLocale(?string $locale = null): ?string
+    {
+        if ($adapter = $this->postsReadAdapter()) {
+            $code = $adapter->titleLocale($this, $locale);
+        } elseif ($adapter = $this->pagesReadAdapter()) {
+            $code = $adapter->titleLocale($this, $locale);
+        } else {
+            $translation = $this->resolveTranslation($locale);
+            $code = ($translation === null || $translation->title === null || $translation->title === '') ? null : $translation->locale;
+        }
+
+        // Rendered in a table attribute: only a well-formed language tag is returned.
+        return is_string($code) && preg_match('/^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$/', $code) === 1
+            ? $code
+            : null;
     }
 
     /**

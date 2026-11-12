@@ -19,6 +19,7 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
+use TheNguyen\CMS\Filament\Tables\BooleanIconState;
 use TheNguyen\CMS\Models\Permission;
 use TheNguyen\CMS\Models\Role;
 use TheNguyen\CMS\Services\PermissionManager;
@@ -145,7 +146,11 @@ class RoleResource extends Resource
 
                 IconColumn::make('is_system')
                     ->label(tn_trans('System'))
-                    ->boolean(),
+                    ->boolean()
+                    // A6 (WCAG 2.4.4/4.1.2): an icon-only cell of a clickable row would be an unnamed
+                    // link; the row stays reachable through its named cells.
+                    ->extraAttributes(fn (mixed $state): array => BooleanIconState::attributes($state))
+                    ->disabledClick(),
 
                 TextColumn::make('updated_at')
                     ->label(tn_trans('Updated'))

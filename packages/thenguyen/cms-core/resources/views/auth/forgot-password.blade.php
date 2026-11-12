@@ -4,7 +4,7 @@
 @section('subtitle', __('Enter your email and we will send a reset link.'))
 
 @section('content')
-    <form method="POST" action="{{ route('password.email') }}">
+    <form method="POST" action="{{ cms_localized_route('password.email') }}">
         @csrf
         <div class="tn-field">
             <label for="email">{{ __('Email') }}</label>
@@ -13,6 +13,6 @@
         <button type="submit" class="tn-btn">{{ __('Send reset link') }}</button>
     </form>
     <div class="tn-links">
-        <a href="{{ route('cms.auth.login') }}">{{ __('Back to sign in') }}</a>
+        <a href="{{ cms_localized_route('cms.auth.login') }}">{{ __('Back to sign in') }}</a>
     </div>
 @endsection

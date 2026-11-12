@@ -30,8 +30,10 @@
 
         .tn-theme-placeholder {
             display: flex; flex-direction: column; align-items: center; justify-content: center;
-            gap: .375rem; width: 100%; height: 100%; color: #9ca3af; font-size: .8125rem; font-weight: 500;
+            gap: .375rem; width: 100%; height: 100%; color: #4b5563; font-size: .8125rem; font-weight: 500;
         }
+        {{-- CORE-H-Z1-REMEDIATION-R1 H-C2 (WCAG 1.4.3): #9ca3af on #f3f4f6 was 2.3:1; gray-600 is 6.9:1, gray-400 on the dark shot >= 7:1. --}}
+        .dark .tn-theme-placeholder { color: #9ca3af; }
 
         .tn-theme-check { position: absolute; top: .5rem; right: .5rem; display: flex; }
         .tn-theme-check-dot {
@@ -112,8 +114,14 @@
             </x-filament::section>
         @else
             <div class="tn-themes-grid">
-                @foreach ($themes as $theme)
+                @php($themeList = array_values($themes))
+                @foreach ($themeList as $themeIndex => $theme)
                     @php($haystack = strtolower($theme['name'] . ' ' . $theme['author'] . ' ' . $theme['description']))
+                    {{-- L-2 (H-Z1 pre-rerun): focus destinations for the call-focus reader. After Activate the button
+                         becomes the disabled "Activated" badge-button, so focus goes to this card's "View details";
+                         after Delete the card is gone, so to the next card's, else the previous card's. --}}
+                    @php($detailsId = 'tn-theme-details-'.$theme['slug'])
+                    @php($afterThemeDelete = trim(implode(' ', array_filter([isset($themeList[$themeIndex + 1]) ? 'tn-theme-details-'.$themeList[$themeIndex + 1]['slug'] : null, isset($themeList[$themeIndex - 1]) ? 'tn-theme-details-'.$themeList[$themeIndex - 1]['slug'] : null]))))
                     <div
                         x-show="search === '' || @js($haystack).includes(search.toLowerCase().trim())"
                         class="tn-theme-card {{ $theme['isActive'] ? 'is-active' : '' }}"
@@ -171,7 +179,7 @@
 
                             {{-- Optional developer details (native <details>, always works) --}}
                             <details class="tn-theme-details">
-                                <summary>{{ tn_trans('View details') }}</summary>
+                                <summary id="{{ $detailsId }}">{{ tn_trans('View details') }}</summary>
                                 <dl class="tn-theme-dl">
                                     <dt>{{ tn_trans('Slug') }}</dt>
                                     <dd><code>{{ $theme['slug'] }}</code></dd>
@@ -217,6 +225,7 @@
                                             color="primary"
                                             wire:click="activate('{{ $theme['slug'] }}')"
                                             wire:loading.attr="disabled"
+                                            data-tn-focus-fallback="{{ $detailsId }}"
                                         >
                                             {{ tn_trans('Activate') }}
                                         </x-filament::button>
@@ -233,6 +242,7 @@
                                             wire:click="delete('{{ $theme['slug'] }}')"
                                             wire:confirm="{{ $confirmDeleteTheme }}"
                                             wire:loading.attr="disabled"
+                                            data-tn-focus-fallback="{{ $afterThemeDelete }}"
                                         >
                                             {{ tn_trans('Delete') }}
                                         </x-filament::button>

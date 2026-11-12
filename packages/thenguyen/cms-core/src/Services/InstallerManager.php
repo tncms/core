@@ -332,6 +332,16 @@ class InstallerManager
      * Point the default mysql connection at the supplied config for this request
      * so migrations/seeders run against the new database immediately.
      *
+     * Database-backed cache stores resolved earlier in this request are bound to
+     * the pre-install default connection (on a fresh host: the framework's sqlite
+     * default, whose file a shipped package does not contain). Boot-time
+     * RateLimiter::for() resolves the default store on every request, so such a
+     * store always exists here. They are forgotten so the migrations, seeders and
+     * settings reads of this install request re-resolve them on the runtime
+     * database (A-INST-1, CORE-40-INSTALLER-INPUT-CLOSURE-R1).
+     * The RateLimiter singleton keeps the repository it captured at boot (forgetting it would drop the
+     * boot-registered named limiters), so installer routes must not use throttle middleware in this request.
+     *
      * @param  array{host: string, port: string, database: string, username: string, password: string}  $cfg
      */
     public function applyRuntimeDatabase(array $cfg): void
@@ -346,6 +356,21 @@ class InstallerManager
 
         DB::purge('mysql');
         DB::reconnect('mysql');
+
+        $this->forgetDatabaseCacheStores();
+    }
+
+    /** Forget every resolved cache store whose driver is `database`; other stores keep their state. */
+    private function forgetDatabaseCacheStores(): void
+    {
+        $stores = array_keys(array_filter(
+            (array) config('cache.stores', []),
+            static fn (mixed $store): bool => is_array($store) && ($store['driver'] ?? null) === 'database',
+        ));
+
+        if ($stores !== []) {
+            app('cache')->forgetDriver($stores);
+        }
     }
 
     /**

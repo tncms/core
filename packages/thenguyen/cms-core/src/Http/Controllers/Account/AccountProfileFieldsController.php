@@ -95,8 +95,7 @@ class AccountProfileFieldsController
         }
 
         if ($errors !== []) {
-            return redirect()
-                ->route('cms.account.profile')
+            return redirect()->to(cms_localized_route('cms.account.profile'))
                 ->withErrors($errors)
                 ->withInput($this->safeOldInput($request, $defs));
         }
@@ -139,7 +138,7 @@ class AccountProfileFieldsController
     {
         $target = apply_filters(
             'cms.account.redirect_after_update',
-            route('cms.account.profile'),
+            cms_localized_route('cms.account.profile'),
             HookContext::make(['request' => $request, 'section' => 'profile_fields']),
         );
 

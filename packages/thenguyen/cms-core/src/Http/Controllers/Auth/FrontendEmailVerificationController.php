@@ -8,7 +8,7 @@ use App\Models\User;
 use Illuminate\Auth\Events\Verified;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\View\View;
+use Illuminate\Http\Response;
 use TheNguyen\CMS\Services\FrontendAuthManager;
 
 /**
@@ -20,7 +20,7 @@ class FrontendEmailVerificationController
 {
     public function __construct(private readonly FrontendAuthManager $auth) {}
 
-    public function notice(): View|RedirectResponse
+    public function notice(): Response|RedirectResponse
     {
         $user = $this->auth->guard()->user();
 
@@ -28,12 +28,18 @@ class FrontendEmailVerificationController
             return redirect()->to('/');
         }
 
-        return view('cms::auth.verify-email');
+        // Theme-first (theme::auth.verify-email) → Core fallback, noindex.
+        return app('cms.system_view')->renderNoindexResponse('verify-email');
     }
 
     /** Verify via the signed /email/verify/{id}/{hash} link. */
-    public function verify(Request $request, string $id, string $hash): RedirectResponse
+    public function verify(Request $request): RedirectResponse
     {
+        // Read by name: under the /{locale} twin the first positional route
+        // parameter is the locale.
+        $id = (string) $request->route('id');
+        $hash = (string) $request->route('hash');
+
         /** @var User|null $user */
         $user = User::find($id);
 
@@ -42,14 +48,14 @@ class FrontendEmailVerificationController
         }
 
         if ($user->hasVerifiedEmail()) {
-            return redirect()->route('cms.auth.login')->with('status', __('Email already verified.'));
+            return redirect()->to(cms_localized_route('cms.auth.login'))->with('status', __('Email already verified.'));
         }
 
         if ($user->markEmailAsVerified()) {
             event(new Verified($user));
         }
 
-        return redirect()->route('cms.auth.login')->with('status', __('Your email has been verified.'));
+        return redirect()->to(cms_localized_route('cms.auth.login'))->with('status', __('Your email has been verified.'));
     }
 
     /** Resend the verification email to the authenticated user. */
@@ -61,6 +67,7 @@ class FrontendEmailVerificationController
             $user->sendEmailVerificationNotification();
         }
 
-        return back()->with('status', __('Verification link sent.'));
+        // CORE-P14-1: back to this locale's notice, never the (untrusted) Referer.
+        return redirect()->to(cms_localized_route('cms.auth.verification.notice'))->with('status', __('Verification link sent.'));
     }
 }

@@ -420,7 +420,7 @@ class ThemeOptionsPage extends Page
     {
         $title = $page->translatedTitle($locale);
 
-        if ($page->trashed() || $page->status !== 'published') {
+        if ($page->trashed() || ! $page->isPubliclyPublished()) {
             $title .= ' — '.tn_trans('(unavailable)');
         }
 

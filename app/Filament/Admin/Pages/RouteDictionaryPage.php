@@ -156,6 +156,8 @@ class RouteDictionaryPage extends Page
                     ])
                     ->columns(3)
                     ->addActionLabel(tn_trans('Add project override'))
+                    // ER-3 (WCAG 2.1.1 / 2.5.7, CORE-H-Z1-REMEDIATION-R3): Move up / Move down buttons besides drag.
+                    ->reorderableWithButtons()
                     ->default([]),
             ])
             ->statePath('data');

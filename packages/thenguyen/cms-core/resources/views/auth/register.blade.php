@@ -4,7 +4,7 @@
 @section('subtitle', __('Register to get started.'))
 
 @section('content')
-    <form method="POST" action="{{ route('cms.auth.register.store') }}">
+    <form method="POST" action="{{ cms_localized_route('cms.auth.register.store') }}">
         @csrf
         <div class="tn-field">
             <label for="name">{{ __('Name') }}</label>
@@ -25,6 +25,6 @@
         <button type="submit" class="tn-btn">{{ __('Create account') }}</button>
     </form>
     <div class="tn-links">
-        <a href="{{ route('cms.auth.login') }}">{{ __('Already have an account? Sign in') }}</a>
+        <a href="{{ cms_localized_route('cms.auth.login') }}">{{ __('Already have an account? Sign in') }}</a>
     </div>
 @endsection

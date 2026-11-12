@@ -10,7 +10,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\View;
 use Tests\TestCase;
 use TheNguyen\CMS\Database\Seeders\CmsRolePermissionSeeder;
-use TheNguyen\CMS\Models\Language;
 use TheNguyen\CMS\Models\Role;
 use TheNguyen\CMS\Models\UserProfileField;
 use TheNguyen\CMS\Models\UserProfileFieldGroup;
@@ -31,8 +30,9 @@ class ProfilePresentationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        Language::create(['code' => 'en', 'name' => 'English', 'is_default' => true, 'is_active' => true]);
-        Language::create(['code' => 'vi', 'name' => 'Vietnamese', 'is_default' => false, 'is_active' => true]);
+        // Through the manager, which flushes its memoised default (see ProfileFieldAdminServiceTest).
+        app('cms.language')->create(['code' => 'en', 'name' => 'English', 'is_default' => true, 'is_active' => true]);
+        app('cms.language')->create(['code' => 'vi', 'name' => 'Vietnamese', 'is_default' => false, 'is_active' => true]);
         $this->seed(CmsRolePermissionSeeder::class); // RBAC fail-closed
     }
 

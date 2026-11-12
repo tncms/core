@@ -27,6 +27,8 @@ trait HasLocaleSelect
         return Select::make('locale')
             ->label(tn_trans('Language'))
             ->options(fn (): array => app('cms.language')->optionList())
+            // ER-5 (WCAG 3.1.2): option labels are native language names; select-a11y marks them with lang.
+            ->extraAlpineAttributes(fn (): array => ['data-tn-option-lang' => implode(' ', app('cms.language')->nativeNameCodes())], merge: true)
             ->default(fn (): string => static::defaultAuthoringLocale())
             ->required()
             ->live()

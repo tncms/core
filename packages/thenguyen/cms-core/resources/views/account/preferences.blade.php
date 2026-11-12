@@ -10,7 +10,7 @@
     <div class="tn-acc-card">
         <h1>{{ __('Preferences') }}</h1>
         <p class="tn-acc-muted">{{ __('Each language preference is independent.') }}</p>
-        <form method="POST" action="{{ route('cms.account.preferences.update') }}">
+        <form method="POST" action="{{ cms_localized_route('cms.account.preferences.update') }}">
             @csrf
             @foreach ([
                 'frontend_locale' => __('Site language'),

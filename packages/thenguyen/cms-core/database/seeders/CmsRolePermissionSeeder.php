@@ -72,6 +72,7 @@ class CmsRolePermissionSeeder extends Seeder
             'posts.view', 'posts.create', 'posts.edit', 'posts.delete', 'posts.publish',
             'taxonomy.manage',
             'media.view', 'media.upload', 'media.edit', 'media.delete',
+            'media.view_own', 'media.upload_own', 'media.delete_own',
             'menus.manage',
         ]);
 
@@ -81,6 +82,7 @@ class CmsRolePermissionSeeder extends Seeder
             'admin.access',
             'posts.view', 'posts.create', 'posts.edit',
             'media.view', 'media.upload',
+            'media.view_own', 'media.upload_own', 'media.delete_own',
         ]);
 
         // Subscriber: the safe default role for frontend registration

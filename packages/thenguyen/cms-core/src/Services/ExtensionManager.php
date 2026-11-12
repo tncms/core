@@ -467,10 +467,80 @@ class ExtensionManager
         // 5. Web routes (wrapped in the web middleware group).
         $routes = $plugin->webRoutesFile();
         if ($routes !== null) {
+            $reserved = $this->reservedCoreRoutes();
+
             // cms.plugin-active: a route table that outlives a deactivation (route cache,
             // a long-running worker) answers 404 for this plugin (CORE-PLATFORM-SEAMS-R2).
             Route::middleware(['web', 'cms.plugin-active:'.$plugin->slug])->group($routes);
+
+            $this->refuseReservedPluginRoutes($plugin, $reserved);
         }
+    }
+
+    /**
+     * Core's routes on its reserved SEO paths, keyed like RouteCollection keys them.
+     *
+     * @return array<string, \Illuminate\Routing\Route>
+     */
+    private function reservedCoreRoutes(): array
+    {
+        $out = [];
+
+        foreach (Route::getRoutes()->getRoutes() as $route) {
+            if (\TheNguyen\CMS\Sitemap\ReservedSeoPaths::claims($route->uri())) {
+                $out[self::routeKey($route)] = $route;
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * A plugin may not serve /robots.txt, /sitemap.xml or /sitemaps/* (CORE-SITEMAP-S01):
+     * a same-URI route would silently replace Core's endpoint. Its offending routes are
+     * dropped and Core's are restored in place; its other routes load normally.
+     *
+     * @param  array<string, \Illuminate\Routing\Route>  $core
+     */
+    private function refuseReservedPluginRoutes(Plugin $plugin, array $core): void
+    {
+        $collection = Route::getRoutes();
+
+        if (! $collection instanceof \Illuminate\Routing\RouteCollection) {
+            return;
+        }
+
+        $marker = 'cms.plugin-active:'.$plugin->slug;
+        $refused = [];
+
+        foreach ($collection->getRoutes() as $route) {
+            if (in_array($marker, (array) $route->middleware(), true) && \TheNguyen\CMS\Sitemap\ReservedSeoPaths::claims($route->uri())) {
+                $refused[spl_object_id($route)] = $route->uri();
+            }
+        }
+
+        if ($refused === []) {
+            return;
+        }
+
+        Log::warning('TN CMS: plugin "'.$plugin->slug.'" routes refused on reserved Core sitemap/robots paths: '.implode(', ', array_unique($refused)).'.');
+
+        $fresh = new \Illuminate\Routing\RouteCollection;
+
+        foreach ($collection->getRoutes() as $route) {
+            if (! isset($refused[spl_object_id($route)])) {
+                $fresh->add($route);
+            } elseif (isset($core[self::routeKey($route)])) {
+                $fresh->add($core[self::routeKey($route)]);
+            }
+        }
+
+        app('router')->setRoutes($fresh);
+    }
+
+    private static function routeKey(\Illuminate\Routing\Route $route): string
+    {
+        return implode('|', $route->methods()).$route->getDomain().$route->uri();
     }
 
     /**

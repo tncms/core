@@ -24,7 +24,7 @@ class RequirePermission
         $user = $this->auth->guard()->user();
 
         if (! $user instanceof User) {
-            return redirect()->guest(route('cms.auth.login'));
+            return app(\TheNguyen\CMS\Http\Support\AuthUrlPolicy::class)->redirectToLogin($request);
         }
 
         foreach ($permissions as $permission) {

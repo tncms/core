@@ -66,6 +66,7 @@ class FrontendAuthTest extends TestCase
     // 1.
     public function test_register_route_visible_when_enabled(): void
     {
+        app('cms.language')->create(['code' => 'en', 'name' => 'English', 'is_default' => true, 'is_active' => true, 'sort_order' => 1]); // account/auth pages follow the site locale (CORE-40)
         config(['cms.auth.registration_enabled' => true]);
 
         $this->get('/register')->assertOk()->assertSee('Create account', false);

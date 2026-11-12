@@ -7,6 +7,7 @@
 >
     <div
         wire:ignore
+        data-cms-editor-label="{{ strip_tags((string) $getLabel()) }}"
         x-data="cmsRichEditor('{{ $getStatePath() }}', {{ $getEditorHeight() }}, @js($getMediaItems()))"
     >
         <textarea x-ref="input" x-on:input="syncFallback()" style="width:100%;min-height:{{ $getEditorHeight() }}px;">{{ $getState() }}</textarea>
@@ -157,6 +158,12 @@
 <style>
     [x-cloak]{display:none!important;}
     .cms-re-fallback-note{margin:.5rem 0 0;font-size:.8rem;color:#b45309;}
+    /* CORE-H-Z1-REMEDIATION-R1 H-N8 (WCAG 2.4.7): TinyMCE draws its focus frame (.tox-edit-area::before)
+       only when it adds .tox-edit-focus, which it does not do in Firefox when the editing iframe gets
+       keyboard focus (and no browser matches :focus-within on an iframe whose document holds focus).
+       The init handler below marks this Core editor while its editing window has focus; the same
+       skin-defined frame is then shown. The toolbar keeps its own button focus styles. */
+    [data-cms-editor-label] .tox.cms-re-edit-focus .tox-edit-area::before{opacity:1;}
 
     /* ---- Insert Media modal (cms-mm-*) ---- */
     .cms-mm-overlay{position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;padding:1rem;}
@@ -464,7 +471,70 @@
 
                         editor.on('init', function () {
                             editor.setContent(self.$wire.get(statePath) || '');
+
+                            // TinyMCE 8 leaves its editing iframe untitled; name it after the field
+                            // (H-Z1, WCAG 4.1.2), falling back to TinyMCE's own body label.
+                            var body = editor.getBody();
+                            var frameLabel = self.$el.getAttribute('data-cms-editor-label')
+                                || (body && body.getAttribute('aria-label')) || '';
+                            if (editor.iframeElement && frameLabel !== '') {
+                                editor.iframeElement.setAttribute('title', frameLabel);
+                            }
+
+                            // H-N8 (CORE-H-Z1-REMEDIATION-R1, WCAG 2.4.7): show the focus frame while the
+                            // editing window has focus, in every browser (see the style block above).
+                            // The listeners live on the editor's own iframe window and go with it.
+                            var editWindow = editor.getWin();
+                            var editContainer = editor.getContainer();
+                            if (editWindow && editContainer) {
+                                var markFocus = function () {
+                                    if (editor.hasFocus()) {
+                                        editContainer.classList.add('cms-re-edit-focus');
+                                    }
+                                };
+                                var clearFocus = function (event) {
+                                    if (! event || event.target !== editor.iframeElement) {
+                                        editContainer.classList.remove('cms-re-edit-focus');
+                                    }
+                                };
+                                editWindow.addEventListener('focus', markFocus);
+                                editWindow.addEventListener('blur', clearFocus);
+                                // Firefox delivers no focus event when Tab moves into the iframe; the
+                                // Tab keyup does land in the editor. Leaving is seen as focus or a
+                                // pointer press elsewhere on the page (a pointer focus inside the
+                                // editor is already framed by TinyMCE's own tox-edit-focus).
+                                editor.on('keyup', markFocus);
+                                document.addEventListener('focusin', clearFocus, true);
+                                document.addEventListener('mousedown', clearFocus, true);
+                                editor.on('remove', function () {
+                                    document.removeEventListener('focusin', clearFocus, true);
+                                    document.removeEventListener('mousedown', clearFocus, true);
+                                });
+                            }
+
+                            syncResizeHandleValue();
                         });
+
+                        // TinyMCE 8 renders its keyboard-operable resize handle as a focusable
+                        // role="separator" with aria-valuetext only. A focusable separator needs
+                        // aria-valuenow (CORE-ADMIN-A11Y-R2 A9, WCAG 4.1.2): mirror the editor
+                        // height in px, bounded by TinyMCE's own min_height / max_height options.
+                        // aria-valuetext ("Editor's height: N pixels") stays the spoken value.
+                        function syncResizeHandleValue() {
+                            var container = editor.getContainer();
+                            var handle = container && container.querySelector('.tox-statusbar__resize-handle');
+                            if (! handle) {
+                                return;
+                            }
+                            var now = Math.round(container.offsetHeight);
+                            var min = Number(editor.options.get('min_height')) || 100;
+                            var max = Number(editor.options.get('max_height')) || Math.max(now, 2000);
+                            handle.setAttribute('aria-valuemin', String(Math.min(min, now)));
+                            handle.setAttribute('aria-valuemax', String(Math.max(max, now)));
+                            handle.setAttribute('aria-valuenow', String(now));
+                        }
+
+                        editor.on('ResizeEditor', syncResizeHandleValue);
 
                         editor.on('change keyup undo redo SetContent', function () {
                             // Deferred (false): syncs to Livewire without a server

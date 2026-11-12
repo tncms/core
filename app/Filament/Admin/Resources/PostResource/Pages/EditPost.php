@@ -72,7 +72,7 @@ class EditPost extends EditRecord
         $contents = app('cms.content');
 
         /** @var Content $record */
-        $locale = $this->selectedLocale();
+        $locale = $this->writableTranslationLocale();
 
         $data['type'] = 'post';
         $data['locale'] = $locale;

@@ -159,6 +159,8 @@ class ScriptSettingsPage extends Page
                     ])
                     ->columns(1)
                     ->addActionLabel(tn_trans('Add JSON-LD block'))
+                    // ER-3 (WCAG 2.1.1 / 2.5.7, CORE-H-Z1-REMEDIATION-R3): Move up / Move down buttons besides drag.
+                    ->reorderableWithButtons()
                     ->default([]),
             ])
             ->columns(1);
@@ -206,6 +208,8 @@ class ScriptSettingsPage extends Page
                     ])
                     ->columns(2)
                     ->addActionLabel(tn_trans('Add external script'))
+                    // ER-3 (WCAG 2.1.1 / 2.5.7, CORE-H-Z1-REMEDIATION-R3): Move up / Move down buttons besides drag.
+                    ->reorderableWithButtons()
                     ->default([]),
             ])
             ->columns(1);
@@ -235,6 +239,8 @@ class ScriptSettingsPage extends Page
                     ])
                     ->columns(2)
                     ->addActionLabel(tn_trans('Add embed'))
+                    // ER-3 (WCAG 2.1.1 / 2.5.7, CORE-H-Z1-REMEDIATION-R3): Move up / Move down buttons besides drag.
+                    ->reorderableWithButtons()
                     ->default([]),
             ])
             ->columns(1);
@@ -359,6 +365,8 @@ class ScriptSettingsPage extends Page
             ])
             ->columns(1)
             ->addActionLabel($addLabel)
+            // ER-3 (WCAG 2.1.1 / 2.5.7, CORE-H-Z1-REMEDIATION-R3): Move up / Move down buttons besides drag.
+            ->reorderableWithButtons()
             ->default([]);
     }
 

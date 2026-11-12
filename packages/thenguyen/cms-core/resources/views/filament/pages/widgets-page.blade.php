@@ -21,7 +21,11 @@
                 --tnw-border-strong: #d1d5db;
                 --tnw-text: #111827;
                 --tnw-muted: #6b7280;
-                --tnw-faint: #9ca3af;
+                /* CORE-H-Z1-REMEDIATION-R1 H-C2 (WCAG 1.4.3): --tnw-faint is used for text (group labels,
+                   area slugs, empty states, hints); #9ca3af was 2.42-2.53:1. gray-500 is >= 4.63:1 on #fff / #f9fafb. */
+                --tnw-faint: #6b7280;
+                /* H-Z1-M4 (WCAG 1.4.3): badge text on the #f3f4f6 pill; --tnw-muted is 4.39:1 there, this is 6.87:1. */
+                --tnw-badge-text: #4b5563;
                 --tnw-icon-bg: #f3f4f6;
                 --tnw-hover: #f9fafb;
                 --tnw-editor-bg: #f9fafb;
@@ -38,7 +42,9 @@
                 --tnw-border-strong: rgba(255, 255, 255, 0.16);
                 --tnw-text: #ffffff;
                 --tnw-muted: #9ca3af;
-                --tnw-faint: #6b7280;
+                /* H-C2: #6b7280 was 3.32-3.66:1 on the dark panel; gray-400 is >= 6.3:1. */
+                --tnw-faint: #9ca3af;
+                --tnw-badge-text: #9ca3af;
                 --tnw-icon-bg: rgba(255, 255, 255, 0.08);
                 --tnw-hover: rgba(255, 255, 255, 0.04);
                 --tnw-editor-bg: rgba(255, 255, 255, 0.04);
@@ -207,12 +213,17 @@
                 background: var(--tnw-panel-bg);
                 transition: opacity 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
             }
-            .tn-widget-instance.is-inactive { border-style: dashed; opacity: 0.7; }
+            {{-- H-Z1-M4 (WCAG 1.4.3): dimming the whole row pulled its text below 4.5:1. The "Disabled" badge text and the
+                 dashed border carry the state; only the decorative (aria-hidden) type icon is dimmed. --}}
+            .tn-widget-instance.is-inactive { border-style: dashed; }
+            .tn-widget-instance.is-inactive .tn-widget-instance-icon { opacity: 0.6; }
             .tn-widget-instance.is-dragging { opacity: 0.65; transform: scale(1.01); box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12); }
             .tn-widget-instance-row {
                 display: flex;
                 align-items: center;
                 justify-content: space-between;
+                {{-- R3: the move controls widen the actions; on a narrow viewport they wrap under the title (WCAG 1.4.10 / 1.4.12). --}}
+                flex-wrap: wrap;
                 gap: 12px;
                 padding: 10px 12px;
             }
@@ -241,6 +252,40 @@
                 white-space: nowrap;
             }
             .tn-widget-instance-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
+            {{-- R3 (2.5.8): Filament's -6px icon-button margin made the row's 32px targets overlap by 8px; the gap now separates them. --}}
+            .tn-widget-instance-actions .fi-icon-btn { margin: 0; }
+            .tn-widget-move-area { position: relative; display: inline-flex; }
+            .tn-widget-move-list {
+                position: absolute;
+                inset-inline-end: 0;
+                top: calc(100% + 4px);
+                z-index: 30;
+                min-width: 12rem;
+                max-width: min(20rem, calc(100vw - 2rem));
+                max-height: 16rem;
+                overflow-y: auto;
+                margin: 0;
+                padding: 4px;
+                list-style: none;
+                background: var(--tnw-panel-bg);
+                border: 1px solid var(--tnw-border-strong);
+                border-radius: 8px;
+                box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+            }
+            .tn-widget-move-option {
+                display: block;
+                width: 100%;
+                min-height: 32px;
+                padding: 6px 10px;
+                border-radius: 6px;
+                text-align: start;
+                font-size: 0.875rem;
+                color: var(--tnw-text);
+                overflow-wrap: anywhere;
+            }
+            .tn-widget-move-option:hover { background: var(--tnw-hover); }
+            .tn-widget-move-option:focus-visible { outline: 2px solid var(--primary-600); outline-offset: -2px; }
+            .dark .tn-widget-move-option:focus-visible { outline-color: var(--primary-400); }
             .tn-widget-badge {
                 display: inline-block;
                 padding: 2px 8px;
@@ -248,7 +293,7 @@
                 font-size: 0.65rem;
                 font-weight: 600;
                 background: var(--tnw-icon-bg);
-                color: var(--tnw-muted);
+                color: var(--tnw-badge-text);
                 white-space: nowrap;
             }
             .tn-widget-badge.is-active { background: var(--tnw-success-bg); color: var(--tnw-success-text); }
@@ -382,9 +427,13 @@
                                                     <span class="tn-widget-palette-description">{{ $widget['description'] }}</span>
                                                 </span>
                                             </div>
+                                            {{-- CORE-H-Z1-REMEDIATION-R1 H-C4: an explicit method-only wire:target (declared before
+                                                 wire:click, so Filament uses it for its loading indicator). Copying the click expression
+                                                 made Livewire evaluate `targetAreaId` outside $wire scope: ReferenceError on every load. --}}
                                             <x-filament::button
                                                 size="xs"
                                                 icon="heroicon-m-plus"
+                                                wire:target="addWidget"
                                                 wire:click="addWidget(targetAreaId, '{{ $widget['type'] }}')"
                                                 aria-label="{{ tn_trans('Add :name', ['name' => tn_trans($widget['name'])]) }}"
                                             >
@@ -443,16 +492,50 @@
                         <x-filament::icon icon="heroicon-m-chevron-down" class="tn-widget-chevron" x-bind:style="open ? 'transform: rotate(180deg)' : ''" />
                     </button>
                     <div id="tn-io-body" x-show="open" x-collapse x-cloak class="tn-widget-panel-body">
-                        {{-- Export --}}
-                        <div x-data="{ copied: false }" class="tn-widget-io-row">
+                        {{-- Export. H-C4: Blade directives are not compiled inside component-tag attributes, so the former
+                             `@js(...)` reached Alpine verbatim (SyntaxError on every load, nothing copied).
+                             CORE-H-Z1-REMEDIATION-R2 (R2-5): the JSON is fetched on activation ($wire.clipboardExport(),
+                             renderless) instead of being embedded in every render. One request per activation: a click
+                             while one is in flight is ignored. The button is never disabled: Filament's button defaults to
+                             wire:loading.attr="disabled" for every request of the page, which drops focus (the O-N11 root
+                             cause); an attribute given here wins over that default, so while the export loads the button
+                             only gets aria-busy and Filament's spinner. Its label shows the state and the polite status
+                             region announces the outcome. The clipboard write is started inside the click (a ClipboardItem
+                             whose content is the pending request) where the browser supports it, because WebKit rejects a
+                             write made after an awaited request has ended the user activation; elsewhere the text is
+                             written when it arrives. No clipboard (insecure origin) or a failed request shows the failure state. --}}
+                        <div
+                            x-data="{
+                                state: 'idle',
+                                copy() {
+                                    if (this.state === 'busy') {
+                                        return;
+                                    }
+                                    this.state = 'busy';
+                                    const request = $wire.clipboardExport();
+                                    const clipboard = navigator.clipboard;
+                                    const written = clipboard && typeof clipboard.write === 'function' && typeof ClipboardItem === 'function'
+                                        ? clipboard.write([new ClipboardItem({ 'text/plain': request.then((json) => new Blob([json], { type: 'text/plain' })) })])
+                                        : request.then((json) => clipboard.writeText(json));
+                                    written
+                                        .then(() => { this.state = 'copied'; })
+                                        .catch(() => { this.state = 'failed'; })
+                                        .finally(() => { setTimeout(() => { if (this.state !== 'busy') this.state = 'idle'; }, 2500); });
+                                },
+                            }"
+                            class="tn-widget-io-row"
+                        >
                             <x-filament::button
                                 size="xs"
                                 color="gray"
                                 icon="heroicon-m-clipboard-document"
-                                x-on:click="navigator.clipboard.writeText(@js($this->exportJson)).then(() => { copied = true; setTimeout(() => copied = false, 2000); })"
+                                wire:target="clipboardExport"
+                                wire:loading.attr="aria-busy"
+                                x-on:click="copy()"
                             >
-                                <span x-text="copied ? @js(tn_trans('Copied!')) : @js(tn_trans('Copy JSON'))"></span>
+                                <span x-text="{ busy: @js(tn_trans('Copying…')), copied: @js(tn_trans('Copied!')), failed: @js(tn_trans('Copy failed')) }[state] || @js(tn_trans('Copy JSON'))">{{ tn_trans('Copy JSON') }}</span>
                             </x-filament::button>
+                            <span class="fi-sr-only" role="status" x-text="{ copied: @js(tn_trans('Widget JSON copied to the clipboard.')), failed: @js(tn_trans('The widget JSON could not be copied.')) }[state] || ''"></span>
                             <x-filament::button size="xs" color="gray" icon="heroicon-m-arrow-down-tray" wire:click="exportWidgets">
                                 {{ tn_trans('Download JSON') }}
                             </x-filament::button>
@@ -514,6 +597,7 @@
                         {{-- Area header (collapsible) --}}
                         <button
                             type="button"
+                            id="tn-area-toggle-{{ $area->id }}"
                             @click="toggle()"
                             :aria-expanded="open ? 'true' : 'false'"
                             aria-controls="tn-area-{{ $area->id }}"
@@ -541,6 +625,11 @@
                         >
                             @forelse ($area->widgets as $widget)
                                 @php($meta = collect($this->groupedWidgets)->flatten(1)->firstWhere('type', $widget->widget_type))
+                                {{-- L-2 (H-Z1 pre-rerun): focus destinations for the call-focus reader. Edit switches its own
+                                     call (openEditor <-> closeEditor), so it names itself; after Delete the row is gone, so
+                                     the next widget's Edit, else the previous one's, else the area header. --}}
+                                @php($areaWidgets = $area->widgets->values())
+                                @php($afterWidgetDelete = trim(implode(' ', array_filter([$areaWidgets->get($loop->index + 1) ? 'tn-widget-edit-'.$areaWidgets->get($loop->index + 1)->id : null, $loop->index > 0 ? 'tn-widget-edit-'.$areaWidgets->get($loop->index - 1)->id : null, 'tn-area-toggle-'.$area->id]))))
                                 <div
                                     data-widget-id="{{ $widget->id }}"
                                     {{-- The whole row is the drag source, EXCEPT while its inline
@@ -573,7 +662,67 @@
                                             <span @class(['tn-widget-badge', 'is-active' => $widget->is_active])>
                                                 {{ $widget->is_active ? tn_trans('Active') : tn_trans('Disabled') }}
                                             </span>
+                                            {{-- ER-3 (WCAG 2.1.1 / 2.5.7, CORE-H-Z1-REMEDIATION-R3): the non-drag way to reorder and to
+                                                 change the area. After a move, call-focus keeps focus on the same widget's control (same
+                                                 wire:click), or on its other move control when this one became disabled. --}}
                                             <x-filament::icon-button
+                                                id="tn-widget-up-{{ $widget->id }}"
+                                                data-tn-focus-fallback="tn-widget-down-{{ $widget->id }}"
+                                                icon="heroicon-m-arrow-up"
+                                                wire:target="moveWidgetBy"
+                                                wire:click="moveWidgetBy({{ $widget->id }}, -1)"
+                                                label="{{ tn_trans('Move :name up', ['name' => $widget->title ?: $this->widgetTypeName($widget->widget_type)]) }}"
+                                                :disabled="$loop->first"
+                                                color="gray"
+                                                size="sm"
+                                            />
+                                            <x-filament::icon-button
+                                                id="tn-widget-down-{{ $widget->id }}"
+                                                data-tn-focus-fallback="tn-widget-up-{{ $widget->id }}"
+                                                icon="heroicon-m-arrow-down"
+                                                wire:target="moveWidgetBy"
+                                                wire:click="moveWidgetBy({{ $widget->id }}, 1)"
+                                                label="{{ tn_trans('Move :name down', ['name' => $widget->title ?: $this->widgetTypeName($widget->widget_type)]) }}"
+                                                :disabled="$loop->last"
+                                                color="gray"
+                                                size="sm"
+                                            />
+                                            @if ($this->areas->count() > 1)
+                                                {{-- A button disclosure (WCAG 4.1.2): aria-expanded is on the <button>; Filament's dropdown
+                                                     would put it on a wrapper <div>. Escape or leaving the list closes it. --}}
+                                                <span
+                                                    class="tn-widget-move-area"
+                                                    x-data="{ open: false }"
+                                                    x-on:keydown.escape="if (open) { $event.stopPropagation(); open = false; $refs.trigger.focus() }"
+                                                    x-on:click.outside="open = false"
+                                                    x-on:focusout="if (! $el.contains($event.relatedTarget)) open = false"
+                                                >
+                                                    <x-filament::icon-button
+                                                        x-ref="trigger"
+                                                        id="tn-widget-area-{{ $widget->id }}"
+                                                        aria-expanded="false"
+                                                        x-bind:aria-expanded="open.toString()"
+                                                        aria-controls="tn-widget-move-list-{{ $widget->id }}"
+                                                        x-on:click="open = ! open"
+                                                        icon="heroicon-m-arrows-right-left"
+                                                        label="{{ tn_trans('Move :name to another area', ['name' => $widget->title ?: $this->widgetTypeName($widget->widget_type)]) }}"
+                                                        color="gray"
+                                                        size="sm"
+                                                    />
+                                                    {{-- Created only while open, so a page with many widgets and areas does not build widgets x areas buttons. --}}
+                                                    <template x-if="open">
+                                                    <ul id="tn-widget-move-list-{{ $widget->id }}" class="tn-widget-move-list" tabindex="-1">
+@foreach ($this->areas as $otherArea)
+@continue($otherArea->id === $area->id)
+<li><button type="button" class="tn-widget-move-option" wire:loading.attr="disabled" data-tn-focus-fallback="tn-widget-area-{{ $widget->id }}" wire:target="moveWidgetToArea" wire:click="moveWidgetToArea({{ $widget->id }}, {{ $otherArea->id }})">{{ $otherArea->name }}</button></li>
+@endforeach
+                                                    </ul>
+                                                    </template>
+                                                </span>
+                                            @endif
+                                            <x-filament::icon-button
+                                                id="tn-widget-edit-{{ $widget->id }}"
+                                                data-tn-focus-fallback="tn-widget-edit-{{ $widget->id }}"
                                                 icon="{{ $editingId === $widget->id ? 'heroicon-m-chevron-up' : 'heroicon-m-pencil-square' }}"
                                                 wire:click="{{ $editingId === $widget->id ? 'closeEditor' : 'openEditor(' . $widget->id . ')' }}"
                                                 label="{{ tn_trans('Edit') }}"
@@ -597,6 +746,7 @@
                                             <x-filament::icon-button
                                                 icon="heroicon-m-trash"
                                                 wire:click="deleteWidget({{ $widget->id }})"
+                                                data-tn-focus-fallback="{{ $afterWidgetDelete }}"
                                                 wire:confirm="{{ tn_trans('Delete this widget?') }}"
                                                 label="{{ tn_trans('Delete') }}"
                                                 color="danger"
@@ -617,7 +767,7 @@
                                     @endif
                                 </div>
                             @empty
-                                <div class="tn-widget-empty">{{ tn_trans('Drop widgets here, or add one from the left.') }}</div>
+                                <div class="tn-widget-empty">{{-- ER-10 (WCAG 1.3.3): names the controls, not their position, which changes below 1024px. --}}{{ tn_trans('No widgets in this area. To add one, choose this area in “Add new widgets to”, then press Add on a widget under Available Widgets, or drag a widget here.') }}</div>
                             @endforelse
                         </div>
                     </section>

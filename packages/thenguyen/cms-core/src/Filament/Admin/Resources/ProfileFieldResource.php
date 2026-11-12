@@ -19,6 +19,7 @@ use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
 use TheNguyen\CMS\Filament\Admin\Resources\ProfileFieldResource\Pages;
+use TheNguyen\CMS\Filament\Tables\BooleanIconState;
 use TheNguyen\CMS\Models\UserProfileField;
 use TheNguyen\CMS\Models\UserProfileFieldGroup;
 use TheNguyen\CMS\Profile\ProfileFieldAdminService;
@@ -170,8 +171,8 @@ class ProfileFieldResource extends Resource
                 TextColumn::make('visibility')->label(tn_trans('Visibility'))->badge(),
                 TextColumn::make('editability')->label(tn_trans('Editability'))->badge(),
                 TextColumn::make('source')->label(tn_trans('Source'))->badge(),
-                IconColumn::make('is_encrypted')->label(tn_trans('Enc'))->boolean(),
-                IconColumn::make('is_active')->label(tn_trans('Active'))->boolean(),
+                IconColumn::make('is_encrypted')->label(tn_trans('Enc'))->boolean()->extraAttributes(fn (mixed $state): array => BooleanIconState::attributes($state))->disabledClick(), // A6
+                IconColumn::make('is_active')->label(tn_trans('Active'))->boolean()->extraAttributes(fn (mixed $state): array => BooleanIconState::attributes($state))->disabledClick(), // A6
             ])
             ->filters([
                 SelectFilter::make('group_id')->label(tn_trans('Group'))

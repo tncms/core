@@ -150,9 +150,13 @@ class MenuManager
      */
     public function tree(Menu $menu, string $locale = 'vi'): array
     {
+        // All of an item's translations are eager-loaded (one query for the whole tree), not just
+        // $locale's: MenuItem::displayTitle() falls back to the first available translation, and a
+        // locale-filtered relation left it nothing to fall back to ("Item #n" on /en; L10N-MENU-1).
+        // MenuItem::customUrl() still selects the exact locale, so URLs keep their no-fallback rule.
         $items = $menu->items()
             ->where('is_active', true)
-            ->with(['translations' => fn ($q) => $q->where('locale', $locale)])
+            ->with('translations')
             ->orderBy('sort_order')
             ->get();
 

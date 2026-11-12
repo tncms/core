@@ -60,6 +60,18 @@ class HomepageResolver
      *
      * @return array<string, mixed>|null
      */
+    /**
+     * Whether the active theme has a section layout document (stored or
+     * preset), without resolving its sections. resolve() may still return an
+     * empty layout; callers that need certainty treat true as "undecided".
+     */
+    public function hasLayout(): bool
+    {
+        $slug = $this->themes->active()?->slug;
+
+        return is_string($slug) && $slug !== '' && ($this->storedLayout($slug) ?? $this->presetLayout($slug)) !== null;
+    }
+
     private function storedLayout(string $slug): ?array
     {
         $value = $this->settings->get($this->key($slug, 'homepage_layout'));

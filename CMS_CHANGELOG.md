@@ -16,6 +16,62 @@ this project adheres to [Semantic Versioning](https://semver.org).
 
 ---
 
+## [1.0.0-beta.7.1.40] — Dependency security, scheduled-content privacy, sitemap administration, frontend media and accounts, and accessibility — 2026-11-12
+
+### Upgrade notes
+
+- **Back up the database and files before upgrading.** Upgrade with the `/upgrade` wizard or the upgrade package. Sites on 1.0.0-beta.7.1.39 or 1.0.0-beta.7.1.39.1 upgrade directly; installing 1.0.0-beta.7.1.39.1 first is not required.
+- **Six forward migrations run:** frontend media permissions, sitemap admin permissions, sitemap settings, a `seo_robots` column on contents and terms, a term directory index, and the media `delete_own` permission.
+- **New permissions are granted on upgrade, by existing grant (never by role name):** `media.view_own` and `media.upload_own` go to every role that already holds `media.upload`, and `media.delete_own` to every role that then holds `media.upload_own`. The four sitemap permissions (`sitemap.view`, `sitemap.manage`, `sitemap.diagnostics`, `sitemap.cache_refresh`) go to every role that already holds `settings.manage`. `admin.access` is never granted. Review custom roles afterwards.
+- **Three new settings:** `sitemap_enabled`, `sitemap_excluded_providers` and `sitemap_excluded_types` (sitemap enabled, nothing excluded, by default).
+- **Default-theme assets change.** The upgrade wizard republishes `public/themes/default/*`. Manual or file-copy deployments must run `php artisan theme:publish --all` and `php artisan filament:assets`. Purge `/themes/default/*` from any CDN or long-lived cache.
+- **Recovery:** restoring the backup is the complete recovery path. `migrate:rollback` restores the schema only; the permission and settings migrations are forward-only.
+- **Dependencies:** PHP 8.3 or newer for the upgrade package; Laravel 12.69.3 (Filament 5.6.6 and Livewire 4.3.0 unchanged). The install and upgrade packages ship the production `vendor/`.
+- **Deployment:** set `APP_URL` to the public origin, and serve the site from a virtual host that rejects unknown `Host` headers (or enable `TrustHosts`). See UPGRADE.md.
+
+### Security
+
+- **Dependency remediation:** Laravel 12.69.3 (and the matching Symfony components) closes an applicable High-severity e-mail header-injection advisory in the framework version used by 1.0.0-beta.7.1.39.
+- **Admin content lists:** the content title used as the thumbnail alternative text in the Posts and Pages lists is escaped. This is the same remediation shipped in the 1.0.0-beta.7.1.39.1 security update; see that release's advisory.
+- **E-mail input hardening:** a shared safe e-mail address rule now validates installer, account and admin mail-address inputs.
+- **Password reset and verification links** are built from the trusted `APP_URL` origin, never from the request Host.
+- **Media:** the admin media picker requires `media.view`; inline uploads require `media.upload`; uploads are staged privately, with MIME agreement, a pixel ceiling and metadata stripping.
+- **Sanitized HTML:** `xml:` and `xmlns` attributes are removed; authored ids are kept in the `cms-content-*` namespace with a bounded ARIA policy.
+
+### Added
+
+- **SEO → XML Sitemap** admin page (roles with the new sitemap permissions; by default Super Admin and Admin): enable or disable the sitemap, exclude providers or content types, read-only diagnostics, cache maintenance.
+- **Per-item robots policy** for posts, pages, categories and tags, applied on the item and, for the Page shown at `/`, on the homepage.
+- **Frontend media foundation:** owner-scoped frontend uploads with `*_own` permissions and a safe delete lifecycle.
+- **Theme-first account shell** with localized auth and account routes, auth rate limits, and an Account Extension Registry for plugin navigation entries.
+- **Bounded taxonomy directory:** search, batch lookup, canonical URLs and a keyset-paged term picker in Core admin forms.
+
+### Changed
+
+- **Scheduled content stays private until its publication time** on every public surface: direct URL (404), category, tag, search, sitemaps and feed.
+- **Homepage:** an untranslated configured static homepage follows the owner policy; the assigned homepage Page slug redirects (301) to its locale's home URL; a language home without a translation is not indexed.
+- **Sitemap:** robots.txt is served on nginx; Core sitemap and robots paths are reserved; the front-page duplicate and empty taxonomy archives are no longer listed; paginated archives are self-canonical.
+- **Menus:** an item without a translation in the current language shows its first available translation instead of a placeholder. Custom URLs keep their per-language rule.
+- **Installer:** the web installer no longer fails when `.env` is missing, and its input validation is stricter.
+
+### Fixed
+
+- **Accessibility, Admin:** contrast, names, focus handling, target sizes, keyboard scroll regions, notification placement and populated list states across Core admin surfaces (Media library, content lists, slugs, multi-selects, widgets, session dialog, sitemap page).
+- **Accessibility, default theme:** footer text contrast, persistent underlines for search-result titles, search pagination and plain in-text body links. Classed component links, such as Page Builder buttons, are unaffected.
+- Settings saves are no longer blocked by a missing default category; hidden settings are kept on save.
+- Profile avatar URLs are limited to the column length; the Admin UI locale is kept on Livewire update requests; the timezone UI is accurate.
+
+### Notes
+
+- **Accessibility scope:** automated (axe-core) and keyboard checks of the Core admin and the default theme in Chrome and Firefox at 390 px and 1440 px. This is not a general WCAG 2.2 AA conformance claim. Not verified: NVDA. Not tested: JAWS, Safari/WebKit, VoiceOver.
+- **Known issues:**
+  - Firefox may log a console exception when leaving an admin page during a Livewire request (vendor, no functional effect).
+  - A Medium Livewire advisory affecting admin-only components is carried until a vendor release.
+  - With no homepage mode chosen, `/en` is `noindex` but still listed in the home `hreflang` set; choosing a homepage mode removes it.
+- Plugins should keep requiring the documented Core contracts; no public extension API was removed.
+
+---
+
 ## [1.0.0-beta.7.1.39.1] — Security update — 2026-11-12
 
 ### Upgrade notes

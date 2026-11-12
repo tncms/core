@@ -1,0 +1,358 @@
+{
+    "paragraphs": {
+        "input": "<p>One</p><p>Two <strong>bold</strong> <em>em</em> <u>u</u> <s>s</s></p>",
+        "output": "<p>One</p><p>Two <strong>bold</strong> <em>em</em> <u>u</u> <s>s</s></p>"
+    },
+    "headings": {
+        "input": "<h1>H1</h1><h2>H2</h2><h3>H3</h3><h4>H4</h4><h5>H5</h5><h6>H6</h6>",
+        "output": "<h1>H1</h1><h2>H2</h2><h3>H3</h3><h4>H4</h4><h5>H5</h5><h6>H6</h6>"
+    },
+    "lists": {
+        "input": "<ul><li>a</li><li>b<ol><li>c</li></ol></li></ul>",
+        "output": "<ul><li>a</li><li>b<ol><li>c</li></ol></li></ul>"
+    },
+    "classes": {
+        "input": "<p class=\"lead text-center\">x</p><div class=\"note  warn\">y</div>",
+        "output": "<p class=\"lead text-center\">x</p><div class=\"note  warn\">y</div>"
+    },
+    "blockquote/pre/code": {
+        "input": "<blockquote><p>q</p></blockquote><pre><code>$a = 1;</code></pre>",
+        "output": "<blockquote><p>q</p></blockquote><pre><code>$a = 1;</code></pre>"
+    },
+    "table": {
+        "input": "<table><thead><tr><th colspan=\"2\">h</th></tr></thead><tbody><tr><td rowspan=\"2\">a</td><td>b</td></tr></tbody></table>",
+        "output": "<table><thead><tr><th colspan=\"2\">h</th></tr></thead><tbody><tr><td rowspan=\"2\">a</td><td>b</td></tr></tbody></table>"
+    },
+    "figure img": {
+        "input": "<figure><img src=\"/media/a.jpg\" alt=\"A\" title=\"T\" width=\"10\" height=\"20\" loading=\"lazy\"><figcaption>c</figcaption></figure>",
+        "output": "<figure><img src=\"/media/a.jpg\" alt=\"A\" title=\"T\" width=\"10\" height=\"20\" loading=\"lazy\"><figcaption>c</figcaption></figure>"
+    },
+    "sectioning": {
+        "input": "<section><header>h</header><article><h2>t</h2></article><aside>s</aside><footer>f</footer></section><main>m</main><nav>n</nav>",
+        "output": "<section><header>h</header><article><h2>t</h2></article><aside>s</aside><footer>f</footer></section><main>m</main><nav>n</nav>"
+    },
+    "details": {
+        "input": "<details><summary>More</summary><p>Hidden</p></details>",
+        "output": "<details><summary>More</summary><p>Hidden</p></details>"
+    },
+    "hr/br/span": {
+        "input": "<p>a<br>b</p><hr><span class=\"x\">s</span>",
+        "output": "<p>a<br>b</p><hr><span class=\"x\">s</span>"
+    },
+    "unicode vi": {
+        "input": "<p>Tiếng Việt có dấu — “quotes” &amp; ampersand</p>",
+        "output": "<p>Tiếng Việt có dấu — “quotes” &amp; ampersand</p>"
+    },
+    "entities": {
+        "input": "<p>&lt;not a tag&gt; &copy; &nbsp; &#x1F600;</p>",
+        "output": "<p>&lt;not a tag&gt; ©   😀</p>"
+    },
+    "plain wrapper whitespace": {
+        "input": "  \n<p>trim me</p>\n  ",
+        "output": "<p>trim me</p>"
+    },
+    "unknown wrapper unwrapped": {
+        "input": "<font color=\"red\">keep text</font><center>c</center>",
+        "output": "keep textc"
+    },
+    "template unwrapped": {
+        "input": "<template><p class=\"t\">x</p></template>",
+        "output": "<p class=\"t\">x</p>"
+    },
+    "trusted slot wrapper": {
+        "input": "<div class=\"tncms-slot\">TNCMSSLOT0123456789abcdef0123456789abcdef</div>",
+        "output": "<div class=\"tncms-slot\">TNCMSSLOT0123456789abcdef0123456789abcdef</div>"
+    },
+    "trusted slot fallback": {
+        "input": "<div class=\"tncms-slot tncms-slot--unavailable\"></div>",
+        "output": "<div class=\"tncms-slot tncms-slot--unavailable\"></div>"
+    },
+    "link https": {
+        "input": "<a href=\"https://example.com/a?b=1&amp;c=2\" title=\"t\">x</a>",
+        "output": "<a href=\"https://example.com/a?b=1&amp;c=2\" title=\"t\">x</a>"
+    },
+    "link relative": {
+        "input": "<a href=\"/path/to\">x</a><a href=\"page.html\">y</a><a href=\"?q=1\">z</a>",
+        "output": "<a href=\"/path/to\">x</a><a href=\"page.html\">y</a><a href=\"?q=1\">z</a>"
+    },
+    "link fragment kept (no target)": {
+        "input": "<a href=\"#results-region\">jump</a>",
+        "output": "<a href=\"#results-region\">jump</a>"
+    },
+    "link fragment odd values": {
+        "input": "<a href=\"#\">a</a><a href=\"#Top_1\">b</a><a href=\"#%20x\">c</a><a href=\"?p=2#pbab12cd\">d</a>",
+        "output": "<a href=\"#\">a</a><a href=\"#Top_1\">b</a><a href=\"#%20x\">c</a><a href=\"?p=2#pbab12cd\">d</a>"
+    },
+    "link mailto tel": {
+        "input": "<a href=\"mailto:a@b.test\">m</a><a href=\"tel:+1\">t</a>",
+        "output": "<a href=\"mailto:a@b.test\">m</a><a href=\"tel:+1\">t</a>"
+    },
+    "link blank gets rel": {
+        "input": "<a href=\"https://e.test\" target=\"_blank\">x</a>",
+        "output": "<a href=\"https://e.test\" target=\"_blank\" rel=\"noopener noreferrer\">x</a>"
+    },
+    "link blank replaces rel": {
+        "input": "<a href=\"https://e.test\" target=\"_blank\" rel=\"author\">x</a>",
+        "output": "<a href=\"https://e.test\" target=\"_blank\" rel=\"noopener noreferrer\">x</a>"
+    },
+    "link rel kept": {
+        "input": "<a href=\"/a\" rel=\"nofollow\">x</a>",
+        "output": "<a href=\"/a\" rel=\"nofollow\">x</a>"
+    },
+    "link protocol-relative (pre-existing F-1)": {
+        "input": "<a href=\"//evil.example/x\">x</a>",
+        "output": "<a href=\"//evil.example/x\">x</a>"
+    },
+    "js href": {
+        "input": "<a href=\"javascript:alert(1)\">x</a>",
+        "output": "<a>x</a>"
+    },
+    "js href mixed case": {
+        "input": "<a href=\"JaVaScRiPt:alert(1)\">x</a>",
+        "output": "<a>x</a>"
+    },
+    "js href whitespace": {
+        "input": "<a href=\" javascript:alert(1)\">x</a>",
+        "output": "<a>x</a>"
+    },
+    "js href newline": {
+        "input": "<a href=\"java\nscript:alert(1)\">x</a>",
+        "output": "<a>x</a>"
+    },
+    "js href tab": {
+        "input": "<a href=\"java\tscript:alert(1)\">x</a>",
+        "output": "<a>x</a>"
+    },
+    "js href entity": {
+        "input": "<a href=\"&#106;avascript:alert(1)\">x</a>",
+        "output": "<a>x</a>"
+    },
+    "js href hex entity": {
+        "input": "<a href=\"&#x6A;avascript:alert(1)\">x</a>",
+        "output": "<a>x</a>"
+    },
+    "vbscript href": {
+        "input": "<a href=\"vbscript:msgbox(1)\">x</a>",
+        "output": "<a>x</a>"
+    },
+    "data href": {
+        "input": "<a href=\"data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==\">x</a>",
+        "output": "<a>x</a>"
+    },
+    "file href": {
+        "input": "<a href=\"file:///etc/passwd\">x</a>",
+        "output": "<a>x</a>"
+    },
+    "img js src": {
+        "input": "<img src=\"javascript:alert(1)\">",
+        "output": ""
+    },
+    "img no src": {
+        "input": "<img alt=\"x\">",
+        "output": ""
+    },
+    "img data svg": {
+        "input": "<img src=\"data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=\">",
+        "output": ""
+    },
+    "img data png kept": {
+        "input": "<img src=\"data:image/png;base64,iVBORw0KGgo=\">",
+        "output": "<img src=\"data:image/png;base64,iVBORw0KGgo=\">"
+    },
+    "script": {
+        "input": "<p>a</p><script>alert(1)</script><p>b</p>",
+        "output": "<p>a</p><p>b</p>"
+    },
+    "style tag": {
+        "input": "<style>body{}</style><p>x</p>",
+        "output": "<p>x</p>"
+    },
+    "iframe": {
+        "input": "<iframe src=\"https://e.test\"></iframe><p>x</p>",
+        "output": "<p>x</p>"
+    },
+    "object/embed": {
+        "input": "<object data=\"x\"></object><embed src=\"y\"><p>z</p>",
+        "output": ""
+    },
+    "form controls": {
+        "input": "<form action=\"/x\"><input name=\"a\"><button>b</button><select><option>o</option></select><textarea>t</textarea></form><p>k</p>",
+        "output": "<p>k</p>"
+    },
+    "svg payload": {
+        "input": "<svg><script>alert(1)</script><a xlink:href=\"javascript:alert(1)\">x</a></svg><p>k</p>",
+        "output": "<p>k</p>"
+    },
+    "svg onload": {
+        "input": "<svg onload=\"alert(1)\"></svg><p>k</p>",
+        "output": "<p>k</p>"
+    },
+    "math payload": {
+        "input": "<math><mtext><table><mglyph><style><img src=x onerror=alert(1)>",
+        "output": ""
+    },
+    "noscript": {
+        "input": "<noscript><p title=\"</noscript><img src=x onerror=alert(1)>\"></p></noscript>",
+        "output": ""
+    },
+    "meta/base/link": {
+        "input": "<meta http-equiv=\"refresh\" content=\"0;url=javascript:alert(1)\"><base href=\"https://evil.test/\"><link rel=\"stylesheet\" href=\"x\"><p>k</p>",
+        "output": "<p>k</p>"
+    },
+    "event handlers": {
+        "input": "<p onclick=\"alert(1)\" onmouseover=\"x()\">a</p><img src=\"/a.png\" onerror=\"alert(1)\">",
+        "output": "<p>a</p><img src=\"/a.png\">"
+    },
+    "inline style": {
+        "input": "<p style=\"background:url(javascript:alert(1))\">a</p>",
+        "output": "<p>a</p>"
+    },
+    "data attributes": {
+        "input": "<p data-x=\"1\" data-status=\"ok\" data-cms-root=\"1\">a</p>",
+        "output": "<p>a</p>"
+    },
+    "role attribute": {
+        "input": "<nav role=\"navigation\"><p role=\"status\">a</p></nav>",
+        "output": "<nav><p>a</p></nav>"
+    },
+    "name attribute": {
+        "input": "<a name=\"top\">t</a><img src=\"/a.png\" name=\"cookie\">",
+        "output": "<a>t</a><img src=\"/a.png\">"
+    },
+    "tabindex/hidden/lang": {
+        "input": "<p tabindex=\"0\" hidden lang=\"vi\" dir=\"rtl\">a</p>",
+        "output": "<p>a</p>"
+    },
+    "comment": {
+        "input": "<p>a<!-- secret --></p><!--[if IE]><script>alert(1)</script><![endif]-->",
+        "output": "<p>a</p>"
+    },
+    "cdata/pi": {
+        "input": "<p>a<![CDATA[x]]></p><?php echo 1; ?>",
+        "output": "<p>a</p>"
+    },
+    "breakout attempt": {
+        "input": "<p title=\"x\" onmouseover=alert(1) x=\"\">a</p>",
+        "output": "<p>a</p>"
+    },
+    "unclosed tags": {
+        "input": "<p><strong>unclosed <em>nested",
+        "output": "<p><strong>unclosed <em>nested</em></strong></p>"
+    },
+    "misnested": {
+        "input": "<p><div>x</p></div>",
+        "output": "<p></p><div>x</div>"
+    },
+    "id no hyphen": {
+        "input": "<section id=\"results\">a</section>",
+        "output": "<section>a</section>"
+    },
+    "id ns-style no hyphen": {
+        "input": "<section id=\"pbab12cd\">a</section>",
+        "output": "<section>a</section>"
+    },
+    "id uppercase": {
+        "input": "<section id=\"Results-Region\">a</section>",
+        "output": "<section>a</section>"
+    },
+    "id leading digit": {
+        "input": "<p id=\"1-a\">a</p>",
+        "output": "<p>a</p>"
+    },
+    "id leading hyphen": {
+        "input": "<p id=\"-a-b\">a</p>",
+        "output": "<p>a</p>"
+    },
+    "id trailing hyphen": {
+        "input": "<p id=\"a-b-\">a</p>",
+        "output": "<p>a</p>"
+    },
+    "id double hyphen": {
+        "input": "<p id=\"a--b\">a</p>",
+        "output": "<p>a</p>"
+    },
+    "id underscore": {
+        "input": "<p id=\"a_b\">a</p>",
+        "output": "<p>a</p>"
+    },
+    "id colon/dot": {
+        "input": "<p id=\"a:b\">a</p><p id=\"a.b\">b</p>",
+        "output": "<p>a</p><p>b</p>"
+    },
+    "id whitespace": {
+        "input": "<p id=\" a-b \">a</p><p id=\"a b\">b</p>",
+        "output": "<p>a</p><p>b</p>"
+    },
+    "id empty": {
+        "input": "<p id=\"\">a</p><p id>b</p>",
+        "output": "<p>a</p><p>b</p>"
+    },
+    "id too long": {
+        "input": "<p id=\"a-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\">a</p>",
+        "output": "<p>a</p>"
+    },
+    "id reserved prefix": {
+        "input": "<div id=\"tncms-slot\">a</div>",
+        "output": "<div>a</div>"
+    },
+    "id clobber names": {
+        "input": "<img src=\"/a.png\" id=\"cookie\"><p id=\"location\">l</p><p id=\"__proto__\">p</p>",
+        "output": "<img src=\"/a.png\"><p>l</p><p>p</p>"
+    },
+    "id non-ascii": {
+        "input": "<p id=\"kết-quả\">a</p><p id=\"а-b\">cyrillic a</p>",
+        "output": "<p>a</p><p>cyrillic a</p>"
+    },
+    "id quote breakout": {
+        "input": "<p id=\"a-b&quot;onmouseover=&quot;alert(1)\">a</p>",
+        "output": "<p>a</p>"
+    },
+    "aria other names": {
+        "input": "<nav aria-hidden=\"true\" aria-live=\"polite\" aria-describedby=\"x-y\" aria-expanded=\"true\" aria-controls=\"x-y\"><p>a</p></nav>",
+        "output": "<nav><p>a</p></nav>"
+    },
+    "aria wildcard style": {
+        "input": "<p aria-foo=\"x\" aria-=\"y\" aria-label-x=\"z\">a</p>",
+        "output": "<p>a</p>"
+    },
+    "aria-label on generic": {
+        "input": "<p aria-label=\"x\">a</p><div aria-label=\"y\">b</div><span aria-label=\"z\">c</span>",
+        "output": "<p>a</p><div>b</div><span>c</span>"
+    },
+    "aria-label empty/space": {
+        "input": "<nav aria-label=\"\">a</nav><nav aria-label=\"   \">b</nav><nav aria-label>c</nav>",
+        "output": "<nav>a</nav><nav>b</nav><nav>c</nav>"
+    },
+    "aria-label control chars": {
+        "input": "<nav aria-label=\"a\u0007b\">a</nav><nav aria-label=\"a‮b\">b</nav><nav aria-label=\"a​b\">c</nav><nav aria-label=\"a\u2028b\">d</nav>",
+        "output": "<nav>a</nav><nav>b</nav><nav>c</nav><nav>d</nav>"
+    },
+    "aria-label too long": {
+        "input": "<nav aria-label=\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\">a</nav>",
+        "output": "<nav>a</nav>"
+    },
+    "aria-current bad values": {
+        "input": "<a href=\"/a\" aria-current=\"Page\">a</a><a href=\"/b\" aria-current=\"yes\">b</a><a href=\"/c\" aria-current=\"\">c</a><a href=\"/d\" aria-current>d</a>",
+        "output": "<a href=\"/a\">a</a><a href=\"/b\">b</a><a href=\"/c\">c</a><a href=\"/d\">d</a>"
+    },
+    "aria-current wrong element": {
+        "input": "<p aria-current=\"page\">a</p><span aria-current=\"true\">b</span>",
+        "output": "<p>a</p><span>b</span>"
+    },
+    "aria-labelledby dangling": {
+        "input": "<section aria-labelledby=\"missing-id\"><h2>t</h2></section>",
+        "output": "<section><h2>t</h2></section>"
+    },
+    "aria-labelledby bad grammar": {
+        "input": "<section aria-labelledby=\"Bad_Ref\"><h2>t</h2></section><nav aria-labelledby=\"a-b  c-d\">n</nav>",
+        "output": "<section><h2>t</h2></section><nav>n</nav>"
+    },
+    "aria-labelledby on generic": {
+        "input": "<div aria-labelledby=\"x-y\">a</div>",
+        "output": "<div>a</div>"
+    },
+    "aria-labelledby too many": {
+        "input": "<nav aria-labelledby=\"a-a b-b c-c d-d e-e\">n</nav>",
+        "output": "<nav>n</nav>"
+    }
+}

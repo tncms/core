@@ -10,8 +10,10 @@ use TheNguyen\CMS\Models\Content;
 use TheNguyen\CMS\Models\ContentTranslation;
 use TheNguyen\CMS\Models\Term;
 use TheNguyen\CMS\Models\TermTranslation;
+use TheNguyen\CMS\Seo\ResourceRobotsPolicy;
 use TheNguyen\CMS\Sitemap\CoreSitemapProvider;
 use TheNguyen\CMS\Sitemap\SitemapManager;
+use TheNguyen\CMS\Sitemap\SitemapProviderRegistry;
 
 /**
  * Lightweight SEO foundation (Phase 7.5).
@@ -63,6 +65,9 @@ class SeoManager
     /** Owner metadata could not be obtained: site-default text only (CORE-38-TOPLIST-SEAMS-R1). */
     private bool $neutralContent = false;
 
+    /** The Page rendered at `/` (CORE-SEO-RELEASE-HARDENING-R1, H2); robots only. */
+    private ?Content $homePage = null;
+
     /**
      * Reset to a neutral (site-default) context.
      */
@@ -80,6 +85,7 @@ class SeoManager
         $this->robotsOverride = null;
         $this->contentOverride = null;
         $this->neutralContent = false;
+        $this->homePage = null;
 
         return $this;
     }
@@ -95,6 +101,21 @@ class SeoManager
 
         // P3.3B: SEO is a pure CONSUMER of the current resource — the render
         // boundary (CurrentResourcePublisher) is the sole writer, never SEO.
+        return $this;
+    }
+
+    /**
+     * The Page that `/` renders (static front page or conventional home page).
+     * Its per-item robots policy restricts the home robots, combined with the
+     * site policy (CORE-SEO-RELEASE-HARDENING-R1, H2); title, description,
+     * canonical and hreflang stay site-level. Only valid after forHome().
+     */
+    public function homePage(Content $page): self
+    {
+        if ($this->context === 'home') {
+            $this->homePage = $page;
+        }
+
         return $this;
     }
 
@@ -118,6 +139,20 @@ class SeoManager
         $this->termTranslation = $term->translations()->where('locale', $locale)->first();
         $this->context = $type === 'tag' ? 'tag' : 'category';
         $this->canonical = url()->current();
+
+        return $this;
+    }
+
+    /**
+     * A paginated listing (CORE-SEO-POLICY-AND-ADMIN-LOCALE-R1): pages 2..last
+     * canonicalize to themselves, keeping only `?page=N`; page 1, invalid and
+     * out-of-range pages keep the base canonical. Chain after forArchive().
+     */
+    public function paginated(int $page, int $lastPage): self
+    {
+        if ($this->canonical !== null && $page >= 2 && $page <= $lastPage) {
+            $this->canonical = strtok($this->canonical, '?').'?page='.$page;
+        }
 
         return $this;
     }
@@ -292,8 +327,23 @@ class SeoManager
 
         // A content owner can only add restrictions (CORE-CONTENT-EXT-R1).
         $restriction = $this->contentOverride?->robots;
+        $robots = $restriction !== null ? self::restrictRobots($robots, $restriction) : $robots;
 
-        return $restriction !== null ? self::restrictRobots($robots, $restriction) : $robots;
+        // The resource's own per-item restriction (CORE-SEO-POLICY-AND-ADMIN-LOCALE-R1)
+        // merges the same way: it can only add noindex/nofollow, never loosen. On
+        // the home, the Page rendered at `/` is that resource (H2).
+        $item = ResourceRobotsPolicy::restriction(($this->content ?? $this->term ?? $this->homePage)?->getAttribute(ResourceRobotsPolicy::COLUMN));
+        $robots = $item !== null ? self::restrictRobots($robots, $item) : $robots;
+
+        // A home Page with no translation in this language is not that language's
+        // content (its own localized URL is 404 and it is absent from that
+        // locale's sitemap), so the language's home is not indexed either. What
+        // visitors see there is unchanged (CORE-RELEASE-BLOCKERS-R1, TD-R3).
+        if ($this->context === 'home' && $this->homePage !== null && ! $this->homePage->hasTranslation((string) $this->locale)) {
+            $robots = self::restrictRobots($robots, RobotsRestriction::NoIndex);
+        }
+
+        return $robots;
     }
 
     /**
@@ -488,8 +538,9 @@ class SeoManager
             return "User-agent: *\nDisallow: /\n";
         }
 
-        // A noindex default disables the sitemap: do not advertise it.
-        if (! $this->siteIndexable()) {
+        // A noindex default, or the operator switching the sitemap off
+        // (CORE-SITEMAP-ADMIN-R1), disables it: do not advertise it.
+        if (! $this->siteIndexable() || ! app('cms.sitemap_settings')->enabled()) {
             return "User-agent: *\nAllow: /\n";
         }
 
@@ -516,9 +567,14 @@ class SeoManager
     private function legacySitemapEntries(): array
     {
         $provider = app(CoreSitemapProvider::class);
+        $policy = app('cms.sitemap_settings');
         $entries = [];
 
         foreach ($provider->types() as $type) {
+            if (! $policy->typeIncluded(SitemapProviderRegistry::CORE, $type)) {
+                continue;
+            }
+
             foreach (SitemapManager::locales() as $locale) {
                 $after = null;
 

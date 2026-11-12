@@ -310,7 +310,7 @@ class MaintenanceManager
 
         $page = Content::query()->where('type', 'page')->whereKey($id)->first();
 
-        if ($page === null || $page->status !== 'published') {
+        if ($page === null || ! $page->isPubliclyPublished()) {
             return null;
         }
 

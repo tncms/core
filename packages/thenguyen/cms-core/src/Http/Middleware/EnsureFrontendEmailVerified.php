@@ -24,7 +24,7 @@ class EnsureFrontendEmailVerified
         $user = $this->auth->guard()->user();
 
         if ($user === null) {
-            return redirect()->guest(route('cms.auth.login'));
+            return app(\TheNguyen\CMS\Http\Support\AuthUrlPolicy::class)->redirectToLogin($request);
         }
 
         if (! $this->auth->emailVerificationRequired()) {
@@ -36,7 +36,7 @@ class EnsureFrontendEmailVerified
                 abort(403, 'Your email address is not verified.');
             }
 
-            return redirect()->route('cms.auth.verification.notice');
+            return redirect()->to(app(\TheNguyen\CMS\Http\Support\AuthUrlPolicy::class)->route($request, 'cms.auth.verification.notice'));
         }
 
         return $next($request);

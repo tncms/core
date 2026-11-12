@@ -212,33 +212,41 @@ final class PublicProfileProviderTest extends TestCase
         $this->assertNull($this->provider()->project($b->id, ['name']));
     }
 
-    /** @return array<string, array{0: int|string}> */
+    /**
+     * Each malformed reference is derived from the opted-in subject's real id, so that a lenient parser
+     * (cast, trim, numeric-string) would land on an eligible subject. The ids are never assumed: MySQL keeps
+     * AUTO_INCREMENT across RefreshDatabase's rolled-back transactions (CORE-RELEASE-BLOCKERS-R1, TD-P12A-1).
+     *
+     * @return array<string, array{0: \Closure(int): (int|string)}>
+     */
     public static function badSubjectRefs(): array
     {
         return [
-            'zero' => [0],
-            'negative' => [-1],
-            'negative string' => ['-1'],
-            'leading space' => [' 1'],
-            'trailing newline' => ["1\n"],
-            'exponent' => ['1e0'],
-            'hex' => ['0x1'],
-            'decimal' => ['1.0'],
-            'empty' => [''],
-            'alpha' => ['abc'],
-            'nineteen digits' => ['1000000000000000001'],
-            'plus sign' => ['+1'],
+            'zero' => [static fn (int $id): int => 0],
+            'negative' => [static fn (int $id): int => -$id],
+            'negative string' => [static fn (int $id): string => '-'.$id],
+            'leading space' => [static fn (int $id): string => ' '.$id],
+            'trailing newline' => [static fn (int $id): string => $id."
+"],
+            'exponent' => [static fn (int $id): string => $id.'e0'],
+            'hex' => [static fn (int $id): string => '0x'.dechex($id)],
+            'decimal' => [static fn (int $id): string => $id.'.0'],
+            'empty' => [static fn (int $id): string => ''],
+            'alpha' => [static fn (int $id): string => 'abc'],
+            'nineteen digits' => [static fn (int $id): string => '1000000000000000001'],
+            'leading zeros to nineteen digits' => [static fn (int $id): string => str_pad((string) $id, 19, '0', STR_PAD_LEFT)],
+            'plus sign' => [static fn (int $id): string => '+'.$id],
         ];
     }
 
     #[\PHPUnit\Framework\Attributes\DataProvider('badSubjectRefs')]
-    public function test_malformed_subject_references_return_null(int|string $ref): void
+    public function test_malformed_subject_references_return_null(\Closure $ref): void
     {
         $b = $this->subject();
         $this->optIn($b);
-        $this->assertSame(1, $b->id, 'fixture assumes the opted-in subject is #1');
+        $this->assertSame('User B', $this->provider()->project($b->id, ['name'])?->name, 'the well-formed id of the same subject is eligible');
 
-        $this->assertNull($this->provider()->project($ref, ['name']));
+        $this->assertNull($this->provider()->project($ref((int) $b->id), ['name']));
     }
 
     public function test_a_digit_string_subject_reference_is_accepted(): void
@@ -510,6 +518,15 @@ final class PublicProfileProviderTest extends TestCase
     public function test_unsafe_avatar_urls_are_dropped(string $url): void
     {
         $b = $this->subject();
+        if (DB::getDriverName() !== 'sqlite' && strlen($url) > 255) {
+            // `users.avatar` is a 255-character column. A driver that enforces the length (MySQL strict mode)
+            // cannot store this value at all, which is the stronger guarantee; the provider's own length guard
+            // is exercised on SQLite, which does not enforce VARCHAR lengths (TD-P12A-1).
+            $this->expectException(\Illuminate\Database\QueryException::class);
+            DB::table('users')->where('id', $b->id)->update(['avatar' => $url]);
+
+            return;
+        }
         DB::table('users')->where('id', $b->id)->update(['avatar' => $url]); // bypass write-time validation
         $this->optIn($b);
 

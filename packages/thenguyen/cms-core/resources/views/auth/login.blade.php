@@ -4,7 +4,7 @@
 @section('subtitle', __('Welcome back. Please sign in to continue.'))
 
 @section('content')
-    <form method="POST" action="{{ route('cms.auth.login.attempt') }}">
+    <form method="POST" action="{{ cms_localized_route('cms.auth.login.attempt') }}">
         @csrf
         <div class="tn-field">
             <label for="email">{{ __('Email') }}</label>
@@ -21,10 +21,10 @@
     </form>
     <div class="tn-links">
         @if (Route::has('password.request'))
-            <a href="{{ route('password.request') }}">{{ __('Forgot password?') }}</a>
+            <a href="{{ cms_localized_route('password.request') }}">{{ __('Forgot password?') }}</a>
         @endif
         @if (frontend_auth()->registrationEnabled())
-            <a href="{{ route('cms.auth.register') }}">{{ __('Create account') }}</a>
+            <a href="{{ cms_localized_route('cms.auth.register') }}">{{ __('Create account') }}</a>
         @endif
     </div>
 @endsection

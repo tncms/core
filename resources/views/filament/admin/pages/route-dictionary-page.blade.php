@@ -2,33 +2,47 @@
     {{-- Read-only overview of the effective dictionary with ownership. Inherited (Core/Plugin)
          entries are read-only; project overrides are edited in the form below. --}}
     <section class="space-y-4">
+        {{-- CORE-H-Z1-REMEDIATION-R1 H-C3 (WCAG 1.3.1 / 3.3.2 / 4.1.2): the filters had no label (the two selects
+             had no accessible name; the search box relied on its placeholder). Each now has a visible <label for>. --}}
         <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <input
-                type="text"
-                wire:model.live.debounce.300ms="search"
-                placeholder="{{ tn_trans('Search key or segment…') }}"
-                class="fi-input block w-full rounded-lg border-none bg-white px-3 py-2 text-sm shadow-sm ring-1 ring-gray-950/10 dark:bg-white/5 dark:ring-white/20"
-            />
+            <div>
+                <label for="tn-route-dictionary-search" class="mb-1 block text-sm font-medium text-gray-950 dark:text-white">{{ tn_trans('Search') }}</label>
+                <input
+                    id="tn-route-dictionary-search"
+                    type="text"
+                    wire:model.live.debounce.300ms="search"
+                    placeholder="{{ tn_trans('Search key or segment…') }}"
+                    class="fi-input block w-full rounded-lg border-none bg-white px-3 py-2 text-sm shadow-sm ring-1 ring-gray-950/10 dark:bg-white/5 dark:ring-white/20"
+                />
+            </div>
 
-            <select
-                wire:model.live="localeFilter"
-                class="fi-select block w-full rounded-lg border-none bg-white px-3 py-2 text-sm shadow-sm ring-1 ring-gray-950/10 dark:bg-white/5 dark:ring-white/20"
-            >
-                <option value="">{{ tn_trans('All locales') }}</option>
-                @foreach ($this->localeOptions() as $locale)
-                    <option value="{{ $locale }}">{{ $locale }}</option>
-                @endforeach
-            </select>
+            <div>
+                <label for="tn-route-dictionary-locale" class="mb-1 block text-sm font-medium text-gray-950 dark:text-white">{{ tn_trans('Locale') }}</label>
+                <select
+                    id="tn-route-dictionary-locale"
+                    wire:model.live="localeFilter"
+                    class="fi-select block w-full rounded-lg border-none bg-white px-3 py-2 text-sm shadow-sm ring-1 ring-gray-950/10 dark:bg-white/5 dark:ring-white/20"
+                >
+                    <option value="">{{ tn_trans('All locales') }}</option>
+                    @foreach ($this->localeOptions() as $locale)
+                        <option value="{{ $locale }}">{{ $locale }}</option>
+                    @endforeach
+                </select>
+            </div>
 
-            <select
-                wire:model.live="ownerFilter"
-                class="fi-select block w-full rounded-lg border-none bg-white px-3 py-2 text-sm shadow-sm ring-1 ring-gray-950/10 dark:bg-white/5 dark:ring-white/20"
-            >
-                <option value="">{{ tn_trans('All owners') }}</option>
-                <option value="core">{{ tn_trans('Core') }}</option>
-                <option value="plugin">{{ tn_trans('Plugin') }}</option>
-                <option value="project">{{ tn_trans('Project') }}</option>
-            </select>
+            <div>
+                <label for="tn-route-dictionary-owner" class="mb-1 block text-sm font-medium text-gray-950 dark:text-white">{{ tn_trans('Owner') }}</label>
+                <select
+                    id="tn-route-dictionary-owner"
+                    wire:model.live="ownerFilter"
+                    class="fi-select block w-full rounded-lg border-none bg-white px-3 py-2 text-sm shadow-sm ring-1 ring-gray-950/10 dark:bg-white/5 dark:ring-white/20"
+                >
+                    <option value="">{{ tn_trans('All owners') }}</option>
+                    <option value="core">{{ tn_trans('Core') }}</option>
+                    <option value="plugin">{{ tn_trans('Plugin') }}</option>
+                    <option value="project">{{ tn_trans('Project') }}</option>
+                </select>
+            </div>
         </div>
 
         <div class="overflow-hidden rounded-xl ring-1 ring-gray-950/5 dark:ring-white/10">

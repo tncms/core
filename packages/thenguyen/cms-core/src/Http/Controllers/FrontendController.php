@@ -11,6 +11,7 @@ use TheNguyen\CMS\Contracts\AdjacentPostResolver;
 use TheNguyen\CMS\Contracts\PostBreadcrumbResolver;
 use TheNguyen\CMS\Contracts\PublicAuthorResolver;
 use TheNguyen\CMS\Contracts\RelatedPostResolver;
+use TheNguyen\CMS\Http\Exceptions\TranslationUnavailableHttpException;
 use TheNguyen\CMS\Localization\CurrentResourcePublisher;
 use TheNguyen\CMS\Models\Content;
 use TheNguyen\CMS\Models\Term;
@@ -61,7 +62,8 @@ class FrontendController
         $this->resources->publishHome();
 
         // Homepage SEO is site-level (site name / description), even when a
-        // static page is used to render it.
+        // static page is used to render it; only that page's robots policy
+        // applies at `/` (CORE-SEO-RELEASE-HARDENING-R1, H2).
         $this->seo->forHome();
 
         // Preset/builder homepage (theme-architecture 18): when the active theme
@@ -81,6 +83,15 @@ class FrontendController
             $page = $this->findStaticHomePage();
 
             if ($page !== null && View::exists('theme::pages.page')) {
+                // Owner policy A (CORE-RELEASE-BLOCKERS-R1-CLOSURE): no translation in this
+                // enabled locale is a localized 404 + noindex, rendered by the theme error
+                // contract — never another language's content, never a redirect.
+                if (! $page->hasTranslation($locale)) {
+                    throw new TranslationUnavailableHttpException($locale, $this->translatedHomeUrl($page));
+                }
+
+                $this->seo->homePage($page);
+
                 return response($this->renderContent($this->pageView($page), $page, $locale));
             }
         }
@@ -99,6 +110,8 @@ class FrontendController
         $page = $this->findHomeContent($locale);
 
         if ($page !== null && View::exists('theme::pages.page')) {
+            $this->seo->homePage($page);
+
             return response($this->renderContent($this->pageView($page), $page, $locale));
         }
 
@@ -251,6 +264,10 @@ class FrontendController
         $page = $this->findPublishedContent($slug, 'page', $locale);
 
         if ($page !== null) {
+            if (($home = $this->frontPageRedirect($page, $locale)) !== null) {
+                return $home;
+            }
+
             $prepared = $this->gateContent($page, $locale);
             $this->resources->publishContent($page);
             $this->seo->forContent($page, $locale);
@@ -271,6 +288,26 @@ class FrontendController
         }
 
         abort(404);
+    }
+
+    /**
+     * The Page that currently renders at `/` is canonical only there: its public
+     * slug URL answers 301 to the locale's home (owner contract B). Only the page
+     * FrontPage proves is rendered at `/` (section layouts and latest-posts homes
+     * redirect nothing), so a reassignment restores the old slug immediately.
+     * Root-relative Location like cms.canonical-locale; credential and
+     * signed-URL parameters are dropped, other query parameters are kept.
+     */
+    private function frontPageRedirect(Content $page, string $locale): ?\Illuminate\Http\RedirectResponse
+    {
+        if ($page->type !== 'page' || $page->id !== \TheNguyen\CMS\Content\Extension\FrontPage::renderedAtRootId()) {
+            return null;
+        }
+
+        $target = $this->languages->localizedUrl($locale, '/');
+        $query = \TheNguyen\CMS\Support\CredentialQuery::strip(request()->getQueryString());
+
+        return new \Illuminate\Http\RedirectResponse($query === '' ? $target : $target.'?'.$query, 301);
     }
 
     private function defaultLocaleAlias(): ?string
@@ -359,8 +396,12 @@ class FrontendController
         if ($referenceType === 'content') {
             $content = Content::query()->find($referenceId);
 
-            if ($content === null || $content->status !== 'published') {
+            if ($content === null || ! $content->isPubliclyPublished()) {
                 return null;
+            }
+
+            if (($home = $this->frontPageRedirect($content, $locale)) !== null) {
+                return $home;
             }
 
             $this->tagPageType('content');
@@ -480,11 +521,30 @@ class FrontendController
     {
         $home = $this->contents->findBySlug('trang-chu', $this->languages->defaultCode(), 'page');
 
-        if ($home === null || $home->status !== 'published' || $this->isOwnedContent($home)) {
+        if ($home === null || ! $home->isPubliclyPublished() || $this->isOwnedContent($home)) {
             return null;
         }
 
         return $home;
+    }
+
+    /**
+     * The homepage URL in a public locale the page is translated into (the default locale
+     * first), or null when it has none.
+     */
+    private function translatedHomeUrl(Content $page): ?string
+    {
+        $default = $this->languages->defaultCode();
+        $locales = $this->languages->getPublicLocales();
+        usort($locales, static fn (string $a, string $b): int => ($b === $default) <=> ($a === $default));
+
+        foreach ($locales as $code) {
+            if ($page->hasTranslation($code)) {
+                return url($this->languages->localizedUrl($code, '/'));
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -504,7 +564,7 @@ class FrontendController
             ->whereKey($id)
             ->first();
 
-        if ($page === null || $page->status !== 'published' || $this->isOwnedContent($page)) {
+        if ($page === null || ! $page->isPubliclyPublished() || $this->isOwnedContent($page)) {
             return null;
         }
 
@@ -526,7 +586,7 @@ class FrontendController
 
         $posts = Content::query()
             ->where('type', 'post')
-            ->where('status', 'published')
+            ->published()
             ->discoverable()
             ->whereHas('translations', fn ($q) => $q->where('locale', $locale))
             ->with('translations')
@@ -561,7 +621,7 @@ class FrontendController
     {
         $content = $this->contents->findBySlug($slug, $locale, $type);
 
-        if ($content === null || $content->status !== 'published') {
+        if ($content === null || ! $content->isPubliclyPublished()) {
             return null;
         }
 
@@ -762,12 +822,15 @@ class FrontendController
         // and preserves the existing query string on pagination links.
         $posts = $term->contents()
             ->where('type', 'post')
-            ->where('status', 'published')
+            ->published()
             ->discoverable()
             ->with(['translations' => fn ($q) => $q->where('locale', $locale)])
             ->orderByDesc('published_at')
             ->paginate($this->archivePerPage())
             ->withQueryString();
+
+        // A later page is its own canonical (only ?page= kept), never page 1.
+        $this->seo->paginated($posts->currentPage(), $posts->lastPage());
 
         $title = $labelPrefix.': '.$term->displayName($locale);
 

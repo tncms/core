@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Filament\Admin\Pages;
 
+use App\Filament\Admin\Support\AdminMediaUploadGate;
 use BackedEnum;
 use Filament\Forms\Components\FileUpload;
 use Filament\Notifications\Notification;
@@ -28,6 +29,16 @@ class MediaUpload extends Page
     protected static ?string $title = 'Upload Media';
 
     protected string $view = 'filament.admin.pages.media-upload';
+
+    /**
+     * Upload needs media.upload (CORE-40-FRONTEND-MEDIA-R1 S-M1). Filament applies this to the
+     * page route, the navigation item and every Livewire request to the page; the save callback
+     * re-checks it as well, so a grant revoked while the page is open stops the next upload.
+     */
+    public static function canAccess(): bool
+    {
+        return AdminMediaUploadGate::allows();
+    }
 
     public static function getNavigationLabel(): string
     {
@@ -64,6 +75,8 @@ class MediaUpload extends Page
                             ->maxSize($this->maxUploadKb())
                             ->panelLayout('grid')
                             ->saveUploadedFileUsing(function (TemporaryUploadedFile $file): string {
+                                AdminMediaUploadGate::authorize();
+
                                 return $this->manager()->upload($file)->path;
                             }),
                     ]),

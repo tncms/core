@@ -45,15 +45,20 @@ final class ApplyPublicLocale
             abort(404);
         }
 
+        // An explicit, active {locale} segment wins under every strategy — the same
+        // rule as FrontendController::resolveLocale() — so /en/account never renders
+        // another language. Without a segment the active strategy decides.
         $code = $this->languages->normalizeCode(
-            app(LocalizationStrategyContract::class)->resolveLocale($request),
+            $explicit ?? app(LocalizationStrategyContract::class)->resolveLocale($request),
         );
 
         $this->languages->setCurrent($code);
 
         // Persist a reader's route-driven explicit choice; best-effort — a
-        // preference write must never break the request.
-        if ($explicit !== null) {
+        // preference write must never break the request. A Livewire update
+        // (this middleware is persistent, CORE-P12-4) only re-applies the page's
+        // locale: a transport request is not a language choice.
+        if ($explicit !== null && ! $request->hasHeader('X-Livewire')) {
             try {
                 $this->preferences->persistFrontendLocale($request, $request->user(), $code);
             } catch (\Throwable) {

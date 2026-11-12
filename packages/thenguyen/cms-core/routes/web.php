@@ -8,16 +8,19 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 use TheNguyen\CMS\Http\Controllers\LocaleSwitchController;
 use TheNguyen\CMS\Http\Controllers\SeoController;
+use TheNguyen\CMS\Http\Middleware\ApplyCanonicalHost;
 use TheNguyen\CMS\Support\CmsInfo;
 
 // SEO infrastructure endpoints. Registered before the frontend catch-all
 // (web.php loads before frontend.php) so they are not swallowed by /{slug}.
-Route::get('/robots.txt', [SeoController::class, 'robots'])->name('cms.robots');
-Route::get('/sitemap.xml', [SeoController::class, 'sitemap'])->name('cms.sitemap');
+// CORE-SEO-RELEASE-HARDENING-R1 (H1): absolute URLs use the canonical host authority.
+Route::get('/robots.txt', [SeoController::class, 'robots'])->middleware(ApplyCanonicalHost::class)->name('cms.robots');
+Route::get('/sitemap.xml', [SeoController::class, 'sitemap'])->middleware(ApplyCanonicalHost::class)->name('cms.sitemap');
 // CORE-SITEMAP-R1: /sitemap.xml is an index of these children; names are
 // looked up in the current manifest, never parsed into queries.
 Route::get('/sitemaps/{name}.xml', [SeoController::class, 'sitemapChunk'])
     ->where('name', '[a-z0-9][a-z0-9_-]{0,190}')
+    ->middleware(ApplyCanonicalHost::class)
     ->name('cms.sitemap.chunk');
 
 // CORE-L10N A2 — the ONE canonical public locale-switch endpoint. The active
@@ -237,6 +240,7 @@ Route::get('/cms-health', static function (): JsonResponse {
     $seoReady = false;
     $sitemapReady = false;
     $robotsReady = false;
+    $sitemapReservedCollisions = null;
 
     try {
         $seoReady = app()->bound('cms.seo')
@@ -247,6 +251,13 @@ Route::get('/cms-health', static function (): JsonResponse {
         $seoReady = false;
         $sitemapReady = false;
         $robotsReady = false;
+    }
+
+    // CORE-SITEMAP-S01: stored bases/slugs claiming a Core SEO path (count only).
+    try {
+        $sitemapReservedCollisions = $settingsLoaded ? count(app('cms.permalink')->reservedCollisions()) : null;
+    } catch (\Throwable) {
+        $sitemapReservedCollisions = null;
     }
 
     $htmlSanitizerReady = false;
@@ -876,6 +887,7 @@ Route::get('/cms-health', static function (): JsonResponse {
         'seo_ready' => $seoReady,
         'sitemap_ready' => $sitemapReady,
         'robots_ready' => $robotsReady,
+        'sitemap_reserved_path_collisions' => $sitemapReservedCollisions,
         'rich_editor_ready' => $richEditorReady,
         'html_sanitizer_ready' => $htmlSanitizerReady,
         'media_modal_ready' => $mediaModalReady,

@@ -50,7 +50,7 @@ class FrontendLoginController
             HookContext::make(['request' => $request, 'user' => $this->auth->guard()->user()]),
         );
 
-        return redirect()->intended($target);
+        return redirect()->to(app(\TheNguyen\CMS\Http\Support\FrontendIntendedUrl::class)->pull($request, $target));
     }
 
     public function logout(Request $request): RedirectResponse
@@ -59,7 +59,7 @@ class FrontendLoginController
 
         $target = apply_filters(
             'cms.auth.redirect_after_logout',
-            '/',
+            \Illuminate\Support\Facades\Route::has('cms.home') ? cms_localized_route('cms.home') : '/',
             HookContext::make(['request' => $request]),
         );
 
@@ -68,6 +68,6 @@ class FrontendLoginController
 
     private function defaultRedirect(): string
     {
-        return \Illuminate\Support\Facades\Route::has('cms.account') ? route('cms.account') : '/';
+        return \Illuminate\Support\Facades\Route::has('cms.account') ? cms_localized_route('cms.account') : '/';
     }
 }

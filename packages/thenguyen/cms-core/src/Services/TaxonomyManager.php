@@ -12,6 +12,7 @@ use TheNguyen\CMS\Models\Taxonomy;
 use TheNguyen\CMS\Models\Term;
 use TheNguyen\CMS\Models\TermTranslation;
 use TheNguyen\CMS\Revision\DTOs\RevisionContext;
+use TheNguyen\CMS\Seo\ResourceRobotsPolicy;
 
 class TaxonomyManager
 {
@@ -60,6 +61,8 @@ class TaxonomyManager
                 'featured_image' => $this->normalizeFeaturedImage($taxonomy, $data, null),
                 'sort_order' => $data['sort_order'] ?? 0,
                 'count' => 0,
+                // Per-item robots restriction (CORE-SEO-POLICY-AND-ADMIN-LOCALE-R1).
+                'seo_robots' => ResourceRobotsPolicy::normalize($data['seo_robots'] ?? null),
             ]);
 
             // Hook point: a term is being saved (v1.0.0-beta.7.1.11).
@@ -98,6 +101,11 @@ class TaxonomyManager
 
             if (array_key_exists('sort_order', $data)) {
                 $term->sort_order = (int) $data['sort_order'];
+            }
+
+            // Omitted = keep; explicit null/'' = inherit the site policy.
+            if (array_key_exists('seo_robots', $data)) {
+                $term->seo_robots = ResourceRobotsPolicy::normalize($data['seo_robots']);
             }
 
             $term->save();

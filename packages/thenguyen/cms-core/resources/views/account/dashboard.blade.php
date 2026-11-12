@@ -20,10 +20,10 @@
             @endif
         </dl>
         <p style="margin-top:1rem; display:flex; gap:.5rem; flex-wrap:wrap;">
-            <a class="tn-btn tn-btn-ghost" href="{{ route('cms.account.profile') }}">{{ __('Profile') }}</a>
-            <a class="tn-btn tn-btn-ghost" href="{{ route('cms.account.security') }}">{{ __('Security') }}</a>
-            <a class="tn-btn tn-btn-ghost" href="{{ route('cms.account.sessions') }}">{{ __('Sessions') }}</a>
-            <a class="tn-btn tn-btn-ghost" href="{{ route('cms.account.preferences') }}">{{ __('Preferences') }}</a>
+            <a class="tn-btn tn-btn-ghost" href="{{ cms_localized_route('cms.account.profile') }}">{{ __('Profile') }}</a>
+            <a class="tn-btn tn-btn-ghost" href="{{ cms_localized_route('cms.account.security') }}">{{ __('Security') }}</a>
+            <a class="tn-btn tn-btn-ghost" href="{{ cms_localized_route('cms.account.sessions') }}">{{ __('Sessions') }}</a>
+            <a class="tn-btn tn-btn-ghost" href="{{ cms_localized_route('cms.account.preferences') }}">{{ __('Preferences') }}</a>
         </p>
     </div>
 

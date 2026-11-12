@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace TheNguyen\CMS\Services;
 
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use TheNguyen\CMS\Sitemap\ReservedSeoPaths;
+
 /**
  * Permalink base settings (v0.9.6).
  *
@@ -31,7 +35,7 @@ class PermalinkManager
      */
     public const RESERVED = [
         'admin', 'cms-health', 'livewire', 'filament', 'storage',
-        'uploads', 'themes', 'robots.txt', 'sitemap.xml', 'up', 'vendor',
+        'uploads', 'themes', 'robots.txt', 'sitemap.xml', 'sitemaps', 'up', 'vendor',
     ];
 
     /** Raw stored post base (may be empty). */
@@ -133,6 +137,41 @@ class PermalinkManager
     public static function reserved(): array
     {
         return self::RESERVED;
+    }
+
+    /**
+     * Stored values that claim a Core SEO path (CORE-SITEMAP-S01): permalink
+     * bases and public slugs created before the reservation existed. Reported
+     * for the operator, never rewritten (an automatic rename would break
+     * published URLs). Bounded to 100 slug rows.
+     *
+     * @return list<array<string, int|string|null>>
+     */
+    public function reservedCollisions(): array
+    {
+        $out = [];
+
+        foreach (['permalink.post_base' => $this->rawPostBase(), 'permalink.category_base' => $this->rawCategoryBase(), 'permalink.tag_base' => $this->rawTagBase()] as $setting => $value) {
+            $value = $this->normalizeBase($value);
+
+            if ($value !== '' && ReservedSeoPaths::isSegment($value)) {
+                $out[] = ['kind' => 'base', 'setting' => $setting, 'value' => $value];
+            }
+        }
+
+        if (Schema::hasTable('cms_slugs')) {
+            $rows = DB::table('cms_slugs')
+                ->whereIn('slug', ReservedSeoPaths::SEGMENTS)
+                ->orderBy('id')
+                ->limit(100)
+                ->get(['locale', 'slug', 'reference_type', 'reference_id']);
+
+            foreach ($rows as $row) {
+                $out[] = ['kind' => 'slug', 'locale' => (string) $row->locale, 'value' => (string) $row->slug, 'reference_type' => $row->reference_type, 'reference_id' => (int) $row->reference_id];
+            }
+        }
+
+        return $out;
     }
 
     private function raw(string $key, string $default): string

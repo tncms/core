@@ -157,14 +157,20 @@ final class SitemapContentVisibilityTest extends TestCase
         }
         $this->indexNames();
 
+        // Driver-independent: identifier quoting differs ("x" on SQLite, `x` on
+        // MySQL), so compare the statement with its quotes removed.
         $markerQueries = 0;
-        \Illuminate\Support\Facades\DB::listen(static function ($q) use (&$markerQueries): void {
-            if (str_starts_with($q->sql, 'select "id", "managed_by" from "cms_contents"')) {
+        $batched = 0;
+        \Illuminate\Support\Facades\DB::listen(static function ($q) use (&$markerQueries, &$batched): void {
+            $sql = str_replace(['"', '`'], '', $q->sql);
+            if (str_starts_with($sql, 'select id, managed_by from cms_contents where id in (')) {
                 $markerQueries++;
+                $batched = max($batched, count($q->bindings));
             }
         });
         $this->chunkLocs('core-posts-vi-1');
 
-        $this->assertSame(1, $markerQueries);
+        $this->assertSame(1, $markerQueries, 'one ownership-marker query per chunk, never per item');
+        $this->assertGreaterThanOrEqual(8, $batched, 'the single query carries every listed id');
     }
 }

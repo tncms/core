@@ -9,6 +9,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\URL;
 use TheNguyen\CMS\Services\InstallerManager;
+use TheNguyen\CMS\Validation\Rules\SafeEmailAddress;
 
 /**
  * Web Installer Core (CORE-INSTALLER-2).
@@ -144,7 +145,7 @@ class InstallController
 
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'email', 'max:255'],
+            'email' => ['required', 'email', new SafeEmailAddress, 'max:255'],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
         ]);
 

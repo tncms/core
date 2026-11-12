@@ -21,6 +21,7 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Model;
 use TheNguyen\CMS\Models\Role;
 use TheNguyen\CMS\Support\UserLifecycle\UserDeletionContext;
+use TheNguyen\CMS\Validation\Rules\SafeEmailAddress;
 
 /**
  * Users admin resource (v1.0.0-beta.3).
@@ -72,19 +73,26 @@ class UserResource extends Resource
                         TextInput::make('name')
                             ->label(tn_trans('Name'))
                             ->required()
-                            ->maxLength(255),
+                            ->maxLength(255)
+                            // ER-8 (WCAG 1.3.5): on the signed-in user's own record the field is their name.
+                            ->autocomplete(fn (?Model $record): ?string => static::isOwnRecord($record) ? 'name' : null),
 
                         TextInput::make('email')
                             ->label(tn_trans('Email'))
                             ->email()
+                            // R-INP-1: the shared Core address-safety rule (no NUL/CR/LF/control characters).
+                            ->rule(new SafeEmailAddress)
                             ->required()
                             ->maxLength(255)
-                            ->unique(ignoreRecord: true),
+                            ->unique(ignoreRecord: true)
+                            ->autocomplete(fn (?Model $record): ?string => static::isOwnRecord($record) ? 'email' : null),
 
                         TextInput::make('password')
                             ->label(tn_trans('Password'))
                             ->password()
                             ->revealable()
+                            // The field only ever sets a new password, never asks for the current one.
+                            ->autocomplete('new-password')
                             ->maxLength(255)
                             ->helperText(tn_trans('Leave blank to keep the current password when editing.'))
                             // Required only when creating; the model's "hashed"
@@ -101,6 +109,17 @@ class UserResource extends Resource
                     ])
                     ->columns(2),
             ]);
+    }
+
+    /**
+     * Whether the form is the signed-in user's own account (ER-8, WCAG 1.3.5): only then do the
+     * name and e-mail fields collect information about the user, so only then are they marked.
+     */
+    protected static function isOwnRecord(?Model $record): bool
+    {
+        $user = auth()->user();
+
+        return $record instanceof User && $user instanceof User && $record->is($user);
     }
 
     public static function table(Table $table): Table

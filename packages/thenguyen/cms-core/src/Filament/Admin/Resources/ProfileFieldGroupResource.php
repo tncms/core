@@ -14,6 +14,7 @@ use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use TheNguyen\CMS\Filament\Admin\Resources\ProfileFieldGroupResource\Pages;
+use TheNguyen\CMS\Filament\Tables\BooleanIconState;
 use TheNguyen\CMS\Models\UserProfileFieldGroup;
 
 /**
@@ -94,8 +95,8 @@ class ProfileFieldGroupResource extends Resource
                 TextColumn::make('key')->label(tn_trans('Key'))->searchable()->sortable(),
                 TextColumn::make('source')->label(tn_trans('Source'))->badge(),
                 TextColumn::make('sort_order')->label(tn_trans('Order'))->sortable(),
-                IconColumn::make('is_active')->label(tn_trans('Active'))->boolean(),
-                IconColumn::make('is_locked')->label(tn_trans('Locked'))->boolean(),
+                IconColumn::make('is_active')->label(tn_trans('Active'))->boolean()->extraAttributes(fn (mixed $state): array => BooleanIconState::attributes($state))->disabledClick(), // A6
+                IconColumn::make('is_locked')->label(tn_trans('Locked'))->boolean()->extraAttributes(fn (mixed $state): array => BooleanIconState::attributes($state))->disabledClick(), // A6
             ])
             ->defaultSort('sort_order');
     }

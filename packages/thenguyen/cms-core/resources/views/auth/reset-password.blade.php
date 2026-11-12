@@ -4,7 +4,7 @@
 @section('subtitle', __('Choose a new password for your account.'))
 
 @section('content')
-    <form method="POST" action="{{ route('password.update') }}">
+    <form method="POST" action="{{ cms_localized_route('password.update') }}">
         @csrf
         <input type="hidden" name="token" value="{{ $token }}">
         <div class="tn-field">

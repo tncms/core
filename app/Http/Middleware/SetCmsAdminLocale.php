@@ -45,8 +45,15 @@ class SetCmsAdminLocale
             // ?lang= is the admin UI locale switch; ?locale= is the content
             // editing locale switch. Each persists to its own session key and
             // user column (logged-in users only) — never the other's.
-            $prefs->persistAdminLocaleFromRequest($request, $user);
-            $prefs->persistEditingLocaleFromRequest($request, $user);
+            //
+            // A Livewire update (this middleware is persistent, so Livewire
+            // replays it on /livewire/update) only RESOLVES the locale: a query
+            // string on the Livewire endpoint must never switch or persist it.
+            // The explicit switch stays the ?lang/?locale on a real admin page.
+            if (! $request->hasHeader('X-Livewire')) {
+                $prefs->persistAdminLocaleFromRequest($request, $user);
+                $prefs->persistEditingLocaleFromRequest($request, $user);
+            }
 
             // setCurrent() pins the CMS current locale AND app()->setLocale(),
             // which is what tn_trans() and Filament's __() lookups read. This is

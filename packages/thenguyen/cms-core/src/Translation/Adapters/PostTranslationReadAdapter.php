@@ -92,6 +92,18 @@ final class PostTranslationReadAdapter
             : 'Content #'.$post->getKey();
     }
 
+    /**
+     * Language of the title that title() returns (CORE-H-Z1-REMEDIATION-R3, ER-5): the locale of the same
+     * first-available record, or null when title() falls back to the "Content #id" placeholder.
+     */
+    public function titleLocale(Content $post, ?string $locale = null): ?string
+    {
+        $record = $this->firstAvailableRecord($post, $this->locale($locale));
+        $title = $record?->field('title');
+
+        return ($title !== null && $title !== '') ? $record->locale : null;
+    }
+
     /** Row-level first-available slug with the legacy empty-string default. */
     public function slug(Content $post, ?string $locale = null): string
     {

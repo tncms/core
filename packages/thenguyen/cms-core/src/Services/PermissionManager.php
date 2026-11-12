@@ -317,6 +317,17 @@ class PermissionManager
     }
 
     /**
+     * Forget the memoised per-user grants (CORE-40-FRONTEND-MEDIA-R1). A normal HTTP
+     * request starts with an empty cache; long-lived workers and tests call this after a
+     * role or grant change so the next check reads the current assignments.
+     */
+    public function flushResolutionCache(): void
+    {
+        $this->resolveCache = [];
+        $this->initialized = null;
+    }
+
+    /**
      * Whether the user is a super admin (super-admin role or configured email).
      */
     public function isSuperAdmin(?Authenticatable $user): bool
@@ -508,6 +519,10 @@ class PermissionManager
             ['media.upload', 'Upload media', 'Media'],
             ['media.edit', 'Edit media', 'Media'],
             ['media.delete', 'Delete media', 'Media'],
+            // Frontend own-media library (CORE-40-FRONTEND-MEDIA-R1): never implies admin.access.
+            ['media.view_own', 'View and select own media (frontend)', 'Media'],
+            ['media.upload_own', 'Upload own media (frontend)', 'Media'],
+            ['media.delete_own', 'Delete own media (frontend)', 'Media'],
 
             // Menus
             ['menus.manage', 'Manage menus', 'Menus'],
@@ -515,6 +530,12 @@ class PermissionManager
             // Settings
             ['settings.manage', 'Manage settings', 'Settings'],
             ['languages.manage', 'Manage languages & translation files', 'Settings'],
+
+            // XML sitemap admin (CORE-SITEMAP-ADMIN-R1): never granted to editors/authors.
+            ['sitemap.view', 'View XML sitemap settings and status', 'SEO'],
+            ['sitemap.manage', 'Manage XML sitemap settings', 'SEO'],
+            ['sitemap.diagnostics', 'Run XML sitemap diagnostics', 'SEO'],
+            ['sitemap.cache_refresh', 'Refresh the XML sitemap cache', 'SEO'],
 
             // Themes
             ['themes.view', 'View themes', 'Themes'],

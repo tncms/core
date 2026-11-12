@@ -7,6 +7,8 @@ namespace App\Filament\Admin\Resources;
 use App\Filament\Admin\Components\MediaPicker;
 use App\Filament\Admin\Components\RichEditor;
 use App\Filament\Admin\Resources\Concerns\HasContentBulkActions;
+use App\Filament\Admin\Resources\Concerns\RobotsPolicyField;
+use App\Filament\Admin\Resources\Concerns\TranslatedSlugColumn;
 use App\Filament\Admin\Resources\PageResource\Pages;
 use App\Filament\Admin\Resources\PageResource\Support\PageLocalizedContent;
 use BackedEnum;
@@ -128,6 +130,8 @@ class PageResource extends Resource
                         Textarea::make('meta_keywords')
                             ->label(tn_trans('Meta keywords'))
                             ->rows(2),
+
+                        RobotsPolicyField::make(isPage: true),
                     ])
                     ->columns(1)
                     ->collapsed(),
@@ -148,7 +152,9 @@ class PageResource extends Resource
                             ->required(),
 
                         DateTimePicker::make('published_at')
-                            ->label(tn_trans('Publish date')),
+                            ->label(tn_trans('Publish date'))
+                            // TZ-4: the picker shows and stores times in the application timezone.
+                            ->helperText(static fn (): string => tn_trans('Timezone: :timezone', ['timezone' => (string) config('app.timezone', 'UTC')])),
 
                         // Active-theme page templates (CORE-THEME-2): a validated
                         // Select over the active theme's declared allowlist. The
@@ -213,6 +219,8 @@ class PageResource extends Resource
                 TextColumn::make('title')
                     ->label(tn_trans('Title'))
                     ->state(fn (Content $record): string => $record->translatedTitle(editing_locale()))
+                    // ER-5 (WCAG 3.1.2): the title is in its translation's language, not the interface language.
+                    ->extraAttributes(fn (Content $record): array => array_filter(['lang' => $record->translatedTitleLocale(editing_locale())]))
                     ->searchable(query: static function (Builder $query, string $search): Builder {
                         return $query->whereHas('translations', function (Builder $q) use ($search): void {
                             $q->where('locale', editing_locale())
@@ -223,10 +231,7 @@ class PageResource extends Resource
                         });
                     }),
 
-                TextColumn::make('slug')
-                    ->label(tn_trans('Slug'))
-                    ->state(fn (Content $record): string => $record->translatedSlug(editing_locale()))
-                    ->toggleable(),
+                TranslatedSlugColumn::make(fn (Content $record): string => $record->translatedSlug(editing_locale())),
 
                 BadgeColumn::make('status')
                     ->label(tn_trans('Status'))
@@ -241,6 +246,9 @@ class PageResource extends Resource
                 TextColumn::make('published_at')
                     ->label(tn_trans('Published at'))
                     ->dateTime()
+                    // A6: a draft's empty cell would be an unnamed row link.
+                    ->placeholder(tn_trans('Not published'))
+                    ->extraCellAttributes(['class' => 'tn-admin-placeholder'])
                     ->sortable(),
 
                 TextColumn::make('updated_at')

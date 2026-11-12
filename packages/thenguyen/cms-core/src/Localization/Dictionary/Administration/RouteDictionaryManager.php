@@ -226,6 +226,11 @@ final class RouteDictionaryManager
                     $errors[] = "Invalid segment \"{$segment}\" for \"{$key}\" [{$locale}].";
                 }
 
+                // Core's robots.txt and sitemap endpoints own these paths (CORE-SITEMAP-S01).
+                if (\TheNguyen\CMS\Sitemap\ReservedSeoPaths::isSegment($segment)) {
+                    $errors[] = "Segment \"{$segment}\" for \"{$key}\" [{$locale}] is reserved for the sitemap.";
+                }
+
                 if (isset($plugin[$key][$locale])) {
                     $errors[] = "\"{$key}\" [{$locale}] is owned by a plugin and cannot be overridden.";
                 }

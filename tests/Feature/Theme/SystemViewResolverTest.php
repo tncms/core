@@ -43,12 +43,13 @@ final class SystemViewResolverTest extends TestCase
 
     // --- Registry + selection (service level) ---------------------------------
 
-    public function test_registry_exposes_exactly_the_ten_system_pages(): void
+    public function test_registry_exposes_exactly_the_eleven_system_pages(): void
     {
+        // CORE-40-ACCOUNT-SHELL-LOCALE-R1 added verify-email.
         $this->assertSame(
             [
                 'login', 'register', 'forgot-password', 'reset-password',
-                'account', 'profile', 'security', 'preferences', 'sessions', 'search',
+                'account', 'profile', 'security', 'preferences', 'sessions', 'verify-email', 'search',
             ],
             $this->resolver()->pages(),
         );
@@ -68,6 +69,7 @@ final class SystemViewResolverTest extends TestCase
             'security' => ['theme::account.security', 'cms::account.security'],
             'preferences' => ['theme::account.preferences', 'cms::account.preferences'],
             'sessions' => ['theme::account.sessions', 'cms::account.sessions'],
+            'verify-email' => ['theme::auth.verify-email', 'cms::auth.verify-email'],
             'search' => ['theme::search.index', 'frontend.search.index'],
         ];
 
@@ -212,6 +214,7 @@ final class SystemViewResolverTest extends TestCase
 
     public function test_register_fallback_and_theme_override_are_noindex(): void
     {
+        app('cms.language')->create(['code' => 'en', 'name' => 'English', 'is_default' => true, 'is_active' => true, 'sort_order' => 1]); // account/auth pages follow the site locale (CORE-40)
         config(['cms.auth.registration_enabled' => true]);
 
         $this->get('/register')

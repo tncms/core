@@ -17,6 +17,7 @@ use Filament\Schemas\Schema;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
+use TheNguyen\CMS\Filament\Tables\BooleanIconState;
 use TheNguyen\CMS\Models\Taxonomy;
 
 class TaxonomyResource extends Resource
@@ -99,8 +100,8 @@ class TaxonomyResource extends Resource
                 TextColumn::make('slug')->label(tn_trans('Slug'))->sortable()->searchable(),
                 TextColumn::make('type')->label(tn_trans('Type'))->sortable(),
                 TextColumn::make('content_type')->label(tn_trans('For'))->sortable(),
-                IconColumn::make('hierarchical')->label(tn_trans('Hierarchical'))->boolean(),
-                IconColumn::make('is_core')->boolean()->label(tn_trans('Core')),
+                IconColumn::make('hierarchical')->label(tn_trans('Hierarchical'))->boolean()->extraAttributes(fn (mixed $state): array => BooleanIconState::attributes($state))->disabledClick(), // A6
+                IconColumn::make('is_core')->boolean()->label(tn_trans('Core'))->extraAttributes(fn (mixed $state): array => BooleanIconState::attributes($state))->disabledClick(), // A6
                 TextColumn::make('sort_order')->label(tn_trans('Sort order'))->sortable(),
             ])
             ->recordActions([

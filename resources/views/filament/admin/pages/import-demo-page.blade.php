@@ -8,9 +8,12 @@
     </x-filament::section>
 
     @forelse ($packages as $package)
+        {{-- L-2 (H-Z1 pre-rerun): focus destinations for the call-focus reader. After Reset the Reset button is
+             gone, so focus goes to this package's Import button, else (inactive theme: no Import) to its name. --}}
+        @php($demoKey = md5($package['id']))
         <x-filament::section>
             <x-slot name="heading">
-                {{ $package['name'] }}
+                <span id="tn-demo-name-{{ $demoKey }}" tabindex="-1">{{ $package['name'] }}</span>
                 @if ($package['imported'])
                     <x-filament::badge color="success" class="ms-2">{{ tn_trans('Imported') }}</x-filament::badge>
                 @else
@@ -76,6 +79,7 @@
                         </x-filament::button>
 
                         <x-filament::button
+                            id="tn-demo-import-{{ $demoKey }}"
                             wire:click="importPackage('{{ $package['id'] }}')"
                             wire:confirm="{{ $confirmImport }}"
                             wire:loading.attr="disabled"
@@ -91,6 +95,7 @@
                             wire:click="resetPackage('{{ $package['id'] }}')"
                             wire:confirm="{{ $confirmReset }}"
                             wire:loading.attr="disabled"
+                            data-tn-focus-fallback="tn-demo-import-{{ $demoKey }} tn-demo-name-{{ $demoKey }}"
                             icon="heroicon-m-arrow-uturn-left"
                         >
                             {{ tn_trans('Reset') }}

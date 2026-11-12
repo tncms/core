@@ -308,6 +308,11 @@ class CmsServiceProvider extends ServiceProvider
             $app->make('cms.extension_identity'),
         ));
         $this->app->alias('cms.sitemap', \TheNguyen\CMS\Sitemap\SitemapManager::class);
+        // Operator policy + read-only diagnostics (CORE-SITEMAP-ADMIN-R1).
+        $this->app->singleton('cms.sitemap_settings', fn () => new \TheNguyen\CMS\Sitemap\SitemapSettings);
+        $this->app->alias('cms.sitemap_settings', \TheNguyen\CMS\Sitemap\SitemapSettings::class);
+        $this->app->singleton('cms.sitemap_diagnostics', fn () => new \TheNguyen\CMS\Sitemap\SitemapDiagnostics);
+        $this->app->alias('cms.sitemap_diagnostics', \TheNguyen\CMS\Sitemap\SitemapDiagnostics::class);
 
         // Frontend Authentication (v1.0.0-beta.7.1.14): registration, login,
         // logout, password reset, and the session/device invalidation policy on
@@ -322,6 +327,15 @@ class CmsServiceProvider extends ServiceProvider
         $this->app->singleton('cms.account', fn ($app) => new AccountManager($app->make('cms.frontend_auth')));
         $this->app->alias('cms.account', AccountManager::class);
 
+        // Account Extension Registry (CORE-P12-2/3): plugins add their own account
+        // navigation entries in their own namespace; Core and other plugins' entries
+        // cannot be replaced or removed.
+        $this->app->singleton('cms.account.extensions', fn ($app) => new \TheNguyen\CMS\Account\AccountExtensionRegistry(
+            $app->make('cms.extension_identity'),
+            $app->make('cms.extension'),
+        ));
+        $this->app->alias('cms.account.extensions', \TheNguyen\CMS\Account\AccountExtensionRegistry::class);
+
         // Frontend system-page view resolver (CORE-FRONTEND-SYSTEM-VIEW-RESOLVER-1).
         // The ONE Core-owned theme-first resolver for the non-content frontend
         // system pages (login, register, forgot/reset password, account dashboard,
@@ -331,6 +345,11 @@ class CmsServiceProvider extends ServiceProvider
         // specialized sibling of the same precedence policy.
         $this->app->singleton('cms.system_view', fn () => new \TheNguyen\CMS\View\SystemViewResolver);
         $this->app->alias('cms.system_view', \TheNguyen\CMS\View\SystemViewResolver::class);
+
+        // CORE-40-ACCOUNT-SHELL-LOCALE-R1: the ONE URL contract for Core's auth/account
+        // routes and their locale-prefixed `.localized` twins (cms_localized_route()).
+        $this->app->singleton('cms.localized_route_url', fn ($app) => new \TheNguyen\CMS\Localization\LocalizedRouteUrl($app->make('cms.language')));
+        $this->app->alias('cms.localized_route_url', \TheNguyen\CMS\Localization\LocalizedRouteUrl::class);
 
         // User deletion lifecycle authority (CORE-USER-LIFECYCLE-1,
         // v1.0.0-beta.7.1.31). The single Core-owned path for deleting user
@@ -370,9 +389,29 @@ class CmsServiceProvider extends ServiceProvider
             $app->make('cms.html'),
         ));
         $this->app->alias('cms.taxonomy', TaxonomyManager::class);
+        // Bounded, read-only term search + exact-id lookup for pickers and plugins (CORE-P16-1).
+        $this->app->singleton('cms.taxonomy.directory', fn ($app) => new \TheNguyen\CMS\Taxonomy\Directory\TaxonomyDirectory(
+            $app->make('cms.localization.config'),
+            $app->make('cms.localization.content_url'),
+            $app->make('cms.settings'),
+        ));
+        $this->app->alias('cms.taxonomy.directory', \TheNguyen\CMS\Taxonomy\Directory\TaxonomyDirectory::class);
 
         $this->app->singleton('cms.media', fn () => new MediaManager);
         $this->app->alias('cms.media', MediaManager::class);
+
+        // Owner-scoped frontend media library (CORE-40-FRONTEND-MEDIA-R1): the stable plugin-facing
+        // API behind GET/POST /account/media. Authorization is enforced inside the service.
+        $this->app->singleton('cms.media.frontend', fn ($app) => new \TheNguyen\CMS\Media\Frontend\FrontendMediaLibrary(
+            $app->make('cms.media'),
+            $app->make('cms.permission'),
+            $app->make(\TheNguyen\CMS\Media\MediaUsage::class),
+        ));
+        $this->app->alias('cms.media.frontend', \TheNguyen\CMS\Media\Frontend\FrontendMediaLibrary::class);
+
+        // Asset-by-ID lookup for plugins (CORE-P12-1): bounded, read-only, DTO results, explicit scopes.
+        $this->app->singleton('cms.media.assets', fn ($app) => new \TheNguyen\CMS\Media\MediaAssetDirectory($app->make('cms.permission')));
+        $this->app->alias('cms.media.assets', \TheNguyen\CMS\Media\MediaAssetDirectory::class);
 
         // Dynamic mega-menu resolver (Phase 11D) — reuses the Editorial Query
         // Builder so post-driven mega sources resolve in core, never in Blade.
@@ -436,6 +475,8 @@ class CmsServiceProvider extends ServiceProvider
         $this->app->alias('cms.theme_custom_css', ThemeCustomCssManager::class);
 
         $this->app->singleton('cms.seo', fn () => new SeoManager);
+        $this->app->singleton(\TheNguyen\CMS\Seo\CanonicalHost::class);
+        $this->app->singleton(\TheNguyen\CMS\Security\TrustedOrigin::class);
         $this->app->alias('cms.seo', SeoManager::class);
 
         $this->app->singleton('cms.language', fn () => new LanguageManager);
@@ -881,6 +922,99 @@ class CmsServiceProvider extends ServiceProvider
         $this->app->alias('cms.demo_importer', DemoImporter::class);
     }
 
+    /**
+     * Password-reset and email-verification mail links follow the locale of the
+     * request that triggers them (CORE-40-ACCOUNT-SHELL-LOCALE-R1): a reset asked
+     * for on /en/forgot-password links to /en/reset-password/{token}. Outside a
+     * request (queue, CLI) the default locale applies, i.e. the unprefixed URL
+     * Laravel generated before. Only Laravel's own notifications are affected;
+     * the Filament admin reset uses its own notification and URL.
+     *
+     * Their origin is the trusted APP_URL origin, never the request
+     * (CORE-AUTH-TRUSTED-ORIGIN-SECURITY-R1): both links carry a capability, so
+     * a forged Host or forwarded header must not choose where the token or the
+     * signature is sent. The SEO `CMS_CANONICAL_HOST=request` policy does not
+     * apply. When APP_URL is unusable the guard cancels the mail (fail closed)
+     * and logs the configuration problem.
+     */
+    private function registerLocalizedAuthNotificationUrls(): void
+    {
+        \Illuminate\Auth\Notifications\ResetPassword::createUrlUsing(static fn ($user, string $token): string => app('cms.localized_route_url')->route('password.reset', [
+            'token' => $token,
+            'email' => $user->getEmailForPasswordReset(),
+        ], null, true, app(\TheNguyen\CMS\Security\TrustedOrigin::class)->urls()));
+
+        \Illuminate\Auth\Notifications\VerifyEmail::createUrlUsing(static fn ($user): string => app('cms.localized_route_url')->temporarySigned(
+            'verification.verify',
+            now()->addMinutes((int) config('auth.verification.expire', 60)),
+            ['id' => $user->getKey(), 'hash' => sha1((string) $user->getEmailForVerification())],
+            null,
+            app(\TheNguyen\CMS\Security\TrustedOrigin::class)->urls(),
+        ));
+
+        $this->app['events']->listen(
+            \Illuminate\Notifications\Events\NotificationSending::class,
+            [\TheNguyen\CMS\Security\SecurityLinkNotificationGuard::class, 'handle'],
+        );
+    }
+
+    /**
+     * CORE-P12-4: Livewire posts every component update to its own endpoint
+     * (`web` only) and re-applies just the *persistent* middleware of the page's
+     * original route. Core's locale and frontend account middleware are made
+     * persistent, so a component on a `cms.locale` / `cms.auth` route (Core or
+     * plugin) renders its updates in that route's locale and runs its actions
+     * only for a signed-in, policy-valid session. The locale comes from the
+     * page's own route (its {locale} segment), so each tab keeps its language.
+     * Routes without these middleware are unaffected.
+     */
+    private function registerLivewirePersistentMiddleware(): void
+    {
+        if (! class_exists(\Livewire\Livewire::class)) {
+            return;
+        }
+
+        \Livewire\Livewire::addPersistentMiddleware([
+            \TheNguyen\CMS\Http\Middleware\ApplyPublicLocale::class,
+            \TheNguyen\CMS\Http\Middleware\FrontendAuthenticate::class,
+            \TheNguyen\CMS\Http\Middleware\EnforceFrontendSession::class,
+            \TheNguyen\CMS\Http\Middleware\EnsureFrontendEmailVerified::class,
+            \TheNguyen\CMS\Http\Middleware\RequirePermission::class,
+            \TheNguyen\CMS\Http\Middleware\RequireRole::class,
+        ]);
+    }
+
+    /**
+     * Named limiters for /account/media (CORE-40-FRONTEND-MEDIA-R1), keyed by the signed-in user
+     * (IP only as a fallback). Limits are read per request, so a setting change applies at once.
+     * The 429 body follows the media API's JSON error contract.
+     */
+    private function registerFrontendMediaRateLimiters(): void
+    {
+        $key = static fn (\Illuminate\Http\Request $request): string => ($id = $request->user()?->getAuthIdentifier()) !== null
+            ? 'u:'.$id
+            : 'ip:'.$request->ip();
+        $tooMany = static fn (\Illuminate\Http\Request $request, array $headers) => response()->json([
+            'error' => ['code' => 'media_rate_limited', 'message' => __('Too many requests. Please slow down and try again shortly.')],
+        ], 429, $headers + ['Cache-Control' => 'no-store, private']);
+
+        \Illuminate\Support\Facades\RateLimiter::for('cms-frontend-media-upload', static fn (\Illuminate\Http\Request $request) => [
+            \Illuminate\Cache\RateLimiting\Limit::perMinute(\TheNguyen\CMS\Media\Frontend\FrontendMediaLimits::uploadsPerMinute())
+                ->by('media-upload|'.$key($request))
+                ->response($tooMany),
+            // CORE-P12-1: many accounts from one client cannot multiply the per-user ceiling.
+            \Illuminate\Cache\RateLimiting\Limit::perMinute(\TheNguyen\CMS\Media\Frontend\FrontendMediaLimits::ipUploadsPerMinute())
+                ->by('media-upload-ip|'.$request->ip())
+                ->response($tooMany),
+        ]);
+        \Illuminate\Support\Facades\RateLimiter::for('cms-frontend-media-delete', static fn (\Illuminate\Http\Request $request) => \Illuminate\Cache\RateLimiting\Limit::perMinute(\TheNguyen\CMS\Media\Frontend\FrontendMediaLimits::deletesPerMinute())
+            ->by('media-delete|'.$key($request))
+            ->response($tooMany));
+        \Illuminate\Support\Facades\RateLimiter::for('cms-frontend-media-list', static fn (\Illuminate\Http\Request $request) => \Illuminate\Cache\RateLimiting\Limit::perMinute(\TheNguyen\CMS\Media\Frontend\FrontendMediaLimits::listPerMinute())
+            ->by('media-list|'.$key($request))
+            ->response($tooMany));
+    }
+
     public function boot(): void
     {
         $this->publishes([
@@ -1122,6 +1256,18 @@ class CmsServiceProvider extends ServiceProvider
             $model::saved($bump);
             $model::deleted($bump);
         }
+
+        // The page rendered at `/` is excluded from `pages` (CORE-SITEMAP-S02):
+        // the settings that choose it re-partition Core the same way.
+        $settingBump = static function (\TheNguyen\CMS\Models\Setting $setting) use ($bump): void {
+            $key = ($setting->group !== null && $setting->group !== '' ? $setting->group.'.' : '').$setting->key;
+
+            if (\TheNguyen\CMS\Content\Extension\FrontPage::isSelectionSetting($key)) {
+                $bump();
+            }
+        };
+        \TheNguyen\CMS\Models\Setting::saved($settingBump);
+        \TheNguyen\CMS\Models\Setting::deleted($settingBump);
     }
 
     /**
@@ -1514,7 +1660,7 @@ class CmsServiceProvider extends ServiceProvider
             }
 
             $accountFilters = [
-                ['cms.account.navigation_items', 'Add/remove/reorder account navigation items (array of AccountNavItem or arrays).', ['items' => 'array', 'context' => $ctx], 'array'],
+                ['cms.account.navigation_items', 'Legacy: add plugin account navigation items (AccountNavItem or arrays). Output is validated; Core and registry items cannot be removed or replaced. Prefer cms.account.extensions.', ['items' => 'array', 'context' => $ctx], 'array'],
                 ['cms.account.profile_data', 'Filter the validated profile payload before it is saved.', ['data' => 'array', 'context' => $ctx], 'array'],
                 ['cms.account.preferences_data', 'Filter the validated preferences payload before it is saved.', ['data' => 'array', 'context' => $ctx], 'array'],
                 ['cms.account.redirect_after_update', 'Filter the redirect target after an account update.', ['target' => 'string', 'context' => $ctx], 'string'],
@@ -1667,6 +1813,8 @@ class CmsServiceProvider extends ServiceProvider
         // frontend group AND active plugins can strip a duplicate default-locale
         // prefix (301 → canonical). Registered before any route file loads.
         $this->app['router']->aliasMiddleware('cms.canonical-locale', RedirectDefaultLocalePrefix::class);
+        // CORE-SEO-RELEASE-HARDENING-R1 (H1): the canonical host authority for public pages.
+        $this->app['router']->aliasMiddleware('cms.canonical-host', \TheNguyen\CMS\Http\Middleware\ApplyCanonicalHost::class);
         $this->app['router']->aliasMiddleware('cms.plugin-active', \TheNguyen\CMS\Http\Middleware\EnsurePluginActive::class);
 
         // CORE-L10N A1: the ONE Core locale-apply runtime. Any route group (core
@@ -1715,6 +1863,10 @@ class CmsServiceProvider extends ServiceProvider
         $router->aliasMiddleware('cms.permission', \TheNguyen\CMS\Http\Middleware\RequirePermission::class);
         $router->aliasMiddleware('cms.verified', \TheNguyen\CMS\Http\Middleware\EnsureFrontendEmailVerified::class);
         $router->aliasMiddleware('cms.frontend_session', \TheNguyen\CMS\Http\Middleware\EnforceFrontendSession::class);
+        $this->registerLivewirePersistentMiddleware();
+        $this->registerFrontendMediaRateLimiters();
+        \TheNguyen\CMS\Http\RateLimiting\FrontendAuthRateLimits::register();
+        $this->registerLocalizedAuthNotificationUrls();
 
         if (file_exists(self::ROUTES_AUTH)) {
             $this->loadRoutesFrom(self::ROUTES_AUTH);
@@ -1830,6 +1982,7 @@ class CmsServiceProvider extends ServiceProvider
                 MenuLocalizedUrlRepairCommand::class,
                 ThemePublishCommand::class,
                 DiagnoseLocalizationCommand::class,
+                \TheNguyen\CMS\Console\Commands\MediaPurgeDeletedFilesCommand::class,
             ]);
         }
     }

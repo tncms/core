@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Validation\Rules\Password;
 use TheNguyen\CMS\Services\FrontendAuthManager;
+use TheNguyen\CMS\Validation\Rules\SafeEmailAddress;
 use TheNguyen\CMS\View\SystemViewResolver;
 
 /**
@@ -26,7 +27,7 @@ class FrontendRegisterController
     public function show(): Response|RedirectResponse
     {
         if (! $this->auth->registrationEnabled()) {
-            return redirect()->route('cms.auth.login')
+            return redirect()->to(cms_localized_route('cms.auth.login'))
                 ->withErrors(['email' => __('Registration is currently disabled.')]);
         }
 
@@ -43,7 +44,7 @@ class FrontendRegisterController
 
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
+            'email' => ['required', 'string', 'email', new SafeEmailAddress, 'max:255', 'unique:users,email'],
             'password' => ['required', 'confirmed', Password::min(8)],
         ]);
 
@@ -53,20 +54,20 @@ class FrontendRegisterController
         if ($this->auth->autoLoginAfterRegistration() && ! $this->auth->emailVerificationRequired()) {
             $this->auth->login($user, false, $request);
 
-            return redirect()->intended($this->defaultRedirect());
+            return redirect()->to(app(\TheNguyen\CMS\Http\Support\FrontendIntendedUrl::class)->pull($request, $this->defaultRedirect()));
         }
 
         if ($this->auth->emailVerificationRequired()) {
-            return redirect()->route('cms.auth.login')
+            return redirect()->to(cms_localized_route('cms.auth.login'))
                 ->with('status', __('Please check your email to verify your account.'));
         }
 
-        return redirect()->route('cms.auth.login')
+        return redirect()->to(cms_localized_route('cms.auth.login'))
             ->with('status', __('Registration complete. You can now sign in.'));
     }
 
     private function defaultRedirect(): string
     {
-        return \Illuminate\Support\Facades\Route::has('cms.account') ? route('cms.account') : '/';
+        return \Illuminate\Support\Facades\Route::has('cms.account') ? cms_localized_route('cms.account') : '/';
     }
 }

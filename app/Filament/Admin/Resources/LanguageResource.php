@@ -21,6 +21,7 @@ use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Illuminate\Support\Facades\Artisan;
+use TheNguyen\CMS\Filament\Tables\BooleanIconState;
 use TheNguyen\CMS\Models\Language;
 
 class LanguageResource extends Resource
@@ -167,11 +168,17 @@ class LanguageResource extends Resource
 
                 IconColumn::make('is_default')
                     ->label(tn_trans('Default'))
-                    ->boolean(),
+                    ->boolean()
+                    // A6 (WCAG 2.4.4/4.1.2): an icon-only cell of a clickable row would be an unnamed
+                    // link; the row stays reachable through its named cells.
+                    ->extraAttributes(fn (mixed $state): array => BooleanIconState::attributes($state))
+                    ->disabledClick(),
 
                 IconColumn::make('is_active')
                     ->label(tn_trans('Active'))
-                    ->boolean(),
+                    ->boolean()
+                    ->extraAttributes(fn (mixed $state): array => BooleanIconState::attributes($state))
+                    ->disabledClick(),
 
                 TextColumn::make('sort_order')
                     ->label(tn_trans('Order'))

@@ -11,7 +11,9 @@ use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Validation\Rules\Password as PasswordRule;
 use Illuminate\Validation\ValidationException;
+use Throwable;
 use TheNguyen\CMS\Services\FrontendAuthManager;
+use TheNguyen\CMS\Validation\Rules\SafeEmailAddress;
 use TheNguyen\CMS\View\SystemViewResolver;
 
 /**
@@ -34,15 +36,36 @@ class FrontendPasswordResetController
 
     public function sendResetLink(Request $request): RedirectResponse
     {
-        $request->validate(['email' => ['required', 'string', 'email']]);
+        $request->validate(['email' => ['required', 'string', 'email', new SafeEmailAddress]]);
 
-        $status = Password::sendResetLink($request->only('email'));
+        // Whatever the broker reports (sent, unknown user, broker throttle), the
+        // response is identical, so the form never reveals whether an account exists.
+        //
+        // CORE-RELEASE-BLOCKERS-R1 (P14-R2): the account-dependent work (token hash
+        // and insert, mail transport) runs after the response is produced, so neither
+        // its duration nor its failure can reveal an account. Under PHP-FPM / LiteSpeed
+        // the response is flushed before it runs; elsewhere the broker's own timebox
+        // still applies. A failure is reported, never shown.
+        $credentials = ['email' => (string) $request->input('email')];
+        defer(static function () use ($credentials): void {
+            try {
+                Password::sendResetLink($credentials);
+            } catch (Throwable $e) {
+                report($e);
+            }
+        });
 
-        return back()->with('status', __($status));
+        // CORE-P14-1: back to this locale's own form, never the (untrusted) Referer.
+        return redirect()->to(cms_localized_route('password.request'))
+            ->with('status', __('If an account exists for that email address, a password reset link has been sent.'));
     }
 
-    public function showReset(Request $request, string $token): Response
+    public function showReset(Request $request): Response
     {
+        // Read by name: under the /{locale} twin the first positional route
+        // parameter is the locale, not the token.
+        $token = (string) $request->route('token');
+
         // Theme-first (theme::auth.reset-password) → Core fallback, noindex.
         return $this->systemView->renderNoindexResponse('reset-password', [
             'token' => $token,
@@ -54,7 +77,7 @@ class FrontendPasswordResetController
     {
         $request->validate([
             'token' => ['required', 'string'],
-            'email' => ['required', 'string', 'email'],
+            'email' => ['required', 'string', 'email', new SafeEmailAddress],
             'password' => ['required', 'confirmed', PasswordRule::min(8)],
         ]);
 
@@ -67,9 +90,13 @@ class FrontendPasswordResetController
         );
 
         if ($status !== Password::PASSWORD_RESET) {
+            // CORE-P14-1: an unknown address reports the same error as a bad token,
+            // so the reset form is not an account-existence oracle.
+            $status = $status === Password::INVALID_USER ? Password::INVALID_TOKEN : $status;
+
             throw ValidationException::withMessages(['email' => __($status)]);
         }
 
-        return redirect()->route('cms.auth.login')->with('status', __($status));
+        return redirect()->to(cms_localized_route('cms.auth.login'))->with('status', __($status));
     }
 }

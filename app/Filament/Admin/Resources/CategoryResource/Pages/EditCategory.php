@@ -53,7 +53,7 @@ class EditCategory extends EditRecord
         /** @var TaxonomyManager $taxonomies */
         $taxonomies = app('cms.taxonomy');
 
-        $data['locale'] = $this->selectedLocale();
+        $data['locale'] = $this->writableTranslationLocale();
 
         /** @var Term $record */
         return $taxonomies->updateTerm($record, $data);

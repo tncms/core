@@ -95,7 +95,8 @@
     @endif
 
     <div class="tn-widget-editor-actions">
-        <x-filament::button type="button" size="sm" color="gray" wire:click="closeEditor">{{ tn_trans('Cancel') }}</x-filament::button>
-        <x-filament::button type="submit" size="sm" icon="heroicon-m-check">{{ tn_trans('Save changes') }}</x-filament::button>
+        {{-- L-2 (H-Z1 pre-rerun): Cancel removes this editor; focus returns to the widget's Edit button. --}}
+        <x-filament::button type="button" size="sm" color="gray" wire:click="closeEditor" data-tn-focus-fallback="tn-widget-edit-{{ $editingId }}">{{ tn_trans('Cancel') }}</x-filament::button>
+        <x-filament::button type="submit" size="sm" icon="heroicon-m-check" data-tn-focus-fallback="tn-widget-edit-{{ $editingId }}">{{ tn_trans('Save changes') }}</x-filament::button>
     </div>
 </form>

@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Filament\Admin\Pages;
 
 use App\Filament\Admin\Components\MediaPicker;
-use App\Filament\Admin\Resources\PostResource;
 use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Placeholder;
@@ -23,11 +22,14 @@ use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Illuminate\Support\HtmlString;
+use TheNguyen\CMS\Filament\Forms\TermPickerOptions;
+use TheNguyen\CMS\Filament\Forms\TermSelect;
 use TheNguyen\CMS\Models\Content;
 use TheNguyen\CMS\Services\CmsOptimizationPolicy;
 use TheNguyen\CMS\Services\MaintenanceManager;
 use TheNguyen\CMS\Services\PermalinkManager;
 use TheNguyen\CMS\Services\SettingsManager;
+use TheNguyen\CMS\Validation\Rules\SafeEmailAddress;
 
 /**
  * CMS Settings — tabbed page (v0.9.6 Settings Polish).
@@ -51,6 +53,18 @@ class SettingsPage extends Page
     protected static ?string $title = 'CMS Settings';
 
     protected string $view = 'filament.admin.pages.settings-page';
+
+    /**
+     * Id selects whose stored 0 means "none" (the seeded default). It fills as
+     * an empty select, which validates, instead of a 0 the options rule rejects
+     * and that would block saving every setting (CORE-P11-1).
+     */
+    private const ZERO_IS_NONE_SELECTS = [
+        'reading_homepage_page_id',
+        'reading_posts_page_id',
+        'maintenance_page_id',
+        'writing_default_category_id',
+    ];
 
     public static function canAccess(): bool
     {
@@ -103,6 +117,14 @@ class SettingsPage extends Page
             }
         }
 
+        // A stored 0 is "no page": fill it as an empty select, so it validates
+        // and saves back as 0 instead of failing the options check.
+        foreach (self::ZERO_IS_NONE_SELECTS as $flat) {
+            if (array_key_exists($flat, $values) && (int) $values[$flat] <= 0) {
+                $values[$flat] = null;
+            }
+        }
+
         $this->data = $values;
         $this->form->fill($this->data);
     }
@@ -114,6 +136,8 @@ class SettingsPage extends Page
                 Select::make('settings_locale')
                     ->label(tn_trans('Language'))
                     ->options(app('cms.language')->optionList())
+                    // ER-5 (WCAG 3.1.2): option labels are native language names; select-a11y marks them with lang.
+                    ->extraAlpineAttributes(fn (): array => ['data-tn-option-lang' => implode(' ', app('cms.language')->nativeNameCodes())], merge: true)
                     ->native(false)
                     ->live()
                     ->afterStateUpdated(fn (?string $state, Set $set) => $this->reloadLocalizedFields($set, $state))
@@ -144,9 +168,23 @@ class SettingsPage extends Page
                 TextInput::make('general_site_name')->label(tn_trans('Site name'))->required()->maxLength(255),
                 TextInput::make('general_site_tagline')->label(tn_trans('Tagline'))->maxLength(255),
                 Textarea::make('general_site_description')->label(tn_trans('Site description'))->rows(3),
-                TextInput::make('general_admin_email')->label(tn_trans('Admin email'))->email()->maxLength(255),
+                TextInput::make('general_admin_email')->label(tn_trans('Admin email'))->email()->rule(new SafeEmailAddress)->maxLength(255),
+                // TZ-1 (CORE-RELEASE-BLOCKERS-R1-CLOSURE): publishing uses only APP_TIMEZONE. It is
+                // shown read-only here; it is never changed from the admin and stored times are
+                // never converted (docs/core-release-blockers-r1/07).
+                Placeholder::make('general_publishing_timezone')
+                    ->label(tn_trans('Publishing timezone'))
+                    ->content(static fn (): string => tn_trans(':timezone (APP_TIMEZONE). Publish dates and scheduled posts are entered, stored and compared in this timezone. It can only be changed in the server configuration.', [
+                        'timezone' => (string) config('app.timezone', 'UTC'),
+                    ])),
+                // general.timezone is a stored display preference that themes and extensions may
+                // read (e.g. a maintenance countdown). It is kept editable and never rewritten,
+                // but it does not affect publishing.
                 Select::make('general_timezone')
-                    ->label(tn_trans('Timezone'))
+                    ->label(tn_trans('Display timezone'))
+                    ->helperText(static fn (): string => tn_trans('Used by themes and extensions that display local times. It does not change when posts are published. Publishing uses :timezone.', [
+                        'timezone' => (string) config('app.timezone', 'UTC'),
+                    ]))
                     ->options($this->timezoneOptions())
                     ->searchable()
                     ->native(false),
@@ -182,13 +220,13 @@ class SettingsPage extends Page
                     ->native(false),
                 Select::make('reading_homepage_page_id')
                     ->label(tn_trans('Homepage'))
-                    ->options($this->pageOptions())
+                    ->options($this->pageOptions('reading.homepage_page_id'))
                     ->searchable()
                     ->native(false)
                     ->visible(fn (Get $get): bool => $get('reading_homepage_display') === 'static_page'),
                 Select::make('reading_posts_page_id')
                     ->label(tn_trans('Posts page'))
-                    ->options($this->pageOptions())
+                    ->options($this->pageOptions('reading.posts_page_id'))
                     ->searchable()
                     ->native(false)
                     ->helperText(tn_trans('The page that lists your blog posts (stored for theme use).'))
@@ -221,14 +259,18 @@ class SettingsPage extends Page
                     ->label(tn_trans('Default comment status'))
                     ->options(['open' => tn_trans('Open'), 'closed' => tn_trans('Closed')])
                     ->native(false),
-                Select::make('writing_default_category_id')
+                // CORE-P16-1: bounded directory search (strict editing locale, as before).
+                TermSelect::make('writing_default_category_id')
                     ->label(tn_trans('Default category'))
-                    ->options($this->categoryOptions())
-                    ->searchable()
+                    ->taxonomy('category')
+                    ->termLocale(static fn (): string => editing_locale())
+                    ->getOptionLabelUsing(fn (TermSelect $component, mixed $value): ?string => $this->defaultCategoryLabel($component, $value))
                     ->native(false),
                 Select::make('writing_default_language')
                     ->label(tn_trans('Default language'))
                     ->options(app('cms.language')->optionList())
+                    // ER-5 (WCAG 3.1.2): option labels are native language names; select-a11y marks them with lang.
+                    ->extraAlpineAttributes(fn (): array => ['data-tn-option-lang' => implode(' ', app('cms.language')->nativeNameCodes())], merge: true)
                     ->native(false),
                 Select::make('writing_default_post_format')
                     ->label(tn_trans('Default post format'))
@@ -247,6 +289,10 @@ class SettingsPage extends Page
                 Toggle::make('media_organize_uploads_by_date')
                     ->label(tn_trans('Organize uploads into year/month folders')),
                 TextInput::make('media_max_upload_size_mb')->label(tn_trans('Max upload size (MB)'))->numeric()->minValue(1)->maxValue(512),
+                // Frontend own-media library limits (CORE-40-FRONTEND-MEDIA-R1).
+                TextInput::make('media_frontend_quota_mb')->label(tn_trans('Frontend storage quota per user (MB)'))->numeric()->minValue(1)->maxValue(102400),
+                TextInput::make('media_frontend_max_dimension')->label(tn_trans('Frontend image max width/height (px)'))->numeric()->minValue(64)->maxValue(20000),
+                TextInput::make('media_frontend_uploads_per_minute')->label(tn_trans('Frontend uploads per user per minute'))->numeric()->minValue(1)->maxValue(120),
                 Toggle::make('media_auto_alt_from_filename')->label(tn_trans('Auto-generate alt text from filename')),
                 Toggle::make('media_auto_title_from_filename')->label(tn_trans('Auto-generate title from filename')),
 
@@ -309,15 +355,25 @@ class SettingsPage extends Page
                     ])
                     ->native(false),
                 MediaPicker::make('seo_default_og_image', tn_trans('Default OG image')),
-                TextInput::make('seo_sitemap_chunk_size')
-                    ->label(tn_trans('Sitemap URLs per file'))
-                    ->helperText(tn_trans('Each child sitemap lists at most this many URLs (500–50,000).'))
-                    ->integer()
-                    ->minValue(\TheNguyen\CMS\Sitemap\SitemapManager::MIN_CHUNK)
-                    ->maxValue(50000)
-                    ->required(),
+                // XML sitemap settings have one editor: SEO → XML Sitemap (CORE-SITEMAP-ADMIN-R1).
+                Placeholder::make('seo_sitemap_note')
+                    ->label(tn_trans('XML Sitemap'))
+                    ->content(fn (): HtmlString => new HtmlString(
+                        tn_trans('Sitemap settings, providers and diagnostics are under :location.', ['location' => $this->sitemapLink()])
+                    )),
             ])
             ->columns(1);
+    }
+
+    private function sitemapLink(): string
+    {
+        $label = e(tn_trans('SEO → XML Sitemap'));
+
+        try {
+            return SitemapPage::canAccess() ? '<a href="'.e(SitemapPage::getUrl()).'" class="underline">'.$label.'</a>' : '<em>'.$label.'</em>';
+        } catch (\Throwable) {
+            return '<em>'.$label.'</em>';
+        }
     }
 
     private function permalinksTab(): Tab
@@ -603,7 +659,7 @@ class SettingsPage extends Page
                     ->helperText(tn_trans('Theme view uses themes/{slug}/views/maintenance.blade.php (with a core fallback).')),
                 Select::make('maintenance_page_id')
                     ->label(tn_trans('Maintenance page'))
-                    ->options($this->pageOptions())
+                    ->options($this->pageOptions('maintenance.page_id'))
                     ->searchable()
                     ->native(false)
                     ->helperText(tn_trans('The published page rendered as the maintenance page.'))
@@ -676,7 +732,15 @@ class SettingsPage extends Page
         $defaultLocale = app('cms.language')->defaultCode();
 
         foreach ($this->editable() as [$flat, $key, $type]) {
-            $value = $this->prepareValue($flat, $type, $state[$flat] ?? null);
+            // A field the form hides (e.g. the homepage page outside static
+            // mode) is not dehydrated: its absence is not a request to clear
+            // it, so the stored value is kept (CORE-P11-1). A visible field
+            // the admin empties is present as null and is cleared.
+            if (! array_key_exists($flat, $state)) {
+                continue;
+            }
+
+            $value = $this->prepareValue($flat, $type, $state[$flat]);
 
             // Maintenance settings (allowed IPs / excluded paths) are operator
             // config and stay private; everything else remains publicly readable.
@@ -827,6 +891,9 @@ class SettingsPage extends Page
 
             ['media_organize_uploads_by_date', 'media.organize_uploads_by_date', 'boolean', true],
             ['media_max_upload_size_mb', 'media.max_upload_size_mb', 'integer', 8],
+            ['media_frontend_quota_mb', 'media.frontend_quota_mb', 'integer', 100],
+            ['media_frontend_max_dimension', 'media.frontend_max_dimension', 'integer', 6000],
+            ['media_frontend_uploads_per_minute', 'media.frontend_uploads_per_minute', 'integer', 10],
             ['media_auto_alt_from_filename', 'media.auto_alt_from_filename', 'boolean', true],
             ['media_auto_title_from_filename', 'media.auto_title_from_filename', 'boolean', false],
             ['media_thumb_w', 'media.sizes.thumbnail.width', 'integer', 150],
@@ -843,7 +910,6 @@ class SettingsPage extends Page
             ['seo_default_meta_description', 'seo.default_meta_description', 'text', ''],
             ['seo_default_og_image', 'seo.default_og_image', 'string', ''],
             ['seo_robots_default', 'seo.robots_default', 'string', 'index,follow'],
-            ['seo_sitemap_chunk_size', 'seo.sitemap_chunk_size', 'integer', \TheNguyen\CMS\Sitemap\SitemapManager::DEFAULT_CHUNK],
 
             ['permalink_post_base', 'permalink.post_base', 'string', PermalinkManager::DEFAULT_POST_BASE],
             ['permalink_category_base', 'permalink.category_base', 'string', PermalinkManager::DEFAULT_CATEGORY_BASE],
@@ -894,11 +960,58 @@ class SettingsPage extends Page
     }
 
     /**
+     * Label for the default-category select. The category currently stored under
+     * writing.default_category_id stays selectable when it no longer exists
+     * (deleted), labelled as unavailable, so an unchanged selection neither
+     * blocks saving unrelated settings nor is silently cleared or replaced. Any
+     * other id still needs a real category label, so choosing a missing or
+     * non-category term is refused (CORE-RELEASE-BLOCKERS-R1, TD-R2; the same
+     * rule as pageOptions(), CORE-P11-1).
+     */
+    private function defaultCategoryLabel(TermSelect $component, mixed $value): ?string
+    {
+        if ($value === null || $value === '' || ! is_numeric($value)) {
+            return null;
+        }
+
+        $id = (int) $value;
+        $label = TermPickerOptions::labels(
+            [$id], $component->getTermTaxonomy(), $component->getTermLocale(), $component->requiresTermTranslation(),
+        )[$id] ?? null;
+
+        if ($label !== null) {
+            return $label;
+        }
+
+        $stored = (int) $this->settings()->get('writing.default_category_id', 0);
+
+        return $stored > 0 && $id === $stored ? tn_trans('Unavailable category #:id', ['id' => $stored]) : null;
+    }
+
+    /**
      * Published + draft pages keyed by id, for the homepage/posts-page selects.
+     * The page currently stored under $settingKey stays selectable even when it
+     * is no longer listed (deleted), labelled as unavailable: an unchanged
+     * selection must neither block saving nor be silently cleared (CORE-P11-1).
      *
      * @return array<int, string>
      */
-    private function pageOptions(): array
+    private function pageOptions(string $settingKey): array
+    {
+        $options = $this->allPageOptions();
+        $stored = (int) $this->settings()->get($settingKey, 0);
+
+        if ($stored > 0 && ! array_key_exists($stored, $options)) {
+            $options[$stored] = tn_trans('Unavailable page #:id', ['id' => $stored]);
+        }
+
+        return $options;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function allPageOptions(): array
     {
         if ($this->pageOptionsCache !== null) {
             return $this->pageOptionsCache;
@@ -917,14 +1030,6 @@ class SettingsPage extends Page
                 $page->id => $page->translatedTitle($locale),
             ])
             ->all();
-    }
-
-    /**
-     * @return array<int, string>
-     */
-    private function categoryOptions(): array
-    {
-        return PostResource::categoryOptions(editing_locale());
     }
 
     /**

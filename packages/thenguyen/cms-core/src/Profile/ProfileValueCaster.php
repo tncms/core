@@ -6,6 +6,7 @@ namespace TheNguyen\CMS\Profile;
 
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
+use TheNguyen\CMS\Validation\Rules\SafeEmailAddress;
 
 /**
  * Normalizes and validates a raw profile value against its field definition
@@ -89,7 +90,7 @@ class ProfileValueCaster
             'date' => ['date_format:Y-m-d'],
             'datetime' => ['date'],
             'url' => ['string', 'url', 'max:2048'],
-            'email' => ['string', 'email:rfc', 'max:255'],
+            'email' => ['string', 'email:rfc', new SafeEmailAddress, 'max:255'],
             'select', 'radio' => ['string'],
             'checkbox' => ['array'],
             'media' => ['integer', 'min:1'],

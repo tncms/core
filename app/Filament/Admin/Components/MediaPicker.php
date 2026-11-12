@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Filament\Admin\Components;
 
+use App\Filament\Admin\Support\AdminMediaLibraryGate;
+use App\Filament\Admin\Support\AdminMediaUploadGate;
 use App\Filament\Admin\Support\MediaItems;
 use Filament\Actions\Action;
 use Filament\Forms\Components\FileUpload;
@@ -74,12 +76,21 @@ class MediaPicker
                     ->label(static fn (Get $get): string => filled($get($field)) ? tn_trans('Replace image') : tn_trans('Add image'))
                     ->icon('heroicon-o-photo')
                     ->button()
+                    // Offered only when the modal has a tab to show: browse (media.view)
+                    // or upload (media.upload). Re-evaluated on every request.
+                    ->visible(static fn (): bool => AdminMediaLibraryGate::allows() || AdminMediaUploadGate::allows())
                     ->modalHeading(tn_trans('Select featured image'))
                     ->modalWidth(Width::SevenExtraLarge)
                     ->modalSubmitActionLabel(tn_trans('Set featured image'))
                     ->fillForm(static fn (Get $get): array => ['selected_url' => (string) ($get($field) ?? '')])
                     ->schema([self::modalTabs()])
-                    ->action(static function (array $data, Set $set) use ($field): void {
+                    ->action(static function (array $data, Set $set, Action $action) use ($field): void {
+                        if (! AdminMediaUploadGate::allows()) {
+                            // The upload field is not part of the form for this actor, so a
+                            // temporary upload forced into its state is never stored: discard it.
+                            self::discardTemporaryUploads($action->getRawData()['uploaded_url'] ?? null);
+                        }
+
                         $url = self::resolveChosenUrl($data);
 
                         if ($url === null) {
@@ -120,16 +131,22 @@ class MediaPicker
         return Tabs::make('featuredImageTabs')
             ->contained(false)
             ->tabs([
+                // Offered only to media.view holders; hidden, its selected_url state is
+                // neither rendered nor dehydrated, so a forged library pick is ignored.
                 Tab::make('Media Library')
                     ->label(tn_trans('Media Library'))
                     ->icon('heroicon-o-photo')
+                    ->visible(static fn (): bool => AdminMediaLibraryGate::allows())
                     ->schema([
                         MediaLibrarySelect::make('selected_url')->hiddenLabel(),
                     ]),
 
+                // Offered only to media.upload holders. Hidden components are neither
+                // dehydrated nor stored by Filament, re-evaluated on every request.
                 Tab::make('Upload files')
                     ->label(tn_trans('Upload files'))
                     ->icon('heroicon-o-arrow-up-tray')
+                    ->visible(static fn (): bool => AdminMediaUploadGate::allows())
                     ->schema([
                         Placeholder::make('upload_note')
                             ->hiddenLabel()
@@ -150,7 +167,7 @@ class MediaPicker
                             ->helperText(tn_trans('Drag & drop or browse a JPG, PNG, GIF or WebP. A preview appears before you submit.'))
                             // Hand the upload to the CMS MediaManager (SEO filename,
                             // alt default, dimensions) and keep the resulting URL.
-                            ->saveUploadedFileUsing(static fn (TemporaryUploadedFile $file): string => self::manager()->upload($file)->url),
+                            ->saveUploadedFileUsing(static fn (TemporaryUploadedFile $file): string => self::storeUploadedFile($file)),
                     ]),
             ]);
     }
@@ -188,14 +205,18 @@ class MediaPicker
             return new HtmlString(
                 '<div style="padding:.85rem;border:1px dashed rgba(127,127,127,.4);border-radius:10px;text-align:center;">'
                 . '<div style="font-size:.85rem;opacity:.7;">' . e(tn_trans('No image selected.')) . '</div>'
-                . '<div style="font-size:.78rem;opacity:.55;margin-top:.25rem;">' . e(tn_trans('Select or upload an image for this content.')) . '</div>'
+                . '<div style="font-size:.78rem;opacity:.7;margin-top:.25rem;">' . e(tn_trans('Select or upload an image for this content.')) . '</div>'
                 . '</div>'
             );
         }
 
+        // Without media.view the stored value stays visible (image + URL) but no
+        // cms_media metadata is resolved or shown, and no record status is implied.
+        $canView = AdminMediaLibraryGate::allows();
+
         // Resolve metadata through the shared helper so the preview matches the
         // data shown inside the modal grid/details panel.
-        $media = MediaItems::findByUrl($url);
+        $media = $canView ? MediaItems::findByUrl($url) : null;
 
         $img = '<img src="' . e($url) . '" alt="' . e($media['seo_alt'] ?? '')
             . '" style="width:100%;max-height:220px;object-fit:contain;border-radius:9px;border:1px solid rgba(127,127,127,.25);background:rgba(127,127,127,.08);" />';
@@ -214,7 +235,7 @@ class MediaPicker
             if ($media['width'] !== null && $media['height'] !== null) {
                 $rows .= $row(tn_trans('Dimensions'), $media['width'] . ' × ' . $media['height']);
             }
-        } else {
+        } elseif ($canView) {
             $rows .= '<div style="font-size:.78rem;color:#b45309;margin-top:.45rem;">' . e(tn_trans('External or missing media record.')) . '</div>';
         }
 
@@ -223,6 +244,36 @@ class MediaPicker
         return new HtmlString(
             '<div style="display:flex;flex-direction:column;gap:.15rem;">' . $img . $rows . '</div>'
         );
+    }
+
+    /**
+     * Final media-creation boundary of the inline upload: media.upload is checked
+     * here, on the request that would create the record and the permanent file.
+     * A refused temporary upload is discarded (only the file handed to this call).
+     */
+    private static function storeUploadedFile(TemporaryUploadedFile $file): string
+    {
+        if (! AdminMediaUploadGate::allows()) {
+            $file->delete();
+
+            abort(403);
+        }
+
+        return self::manager()->upload($file)->url;
+    }
+
+    /**
+     * Delete Livewire temporary uploads found in a refused picker state. Only
+     * TemporaryUploadedFile instances (files in Livewire's temporary-upload
+     * directory) are touched; plain strings are never treated as paths.
+     */
+    private static function discardTemporaryUploads(mixed $state): void
+    {
+        foreach (is_array($state) ? $state : [$state] as $file) {
+            if ($file instanceof TemporaryUploadedFile && $file->exists()) {
+                $file->delete();
+            }
+        }
     }
 
     private static function manager(): MediaManager

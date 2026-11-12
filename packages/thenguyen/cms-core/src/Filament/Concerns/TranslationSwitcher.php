@@ -46,6 +46,8 @@ trait TranslationSwitcher
 
         return Action::make('translate_to_'.$code)
             ->label($language->displayName())
+            // ER-5 (WCAG 3.1.2): a native language name is text in that language.
+            ->extraAttributes(in_array($code, app('cms.language')->nativeNameCodes(), true) ? ['lang' => $code] : [])
             ->icon($isCurrent
                 ? 'heroicon-o-check-circle'
                 : ($exists ? 'heroicon-o-language' : 'heroicon-o-plus-circle'))

@@ -2843,18 +2843,42 @@ never ships those.
 sessions. **Password change** bumps the session version, rotates the remember
 token, and regenerates the session — old stolen sessions die.
 
-**Extending.** Plugins add account sections through hooks. Add a navigation item:
+**Extending.** Plugins add account sections through their own routes, the
+account layout and hooks. Register a navigation entry with the Account Extension
+Registry (CORE-P12-2/3), from the plugin's own code (usually its service
+provider `boot()`):
 
 ```php
-add_filter('cms.account.navigation_items', function (array $items) {
-    $items[] = new \TheNguyen\CMS\Support\Account\AccountNavItem(
-        key: 'orders', label: __('Orders'), url: '/account/orders',
-        icon: 'box', priority: 60, badge: '3',
-    );
-
-    return $items;
-});
+app('cms.account.extensions')->registerNavigation([
+    'id' => 'shop.orders',                       // "{your plugin slug}.{name}"
+    'label' => fn () => plugin_trans('shop', 'account.orders'),
+    'route' => 'shop.account.orders',            // your own GET route behind cms.auth
+    'active' => ['shop.account.orders*'],        // route-name patterns (default: the route)
+    'icon' => 'box',
+    'priority' => 60,
+    'permission' => null,                        // optional cms_can() ability
+    'visible' => fn ($user) => true,             // optional; an exception hides the entry
+    'badge' => fn ($user) => 3,                  // optional int or short text
+]);
 ```
+
+The owner is derived from the calling plugin file (the nearest caller outside
+Core and vendor must be your plugin's code), so an id — and the route name —
+must start with your slug; Core entries and other plugins' entries cannot be
+registered, replaced or removed, and the first registration of an id wins. The URL is the
+route's (localized `.localized` twin on a prefixed locale), root-relative.
+Labels and badges are text (escaped). A rejected or failing entry is dropped
+and listed in `app('cms.account.extensions')->diagnostics()`; the rest of the
+navigation still renders. The entry is visibility only: the route must
+authorize on its own. Account pages extend `cms::account.layout`.
+
+The older `cms.account.navigation_items` filter still works for **adding**
+items (`AccountNavItem` or arrays), but it is deprecated: its output is
+validated, Core and registry items cannot be removed or replaced, an item
+reusing a reserved or earlier key is dropped, only root-relative URLs or
+absolute http(s) URLs on this site's own host are accepted (a relative path,
+`#`, another host or any other scheme drops the item), and a negative priority
+is raised to 0.
 
 Inject markup into any account page via the render-area actions, e.g.:
 

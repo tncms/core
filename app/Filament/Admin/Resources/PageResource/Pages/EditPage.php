@@ -68,7 +68,7 @@ class EditPage extends EditRecord
         $contents = app('cms.content');
 
         $data['type'] = 'page';
-        $data['locale'] = $this->selectedLocale();
+        $data['locale'] = $this->writableTranslationLocale();
 
         // The Classic Editor field dehydrates a cleared editor as null, but a
         // null body means "not provided" to ContentManager (its null-merge

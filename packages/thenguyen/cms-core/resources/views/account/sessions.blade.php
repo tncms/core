@@ -22,7 +22,7 @@
     <div class="tn-acc-card">
         <h2>{{ __('Log out other sessions') }}</h2>
         <p class="tn-acc-muted">{{ __('Sign out everywhere except this browser.') }}</p>
-        <form method="POST" action="{{ route('cms.account.sessions.logout-others') }}">
+        <form method="POST" action="{{ cms_localized_route('cms.account.sessions.logout-others') }}">
             @csrf
             <div class="tn-field">
                 <label for="sessions_current_password">{{ __('Current password') }}</label>

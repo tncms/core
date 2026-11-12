@@ -19,10 +19,12 @@ use Filament\Schemas\Components\Section as FormSection;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Illuminate\Support\Str;
+use TheNguyen\CMS\Filament\Forms\TermSelect;
 use TheNguyen\CMS\Registries\SectionRegistry;
 use TheNguyen\CMS\Services\EditorialOptions;
 use TheNguyen\CMS\Services\LayoutEditor;
 use TheNguyen\CMS\Support\LocalizedValue;
+use TheNguyen\CMS\Taxonomy\Directory\TaxonomyDirectory;
 
 /**
  * Appearance → Homepage Layout.
@@ -440,10 +442,7 @@ class HomepageLayoutPage extends Page
                     is_array($spec['values'] ?? null) ? $spec['values'] : [],
                     is_array($spec['labels'] ?? null) ? $spec['labels'] : [],
                 ))->native(false),
-            'terms' => Select::make($statePath)
-                ->multiple()
-                ->searchable()
-                ->options($this->termOptions(is_string($spec['taxonomy'] ?? null) ? $spec['taxonomy'] : 'category')),
+            'terms' => $this->termsField($statePath, is_string($spec['taxonomy'] ?? null) ? $spec['taxonomy'] : 'category'),
             'content' => Select::make($statePath)
                 ->multiple()
                 ->searchable()
@@ -527,7 +526,8 @@ class HomepageLayoutPage extends Page
             $schema[] = $this->buildComponent((string) $subKey, is_array($subSpec) ? $subSpec : [], (string) $subKey);
         }
 
-        $repeater = Repeater::make($statePath)->label($label)->schema($schema)->collapsible();
+        // ER-3 (WCAG 2.1.1 / 2.5.7, CORE-H-Z1-REMEDIATION-R3): Move up / Move down buttons besides drag.
+        $repeater = Repeater::make($statePath)->label($label)->schema($schema)->collapsible()->reorderableWithButtons();
 
         if (is_int($spec['max'] ?? null)) {
             $repeater = $repeater->maxItems($spec['max']);
@@ -575,6 +575,27 @@ class HomepageLayoutPage extends Page
     public function termOptions(string $taxonomyType): array
     {
         return app(EditorialOptions::class)->termOptions($taxonomyType);
+    }
+
+    /**
+     * CORE-P16-1: category/tag pickers search the Core taxonomy directory (bounded, no preload;
+     * admin-locale labels with the same fallback chain as before). A schema taxonomy the
+     * directory does not support keeps the previous option list.
+     */
+    private function termsField(string $statePath, string $taxonomyType): Select
+    {
+        if (! in_array($taxonomyType, TaxonomyDirectory::SUPPORTED_TAXONOMIES, true)) {
+            return Select::make($statePath)
+                ->multiple()
+                ->searchable()
+                ->options($this->termOptions($taxonomyType));
+        }
+
+        return TermSelect::make($statePath)
+            ->multiple()
+            ->taxonomy($taxonomyType)
+            ->termLocale(static fn (): string => app('cms.language')->currentCode())
+            ->requireTermTranslation(false);
     }
 
     /**

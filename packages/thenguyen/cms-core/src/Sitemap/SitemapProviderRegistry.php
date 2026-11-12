@@ -51,6 +51,28 @@ final class SitemapProviderRegistry
         return true;
     }
 
+    /**
+     * Every provider registered in this process whose owner still checks
+     * out, active or not (CORE-SITEMAP-ADMIN-R1, read-only listing). Only a
+     * booted plugin can register, so an inactive plugin normally has none.
+     *
+     * @return array<string, SitemapProvider> owner slug => provider, sorted by slug
+     */
+    public function registered(): array
+    {
+        $out = [];
+
+        foreach ($this->providers as $owner => $provider) {
+            if ($this->identity->ownerOf($provider) === $owner) {
+                $out[$owner] = $provider;
+            }
+        }
+
+        ksort($out, SORT_STRING);
+
+        return $out;
+    }
+
     /** @return array<string, SitemapProvider> owner slug => provider, sorted by slug, active owners only */
     public function active(): array
     {

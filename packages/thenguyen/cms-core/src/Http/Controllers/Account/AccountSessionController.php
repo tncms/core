@@ -50,7 +50,7 @@ class AccountSessionController
 
         $this->account->invalidateOtherSessions($user, $request);
 
-        return redirect()->route('cms.account.sessions')
+        return redirect()->to(cms_localized_route('cms.account.sessions'))
             ->with('status', __('Other sessions have been logged out.'));
     }
 }

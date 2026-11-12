@@ -6,7 +6,7 @@
     @php($user = auth()->user())
     <div class="tn-acc-card">
         <h1>{{ __('Profile') }}</h1>
-        <form method="POST" action="{{ route('cms.account.profile.update') }}">
+        <form method="POST" action="{{ cms_localized_route('cms.account.profile.update') }}">
             @csrf
             <div class="tn-field">
                 <label for="name">{{ __('Name') }}</label>

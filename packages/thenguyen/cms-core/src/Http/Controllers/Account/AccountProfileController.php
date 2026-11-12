@@ -44,7 +44,7 @@ class AccountProfileController
             ],
             'phone' => ['nullable', 'string', 'max:30'],
             'bio' => ['nullable', 'string', 'max:1000'],
-            'avatar' => ['nullable', 'string', 'url', 'max:2048'],
+            'avatar' => ['nullable', 'string', 'url', 'max:255'], // users.avatar is a 255-character column (TD-P12A-1b)
         ]);
 
         $this->account->updateProfile($user, $data, $request);
@@ -56,7 +56,7 @@ class AccountProfileController
     {
         $target = apply_filters(
             'cms.account.redirect_after_update',
-            route($route),
+            cms_localized_route($route),
             HookContext::make(['request' => $request, 'section' => 'profile']),
         );
 

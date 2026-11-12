@@ -51,7 +51,7 @@ final class PreviewUrlService
         // Published + translated → the canonical public URL, built through the
         // ONE resource→public-URL service. This service applies no prefix/slug
         // policy of its own.
-        if ((string) $content->status === 'published') {
+        if ($content->isPubliclyPublished()) {
             $public = $this->contentUrls->absoluteForResource($content, $locale);
 
             if ($public !== null) {

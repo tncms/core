@@ -57,7 +57,7 @@ class EditMenu extends EditRecord
         /** @var MenuManager $menus */
         $menus = app('cms.menu');
 
-        $data['locale'] = $this->selectedLocale();
+        $data['locale'] = $this->writableTranslationLocale();
 
         /** @var Menu $record */
         return $menus->updateMenu($record, $data);

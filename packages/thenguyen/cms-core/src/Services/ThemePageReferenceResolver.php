@@ -72,7 +72,7 @@ final class ThemePageReferenceResolver
         return Content::query()
             ->whereKey($id)
             ->where('type', 'page')
-            ->where('status', 'published')
+            ->published()
             ->discoverable()
             ->first();
     }

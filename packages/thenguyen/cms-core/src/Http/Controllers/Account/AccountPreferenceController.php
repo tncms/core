@@ -53,7 +53,7 @@ class AccountPreferenceController
 
         $this->account->updatePreferences($user, $data, $request);
 
-        return redirect()->route('cms.account.preferences')->with('status', __('Preferences updated.'));
+        return redirect()->to(cms_localized_route('cms.account.preferences'))->with('status', __('Preferences updated.'));
     }
 
     /**

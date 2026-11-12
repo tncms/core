@@ -378,6 +378,24 @@ class LanguageManager
     }
 
     /**
+     * Codes of the active languages whose label is their native name, i.e. text in that language
+     * (WCAG 3.1.2, CORE-H-Z1-REMEDIATION-R3 ER-5). A language without a native name is labelled with
+     * its stored name, whose language is unknown, so it is not listed. Only well-formed language tags
+     * are returned: callers put them in HTML attributes.
+     *
+     * @return list<string>
+     */
+    public function nativeNameCodes(): array
+    {
+        return $this->active()
+            ->filter(fn (Language $l): bool => is_string($l->native_name) && trim($l->native_name) !== ''
+                && preg_match('/^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$/', (string) $l->code) === 1)
+            ->map(fn (Language $l): string => (string) $l->code)
+            ->values()
+            ->all();
+    }
+
+    /**
      * Regex alternation of active codes for route constraints, e.g. "vi|en".
      * Static + fully guarded so it is safe to call during route registration
      * (including before the table exists or during migrations).

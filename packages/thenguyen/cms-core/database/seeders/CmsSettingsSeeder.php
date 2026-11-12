@@ -44,6 +44,9 @@ class CmsSettingsSeeder extends Seeder
 
             ['media.organize_uploads_by_date', '1',                                   'boolean', 'Organize uploads by year/month'],
             ['media.max_upload_size_mb',       '8',                                   'integer', 'Max upload size (MB)'],
+            ['media.frontend_quota_mb',        '100',                                 'integer', 'Frontend storage quota per user (MB)'],
+            ['media.frontend_max_dimension',   '6000',                                'integer', 'Frontend image max width/height (px)'],
+            ['media.frontend_uploads_per_minute', '10',                               'integer', 'Frontend uploads per user per minute'],
             ['media.auto_alt_from_filename',   '1',                                   'boolean', 'Auto alt from filename'],
             ['media.auto_title_from_filename', '0',                                   'boolean', 'Auto title from filename'],
             ['media.sizes.thumbnail.width',    '150',                                 'integer', 'Thumbnail width'],

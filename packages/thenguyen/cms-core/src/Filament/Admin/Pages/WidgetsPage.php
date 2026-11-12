@@ -8,6 +8,7 @@ use BackedEnum;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Illuminate\Support\Str;
+use Livewire\Attributes\Renderless;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use Livewire\WithFileUploads;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -375,6 +376,79 @@ class WidgetsPage extends Page
         $this->applyOrder($toAreaId, $orderedIds);
     }
 
+    // ---------------------------------------------------------------------
+    // Buttons: the non-drag way to reorder and move (CORE-H-Z1-REMEDIATION-R3 ER-3,
+    // WCAG 2.1.1 / 2.5.7). Same persistence as the drag handlers above.
+    // ---------------------------------------------------------------------
+
+    /**
+     * Move a widget one place up ($offset -1) or down (+1) within its area.
+     */
+    public function moveWidgetBy(int $widgetId, int $offset): void
+    {
+        $widget = Widget::query()->find($widgetId);
+
+        if ($widget === null || ! in_array($offset, [-1, 1], true)) {
+            return;
+        }
+
+        $areaId = (int) $widget->area_id;
+        $ids = $this->orderedWidgetIds($areaId);
+        $index = array_search((int) $widget->id, $ids, true);
+        $target = $index === false ? -1 : $index + $offset;
+
+        if ($index === false || $target < 0 || $target >= count($ids)) {
+            return;
+        }
+
+        [$ids[$index], $ids[$target]] = [$ids[$target], $ids[$index]];
+        $this->applyOrder($areaId, $ids);
+
+        Notification::make()
+            ->title(tn_trans('Widget moved to position :position of :count', ['position' => $target + 1, 'count' => count($ids)]))
+            ->success()
+            ->send();
+    }
+
+    /**
+     * Move a widget to the end of another active area.
+     */
+    public function moveWidgetToArea(int $widgetId, int $toAreaId): void
+    {
+        $widget = Widget::query()->find($widgetId);
+        $area = WidgetArea::query()->whereKey($toAreaId)->where('is_active', true)->first();
+
+        if ($widget === null || $area === null || (int) $widget->area_id === $toAreaId) {
+            return;
+        }
+
+        $ids = $this->orderedWidgetIds($toAreaId);
+        $ids[] = (int) $widget->id;
+
+        $widget->area_id = $toAreaId;
+        $widget->save();
+        $this->applyOrder($toAreaId, $ids);
+
+        Notification::make()
+            ->title(tn_trans('Widget moved to :area', ['area' => $area->name]))
+            ->success()
+            ->send();
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function orderedWidgetIds(int $areaId): array
+    {
+        return Widget::query()
+            ->where('area_id', $areaId)
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->pluck('id')
+            ->map(fn ($id): int => (int) $id)
+            ->all();
+    }
+
     /**
      * @param  array<int, int|string>  $orderedIds
      */
@@ -428,9 +502,19 @@ class WidgetsPage extends Page
 
     /**
      * The current widget configuration as pretty JSON, for clipboard copy.
+     *
+     * CORE-H-Z1-REMEDIATION-R2 (R2-5): generated only when the user activates "Copy JSON"
+     * ($wire.clipboardExport() returns it to the button), instead of being embedded in every render of
+     * the page (R1 added that export to each /admin/widgets load: 21 -> 26 queries). Renderless: the
+     * call returns data and does not re-render the page. Access is re-checked on every Livewire
+     * request by Filament's hydrateCanAuthorizeAccess() (widgets.manage) and again here; the call takes
+     * no argument, so the client cannot choose what is exported.
      */
-    public function getExportJsonProperty(): string
+    #[Renderless]
+    public function clipboardExport(): string
     {
+        abort_unless(static::canAccess(), 403);
+
         return (string) json_encode(
             $this->widgets()->export(),
             JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES,

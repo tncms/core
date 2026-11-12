@@ -141,7 +141,7 @@ class AccountProfileFieldsPresenter
 
     private function action(): string
     {
-        return route('cms.account.profile.fields.update');
+        return cms_localized_route('cms.account.profile.fields.update');
     }
 
     /** @return Collection<int, UserProfileField> */

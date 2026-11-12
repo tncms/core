@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\View;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
+use TheNguyen\CMS\Http\Exceptions\TranslationUnavailableHttpException;
 use Throwable;
 
 /**
@@ -135,6 +136,18 @@ final class FrontendErrorResponder
     private function renderStatus(int $status, Throwable $e, Request $request): Response
     {
         $data = $this->errorData($status, $request);
+        $canonical = null;
+
+        // Owner policy A (CORE-RELEASE-BLOCKERS-R1-CLOSURE): same 404 contract, localized
+        // "not available in this language" wording, and the home link / canonical point at a
+        // translation that exists — never at the missing one.
+        if ($e instanceof TranslationUnavailableHttpException) {
+            $language = app('cms.language')->find($e->locale)?->name ?? $e->locale;
+            $data['title'] = core_trans('Page not available in this language');
+            $data['message'] = core_trans('This page has not been published in :language.', ['language' => $language]);
+            $data['homeUrl'] = $e->availableUrl ?? $data['homeUrl'];
+            $canonical = $e->availableUrl;
+        }
 
         // Preserve response headers the framework attaches to the exception
         // (notably Retry-After for 429 rate limiting).
@@ -149,7 +162,7 @@ final class FrontendErrorResponder
             try {
                 // Themed pages extend the theme layout, whose SEO partial reads the
                 // SeoManager — mark the context noindex,follow before rendering.
-                seo()->forCustom($data['title'], '')->noindex();
+                seo()->forCustom($data['title'], '', $canonical)->noindex();
 
                 $html = View::make($themeView, $data)->render();
 

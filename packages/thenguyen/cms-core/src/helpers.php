@@ -587,6 +587,23 @@ if (! function_exists('cms_system_view')) {
     }
 }
 
+if (! function_exists('cms_localized_route')) {
+    /**
+     * URL of a Core auth/account route for a locale (default: the current public
+     * locale), through the ONE Core URL contract (CORE-40-ACCOUNT-SHELL-LOCALE-R1):
+     * the `{locale}`-prefixed `.localized` twin when Core's routing policy prefixes
+     * that locale, otherwise the canonical unprefixed route. Never hardcode `/en/`.
+     *
+     * cms_localized_route('cms.account.profile') => /en/account/profile on an /en/ request
+     *
+     * @param  array<string, mixed>  $parameters
+     */
+    function cms_localized_route(string $name, array $parameters = [], ?string $locale = null, bool $absolute = true): string
+    {
+        return app('cms.localized_route_url')->route($name, $parameters, $locale, $absolute);
+    }
+}
+
 if (! function_exists('frontend_menu')) {
     /**
      * Resolve a location's menu into a render-ready tree.

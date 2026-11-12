@@ -33,6 +33,15 @@ return [
 
     'deployment' => [
         'mode' => env('CMS_DEPLOYMENT_MODE', 'public_root'),
+
+        /*
+         | Canonical host authority (CORE-SEO-RELEASE-HARDENING-R1). "configured"
+         | (default): Core public pages and SEO endpoints requested on any host
+         | other than the APP_URL host build their absolute URLs from the APP_URL
+         | origin. "request": the legacy behaviour, URLs follow the request host.
+         | Any other value is treated as "configured".
+         */
+        'canonical_host' => env('CMS_CANONICAL_HOST', 'configured'),
     ],
 
     /*
@@ -73,6 +82,10 @@ return [
         // wins at upload time.
         'max_upload_size' => (int) env('CMS_MEDIA_MAX_UPLOAD_SIZE', 8 * 1024 * 1024),
 
+        // Ceiling for width x height of an uploaded raster image (decompression-bomb guard,
+        // CORE-P12-1). Checked from the header only; no pixel is decoded at upload time.
+        'max_pixels' => (int) env('CMS_MEDIA_MAX_PIXELS', 50_000_000),
+
         'allowed_extensions' => ['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'pdf'],
 
         'allowed_mimes' => [
@@ -96,6 +109,16 @@ return [
         // uploads are sanitized (scripts, event handlers, foreignObject and
         // javascript:/data: URLs stripped) before being stored.
         'allow_svg' => (bool) env('CMS_MEDIA_ALLOW_SVG', false),
+
+        // Owner-scoped frontend media library (CORE-40-FRONTEND-MEDIA-R1). The site settings
+        // media.frontend_quota_mb / media.frontend_max_dimension / media.frontend_uploads_per_minute
+        // override these; every value is clamped to a safe range at use.
+        'frontend' => [
+            'quota_mb' => (int) env('CMS_MEDIA_FRONTEND_QUOTA_MB', 100),
+            'max_dimension' => (int) env('CMS_MEDIA_FRONTEND_MAX_DIMENSION', 6000),
+            'uploads_per_minute' => (int) env('CMS_MEDIA_FRONTEND_UPLOADS_PER_MINUTE', 10),
+            'list_per_minute' => (int) env('CMS_MEDIA_FRONTEND_LIST_PER_MINUTE', 120),
+        ],
     ],
 
     /*

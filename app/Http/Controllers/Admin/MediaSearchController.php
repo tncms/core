@@ -26,6 +26,12 @@ class MediaSearchController extends Controller
 
     public function __invoke(Request $request): JsonResponse
     {
+        // The admin panel only proves admin.access; listing the library needs media.view
+        // (CORE-40-FRONTEND-MEDIA-R1 S-M2), the same permission as the Media resource.
+        if (! cms_can('media.view')) {
+            return response()->json(['message' => __('This action is unauthorized.')], 403);
+        }
+
         $search = (string) $request->query('q', '');
 
         $limit = (int) $request->query('limit', (string) self::DEFAULT_LIMIT);

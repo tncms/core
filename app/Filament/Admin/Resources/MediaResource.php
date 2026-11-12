@@ -175,7 +175,10 @@ class MediaResource extends Resource
                     ->label(tn_trans('Preview'))
                     ->size(48)
                     ->getStateUsing(fn (Media $record): ?string => $record->isImage() ? $record->previewUrl() : null)
-                    ->defaultImageUrl(fn (): string => static::fileIconDataUri()),
+                    ->defaultImageUrl(fn (): string => static::fileIconDataUri())
+                    // The preview (or the fallback file icon) is the only content of the row link,
+                    // so its alt names both (WCAG 1.1.1, 2.4.4). Filament does not escape these values.
+                    ->extraImgAttributes(fn (Media $record): array => ['alt' => e(static::rowMediaLabel($record))]),
 
                 TextColumn::make('original_filename')
                     ->label(tn_trans('Filename'))
@@ -200,6 +203,11 @@ class MediaResource extends Resource
                     ->label(tn_trans('Caption'))
                     ->boolean()
                     ->state(fn (Media $record): bool => filled($record->caption))
+                    // The icon is aria-hidden; name the yes/no state so the row link has a name (WCAG 1.1.1, 4.1.2).
+                    ->extraAttributes(fn (Media $record): array => [
+                        'role' => 'img',
+                        'aria-label' => e(filled($record->caption) ? tn_trans('Caption: yes') : tn_trans('Caption: no')),
+                    ])
                     ->toggleable(),
 
                 TextColumn::make('url')
@@ -396,6 +404,26 @@ class MediaResource extends Resource
         $manager = app('cms.media');
 
         return $manager;
+    }
+
+    /**
+     * Accessible label for a row's preview: "Media: <file name>". Control characters are dropped and
+     * the name is bounded; falls back to the record number when no file name is stored.
+     */
+    private static function rowMediaLabel(Media $record): string
+    {
+        $name = '';
+
+        foreach ([$record->original_filename, $record->filename] as $candidate) {
+            $clean = trim((string) preg_replace('/[\x00-\x1F\x7F]+/', ' ', (string) $candidate));
+
+            if ($clean !== '') {
+                $name = mb_strimwidth($clean, 0, 80, '…');
+                break;
+            }
+        }
+
+        return tn_trans('Media: :name', ['name' => $name !== '' ? $name : '#' . $record->getKey()]);
     }
 
     /**

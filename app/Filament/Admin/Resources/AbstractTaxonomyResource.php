@@ -8,6 +8,8 @@ use App\Filament\Admin\Components\MediaPicker;
 use App\Filament\Admin\Components\RichEditor;
 use App\Filament\Admin\Concerns\HasLocaleSelect;
 use App\Filament\Admin\Resources\AbstractTaxonomyResource\Support\TaxonomyLocalizedContent;
+use App\Filament\Admin\Resources\Concerns\RobotsPolicyField;
+use App\Filament\Admin\Resources\Concerns\TranslatedSlugColumn;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\Placeholder;
@@ -182,6 +184,7 @@ abstract class AbstractTaxonomyResource extends Resource
                         ->label(tn_trans('Meta description'))
                         ->rows(3),
                     static::fallbackPreviewField('meta_description'),
+                    RobotsPolicyField::make(),
                 ])
                 ->columns(1)
                 ->collapsed(),
@@ -228,10 +231,7 @@ abstract class AbstractTaxonomyResource extends Resource
                             });
                     });
                 }),
-            TextColumn::make('slug')
-                ->label(tn_trans('Slug'))
-                ->state(fn (Term $record): string => $record->translatedSlug($locale))
-                ->toggleable(),
+            TranslatedSlugColumn::make(fn (Term $record): string => $record->translatedSlug($locale)),
         ];
 
         if ($hierarchical) {

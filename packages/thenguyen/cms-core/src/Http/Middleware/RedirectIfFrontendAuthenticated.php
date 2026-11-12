@@ -20,7 +20,7 @@ class RedirectIfFrontendAuthenticated
     public function handle(Request $request, Closure $next): Response
     {
         if ($this->auth->guard()->check()) {
-            return redirect()->intended($this->home());
+            return redirect()->to(app(\TheNguyen\CMS\Http\Support\FrontendIntendedUrl::class)->pull($request, $this->home()));
         }
 
         return $next($request);
@@ -28,6 +28,6 @@ class RedirectIfFrontendAuthenticated
 
     private function home(): string
     {
-        return \Illuminate\Support\Facades\Route::has('cms.account') ? route('cms.account') : '/';
+        return \Illuminate\Support\Facades\Route::has('cms.account') ? cms_localized_route('cms.account') : '/';
     }
 }

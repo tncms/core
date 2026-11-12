@@ -2,14 +2,21 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\Admin\Auth\Login;
+use App\Filament\Admin\Support\AccessibleNotification;
 use App\Filament\Admin\Widgets\CmsInfoWidget;
 use App\Http\Controllers\Admin\MediaSearchController;
+use App\Http\Controllers\Admin\SessionStatusController;
 use App\Http\Middleware\SetCmsAdminLocale;
+use Filament\Facades\Filament;
+use Filament\Forms\Components\KeyValue;
+use Filament\Forms\Components\Select;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
 use Filament\Navigation\NavigationGroup;
+use Filament\Notifications\Notification;
 use Filament\Pages\Dashboard;
 use Filament\Panel;
 use Filament\PanelProvider;
@@ -35,7 +42,12 @@ class AdminPanelProvider extends PanelProvider
             // Admin URL segment is configurable (collected by the web installer);
             // changing it requires a route cache clear.
             ->path((string) config('cms.admin_path', 'admin'))
-            ->login()
+            // ER-8 (CORE-H-Z1-REMEDIATION-R3): Filament's sign-in page with the e-mail field's input purpose.
+            ->login(Login::class)
+            // ER-9 (CORE-H-Z1-REMEDIATION-R3): Filament's toast for an expired session is sent through another
+            // Livewire request, which fails with 419 too, so nothing appeared. It is hidden; the Core
+            // session-timeout dialog (below) handles 419 and keeps the unsaved form.
+            ->hiddenErrorNotification(419)
             ->colors([
                 'primary' => Color::Amber,
             ])
@@ -85,6 +97,8 @@ class AdminPanelProvider extends PanelProvider
                 // static string rather than a translated key.
                 'TNCMS Migration' => NavigationGroup::make(fn (): string => 'TNCMS Migration'),
                 'Users' => NavigationGroup::make(fn (): string => tn_trans('Users')),
+                // Core SEO tools (CORE-SITEMAP-ADMIN-R1: XML Sitemap).
+                'SEO' => NavigationGroup::make(fn (): string => tn_trans('SEO')),
                 'CMS' => NavigationGroup::make(fn (): string => tn_trans('CMS')),
             ])
             // Dashboard widgets are filterable so plugins can contribute their
@@ -106,11 +120,18 @@ class AdminPanelProvider extends PanelProvider
                 SubstituteBindings::class,
                 DisableBladeIconComponents::class,
                 DispatchServingFilamentEvent::class,
-                // Align the framework locale with the CMS locale so Filament's
-                // own built-in strings (Create/Save/Delete/Search/pagination)
-                // follow the same language as the TN CMS interface (beta.5.1).
-                SetCmsAdminLocale::class,
             ])
+            // Align the framework locale with the CMS locale so Filament's
+            // own built-in strings (Create/Save/Delete/Search/pagination)
+            // follow the same language as the TN CMS interface (beta.5.1).
+            // Persistent (CORE-SEO-POLICY-AND-ADMIN-LOCALE-R1): Livewire replays
+            // only persistent route middleware on /livewire/update, so without
+            // this every action re-rendered in the site default locale. Same
+            // position in the route stack as before; on an update the replay
+            // carries no ?lang, so it only resolves (never persists) the locale.
+            ->middleware([
+                SetCmsAdminLocale::class,
+            ], isPersistent: true)
             ->authMiddleware([
                 Authenticate::class,
             ])
@@ -128,6 +149,77 @@ class AdminPanelProvider extends PanelProvider
                 PanelsRenderHook::HEAD_END,
                 fn (): string => $this->renderAdminAssets(),
             )
+            // Core accessibility overrides: closed off-canvas sidebar out of the Tab
+            // order below lg (A11) and the AA Core link class (A5). Static, Core-owned
+            // markup (CORE-RELEASE-BLOCKERS-R1-CLOSURE).
+            ->renderHook(
+                PanelsRenderHook::HEAD_END,
+                fn (): string => view('filament.admin.a11y-overrides')->render(),
+            )
+            // Escape closes the open off-canvas sidebar below lg and returns focus to its
+            // opener (CORE-ADMIN-A11Y-R2 A12). Signed-in admin pages only.
+            ->renderHook(
+                PanelsRenderHook::BODY_END,
+                fn (): string => Filament::auth()->check() ? view('filament.admin.sidebar-escape')->render() : '',
+            )
+            // A14 (WCAG 4.1.2): moves the multi-select value badges, whose "Remove" buttons are
+            // interactive, out of the select trigger button (CORE-A14-FINAL-CLOSURE-R1). Acts only
+            // on selects carrying the Core hook added in boot(). Signed-in admin pages only.
+            ->renderHook(
+                PanelsRenderHook::BODY_END,
+                fn (): string => Filament::auth()->check() ? view('filament.admin.select-a11y')->render() : '',
+            )
+            // H-N2 (WCAG 2.4.3): returns focus to the control that opened a Filament action dialog
+            // when it closes (CORE-H-Z1-REMEDIATION-R1). Signed-in admin pages only.
+            ->renderHook(
+                PanelsRenderHook::BODY_END,
+                fn (): string => Filament::auth()->check() ? view('filament.admin.action-focus')->render() : '',
+            )
+            // H-N4 (WCAG 1.3.1 / 4.1.2): associates a server validation error with its native control
+            // (aria-invalid + aria-describedby) after each Livewire morph (CORE-H-Z1-REMEDIATION-R1).
+            ->renderHook(
+                PanelsRenderHook::BODY_END,
+                fn (): string => Filament::auth()->check() ? view('filament.admin.field-errors')->render() : '',
+            )
+            // O-N11 (WCAG 2.4.3): after a Save that stays on the page, moves focus lost to <body> to the
+            // first invalid field or back to the save control (CORE-H-Z1-REMEDIATION-R2). Registered after
+            // field-errors so its morph hook runs after the error association. Signed-in admin pages only.
+            ->renderHook(
+                PanelsRenderHook::BODY_END,
+                fn (): string => Filament::auth()->check() ? view('filament.admin.save-focus')->render() : '',
+            )
+            // L-2 (WCAG 2.4.3): after a same-page Livewire call (no dialog, no save) whose button disabled
+            // itself while loading, moves focus lost to <body> back to that control, its equivalent, or the
+            // destination it declared (CORE-H-Z1-PRE-RERUN-RESIDUAL-CLOSURE-R1). Signed-in admin pages only.
+            ->renderHook(
+                PanelsRenderHook::BODY_END,
+                fn (): string => Filament::auth()->check() ? view('filament.admin.call-focus')->render() : '',
+            )
+            // H-N6 (WCAG 1.3.1 / 4.1.2): names KeyValue key/value inputs after their column headers;
+            // acts only on fields carrying the Core hook added in boot() (CORE-H-Z1-REMEDIATION-R1).
+            ->renderHook(
+                PanelsRenderHook::BODY_END,
+                fn (): string => Filament::auth()->check() ? view('filament.admin.key-value-a11y')->render() : '',
+            )
+            // ER-6 (WCAG 1.4.13): Filament tooltips become hoverable and Escape-dismissible
+            // (CORE-H-Z1-REMEDIATION-R3). Signed-in admin pages only.
+            ->renderHook(
+                PanelsRenderHook::BODY_END,
+                fn (): string => Filament::auth()->check() ? view('filament.admin.tooltip-a11y')->render() : '',
+            )
+            // ER-9 (WCAG 2.2.1): warns before the idle session ends, offers to stay signed in, and after the
+            // end (or any 419) keeps the page and lets the user continue once signed in again
+            // (CORE-H-Z1-REMEDIATION-R3). Signed-in admin pages only.
+            ->renderHook(
+                PanelsRenderHook::BODY_END,
+                fn (): string => Filament::auth()->check() ? view('filament.admin.session-timeout')->render() : '',
+            )
+            // R2-F1 (WCAG 2.4.11): while a notification overlaps the focused element, the notification stack moves
+            // to the vertical edge away from it (CORE-H-Z1-R2-F1-CLOSURE-R1). Every panel page, the sign-in page too.
+            ->renderHook(
+                PanelsRenderHook::BODY_END,
+                fn (): string => view('filament.admin.notification-focus')->render(),
+            )
             // Asset Registry (v1.0.0-beta.7.1.13.1): enqueued admin scripts/
             // modules + inline scripts, rendered before </body>. Never throws.
             ->renderHook(
@@ -142,7 +234,49 @@ class AdminPanelProvider extends PanelProvider
             ->authenticatedRoutes(function (): void {
                 Route::get('cms-media-search', MediaSearchController::class)
                     ->name('cms-media-search');
+                // ER-9: user-initiated session continuation for the session-timeout dialog.
+                Route::get('cms-session', SessionStatusController::class)
+                    ->name('cms-session');
             });
+    }
+
+    public function boot(): void
+    {
+        // A14 (CORE-A14-FINAL-CLOSURE-R1): every Filament Select, including subclasses such as
+        // TermSelect, gets the Core Alpine hook through Filament's public configureUsing() and
+        // extraAlpineAttributes(merge: true) APIs. Native selects never render Alpine attributes.
+        Select::configureUsing(function (Select $select): void {
+            $select->extraAlpineAttributes(
+                fn (Select $component): array => self::selectAccessibilityAttributes($component->getId()),
+                merge: true,
+            );
+        });
+
+        // H-N6 (CORE-H-Z1-REMEDIATION-R1): every Filament KeyValue gets the Core Alpine hook that
+        // names its key/value inputs (key-value-a11y.blade.php). The value is a constant.
+        KeyValue::configureUsing(function (KeyValue $keyValue): void {
+            $keyValue->extraAlpineAttributes(['x-tn-key-value-a11y' => ''], merge: true);
+        });
+
+        // H-N7 (CORE-H-Z1-REMEDIATION-R1): Filament resolves notifications through the container, so
+        // this child class names the icon-only close button. Bound only when nothing else bound it.
+        if (! $this->app->bound(Notification::class)) {
+            $this->app->bind(Notification::class, AccessibleNotification::class);
+        }
+    }
+
+    /**
+     * Filament renders Alpine attributes unescaped, so only an id made of the characters Filament
+     * itself produces for field ids is passed; anything else yields an empty value (the directive
+     * then names the trigger from its value text only).
+     *
+     * @return array{x-tn-select-a11y: string}
+     */
+    public static function selectAccessibilityAttributes(?string $fieldId): array
+    {
+        $safe = is_string($fieldId) && preg_match('/^[A-Za-z0-9_.:-]{1,200}\z/', $fieldId) === 1;
+
+        return ['x-tn-select-a11y' => $safe ? $fieldId : ''];
     }
 
     /**

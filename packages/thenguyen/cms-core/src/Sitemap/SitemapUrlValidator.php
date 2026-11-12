@@ -7,6 +7,7 @@ namespace TheNguyen\CMS\Sitemap;
 use DateTimeInterface;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Router;
+use TheNguyen\CMS\Support\CredentialQuery;
 use Throwable;
 
 /**
@@ -57,6 +58,10 @@ final class SitemapUrlValidator
             return false;
         }
 
+        if (isset($parts['query']) && $this->carriesCredentials($parts['query'])) {
+            return false;
+        }
+
         $path = (string) ($parts['path'] ?? '/');
 
         if ($this->base['path'] !== '') {
@@ -86,6 +91,15 @@ final class SitemapUrlValidator
         $ts = $lastmod->getTimestamp();
 
         return $ts >= 0 && $ts <= time() + 86400;
+    }
+
+    /**
+     * Signed-URL signatures and token-like parameters never belong in a public
+     * sitemap (CORE-SITEMAP-S02 security gate). Ordinary queries (`?page=2`) stay valid.
+     */
+    private function carriesCredentials(string $query): bool
+    {
+        return CredentialQuery::carries($query);
     }
 
     private function localeMatches(string $path, string $locale): bool

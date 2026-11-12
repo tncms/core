@@ -7,11 +7,12 @@ namespace App\Filament\Admin\Resources;
 use App\Filament\Admin\Components\MediaPicker;
 use App\Filament\Admin\Components\RichEditor;
 use App\Filament\Admin\Resources\Concerns\HasContentBulkActions;
+use App\Filament\Admin\Resources\Concerns\RobotsPolicyField;
+use App\Filament\Admin\Resources\Concerns\TranslatedSlugColumn;
 use App\Filament\Admin\Resources\PostResource\Pages;
 use App\Filament\Admin\Resources\PostResource\Support\PostLocalizedContent;
 use BackedEnum;
 use Filament\Actions\Action;
-use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Select;
@@ -30,6 +31,7 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\HtmlString;
 use TheNguyen\CMS\Filament\Concerns\HasTranslations;
+use TheNguyen\CMS\Filament\Forms\TermSelect;
 use TheNguyen\CMS\Models\Content;
 use TheNguyen\CMS\Models\Taxonomy;
 use TheNguyen\CMS\Models\Term;
@@ -140,6 +142,8 @@ class PostResource extends Resource
                         Textarea::make('meta_keywords')
                             ->label(tn_trans('Meta keywords'))
                             ->rows(2),
+
+                        RobotsPolicyField::make(),
                     ])
                     ->columns(1)
                     ->collapsed(),
@@ -169,7 +173,9 @@ class PostResource extends Resource
                             ->required(),
 
                         DateTimePicker::make('published_at')
-                            ->label(tn_trans('Publish date')),
+                            ->label(tn_trans('Publish date'))
+                            // TZ-4: the picker shows and stores times in the application timezone.
+                            ->helperText(static fn (): string => tn_trans('Timezone: :timezone', ['timezone' => (string) config('app.timezone', 'UTC')])),
 
                         Toggle::make('is_featured')
                             ->label(tn_trans('Featured post'))
@@ -200,12 +206,15 @@ class PostResource extends Resource
 
                 Section::make(tn_trans('Categories'))
                     ->schema([
-                        CheckboxList::make('category_ids')
+                        // CORE-P16-1: bounded directory search instead of loading every category.
+                        TermSelect::make('category_ids')
+                            // A14: the visually hidden label names the select trigger.
+                            ->label(tn_trans('Categories'))
                             ->hiddenLabel()
-                            ->options(static fn (Get $get): array => self::categoryOptions(self::formLocale($get)))
-                            ->default(static fn (Get $get): array => self::defaultCategoryIds(self::formLocale($get)))
-                            ->bulkToggleable()
-                            ->columns(1),
+                            ->multiple()
+                            ->taxonomy('category')
+                            ->termLocale(static fn (Get $get): string => self::formLocale($get))
+                            ->default(static fn (Get $get): array => self::defaultCategoryIds(self::formLocale($get))),
                     ])
                     ->footerActions([
                         Action::make('addCategory')
@@ -253,6 +262,8 @@ class PostResource extends Resource
                 TextColumn::make('title')
                     ->label(tn_trans('Title'))
                     ->state(fn (Content $record): string => $record->translatedTitle(editing_locale()))
+                    // ER-5 (WCAG 3.1.2): the title is in its translation's language, not the interface language.
+                    ->extraAttributes(fn (Content $record): array => array_filter(['lang' => $record->translatedTitleLocale(editing_locale())]))
                     ->searchable(query: static function (Builder $query, string $search): Builder {
                         return $query->whereHas('translations', function (Builder $q) use ($search): void {
                             $q->where('locale', editing_locale())
@@ -263,10 +274,7 @@ class PostResource extends Resource
                         });
                     }),
 
-                TextColumn::make('slug')
-                    ->label(tn_trans('Slug'))
-                    ->state(fn (Content $record): string => $record->translatedSlug(editing_locale()))
-                    ->toggleable(),
+                TranslatedSlugColumn::make(fn (Content $record): string => $record->translatedSlug(editing_locale())),
 
                 BadgeColumn::make('status')
                     ->label(tn_trans('Status'))
@@ -281,6 +289,9 @@ class PostResource extends Resource
                 TextColumn::make('published_at')
                     ->label(tn_trans('Published at'))
                     ->dateTime()
+                    // A6: a draft's empty cell would be an unnamed row link.
+                    ->placeholder(tn_trans('Not published'))
+                    ->extraCellAttributes(['class' => 'tn-admin-placeholder'])
                     ->sortable(),
 
                 TextColumn::make('updated_at')
@@ -341,37 +352,6 @@ class PostResource extends Resource
     }
 
     /**
-     * Build the category checkbox options keyed by term id.
-     *
-     * @return array<int, string>
-     */
-    public static function categoryOptions(string $locale): array
-    {
-        $taxonomyId = Taxonomy::query()
-            ->where('content_type', 'post')
-            ->where('slug', 'category')
-            ->value('id');
-
-        if ($taxonomyId === null) {
-            return [];
-        }
-
-        // Strict locale: only categories that have a non-empty translation in
-        // the editing locale appear. Never fall back to another locale's name.
-        return Term::query()
-            ->where('taxonomy_id', $taxonomyId)
-            ->whereHas('translations', static fn ($q) => $q->where('locale', $locale)->where('name', '!=', ''))
-            ->with(['translations' => fn ($q) => $q->where('locale', $locale)])
-            ->orderBy('sort_order')
-            ->get()
-            ->mapWithKeys(static fn (Term $term): array => [
-                $term->id => (string) $term->localeName($locale),
-            ])
-            ->filter(static fn (string $name): bool => $name !== '')
-            ->all();
-    }
-
-    /**
      * Pre-select the default category on new posts, from
      * writing.default_category_id when it points at an existing category term.
      *
@@ -385,7 +365,10 @@ class PostResource extends Resource
             return [];
         }
 
-        return array_key_exists($id, self::categoryOptions($locale)) ? [$id] : [];
+        // Strict locale, as the picker itself: only a category named in the editing locale.
+        $summary = app('cms.taxonomy.directory')->find($id, $locale, 'category');
+
+        return $summary !== null && $summary->hasTranslation ? [$id] : [];
     }
 
     /**

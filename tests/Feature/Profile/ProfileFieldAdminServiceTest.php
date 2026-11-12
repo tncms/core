@@ -52,8 +52,10 @@ class ProfileFieldAdminServiceTest extends TestCase
     {
         // Make the default locale deterministic (fresh DB falls back to 'vi'),
         // so the default-locale and the explicit VI rows are distinct.
-        \TheNguyen\CMS\Models\Language::query()->create(['code' => 'en', 'name' => 'English', 'is_default' => true, 'is_active' => true]);
-        \TheNguyen\CMS\Models\Language::query()->create(['code' => 'vi', 'name' => 'Tiếng Việt', 'is_default' => false, 'is_active' => true]);
+        // Through the manager, which flushes its memoised default (a raw model insert
+        // leaves it stale when the schema already existed at boot, e.g. on MySQL).
+        app('cms.language')->create(['code' => 'en', 'name' => 'English', 'is_default' => true, 'is_active' => true]);
+        app('cms.language')->create(['code' => 'vi', 'name' => 'Tiếng Việt', 'is_default' => false, 'is_active' => true]);
         $this->assertSame('en', default_locale());
 
         $admin = $this->admin();

@@ -27,6 +27,7 @@ use Illuminate\Support\Facades\Facade;
  * @method static string localizedUrl(string $code, ?string $path = null)
  * @method static array getPublicLocales()
  * @method static array optionList()
+ * @method static list<string> nativeNameCodes()
  *
  * @see \TheNguyen\CMS\Services\LanguageManager
  */

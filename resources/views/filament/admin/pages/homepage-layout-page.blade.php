@@ -32,9 +32,15 @@
         .tnl-meta { display:flex; flex-wrap:wrap; align-items:center; gap:.5rem; min-width:0; }
         .tnl-num { display:inline-flex; align-items:center; justify-content:center; height:1.5rem; min-width:1.5rem; padding:0 .4rem; border-radius:999px; background:var(--tnl-chip); color:var(--tnl-muted); font-size:.75rem; font-weight:700; }
         .tnl-title { font-weight:600; color:var(--tnl-text); }
-        .tnl-preview { margin:0; max-width:100%; font-size:.875rem; line-height:1.45; color:var(--tnl-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        /* ER-7 (WCAG 1.4.12, CORE-H-Z1-REMEDIATION-R3): the preview wraps instead of being cut with an ellipsis. */
+        .tnl-preview { margin:0; max-width:100%; font-size:.875rem; line-height:1.45; color:var(--tnl-muted); overflow-wrap:anywhere; }
 
         .tnl-actions { display:flex; flex-flow:row wrap; align-items:center; gap:.375rem; }
+        /* CORE-H-Z1-PRE-RERUN-RESIDUAL-CLOSURE-R1, L-9 (WCAG 2.5.8): Filament's icon button is 36x36 with a
+           -0.5rem margin (vendor icon-button.css) meant for toolbars; in this row it pulled the 36 px targets
+           10 px into each other (2 px into Edit), so a third of each target belonged to its neighbour. The
+           margin is removed here only; the targets keep their own size and the row's gap separates them. */
+        .tnl-card .tnl-actions > .fi-icon-btn, .tnl-card .tnl-actions > .fi-icon-btn:has(.fi-icon) { margin:0; }
 
         /* Empty state */
         .tnl-empty { display:flex; flex-direction:column; align-items:center; text-align:center; gap:.25rem; padding:2.5rem 1rem; }
@@ -75,8 +81,10 @@
                 <div class="tnl-toolbar__lang">
                     <label class="tnl-label" for="tnl-edit-locale">{{ tn_trans('Editing language') }}</label>
                     <select id="tnl-edit-locale" wire:model.live="editLocale" class="tnl-select">
+                        {{-- ER-5 (WCAG 3.1.2): a native language name is marked with its own language. --}}
+                        @php($tnlNativeCodes = app('cms.language')->nativeNameCodes())
                         @foreach ($this->localeOptions() as $code => $label)
-                            <option value="{{ $code }}">{{ $label }}</option>
+                            <option value="{{ $code }}" @if (in_array((string) $code, $tnlNativeCodes, true)) lang="{{ $code }}" @endif>{{ $label }}</option>
                         @endforeach
                     </select>
                 </div>
@@ -116,6 +124,13 @@
         @else
             <div class="tnl tnl-cards">
                 @foreach ($rows as $i => $row)
+                    {{-- L-2: where focus goes when the activated control disappears or is disabled (call-focus). --}}
+                    @php($editId = 'tnl-edit-'.$row['id'])
+                    @php($afterDelete = trim(implode(' ', array_filter([
+                        isset($rows[$i + 1]) ? 'tnl-edit-'.$rows[$i + 1]['id'] : null,
+                        isset($rows[$i - 1]) ? 'tnl-edit-'.$rows[$i - 1]['id'] : null,
+                        'tnl-add-type',
+                    ]))))
                     <div @class([
                             'tnl-card',
                             'tnl-card--disabled' => ! $row['enabled'],
@@ -138,22 +153,24 @@
 
                         {{-- Horizontal action group --}}
                         <div class="tnl-actions">
-                            <x-filament::button size="sm" color="gray" icon="heroicon-m-pencil-square"
+                            <x-filament::button size="sm" color="gray" icon="heroicon-m-pencil-square" id="{{ $editId }}"
                                                 wire:click="editSection('{{ $row['id'] }}')">
                                 {{ tn_trans('Edit') }}
                             </x-filament::button>
                             <x-filament::icon-button wire:click="moveUp('{{ $row['id'] }}')" icon="heroicon-m-arrow-up"
+                                                     id="tnl-up-{{ $row['id'] }}" data-tn-focus-fallback="tnl-down-{{ $row['id'] }} {{ $editId }}"
                                                      :tooltip="tn_trans('Move up')" :label="tn_trans('Move up')" :disabled="$i === 0" />
                             <x-filament::icon-button wire:click="moveDown('{{ $row['id'] }}')" icon="heroicon-m-arrow-down"
+                                                     id="tnl-down-{{ $row['id'] }}" data-tn-focus-fallback="tnl-up-{{ $row['id'] }} {{ $editId }}"
                                                      :tooltip="tn_trans('Move down')" :label="tn_trans('Move down')" :disabled="$i === count($rows) - 1" />
-                            <x-filament::icon-button wire:click="duplicateSection('{{ $row['id'] }}')" icon="heroicon-m-document-duplicate"
+                            <x-filament::icon-button wire:click="duplicateSection('{{ $row['id'] }}')" icon="heroicon-m-document-duplicate" data-tn-focus-fallback="{{ $editId }}"
                                                      :tooltip="tn_trans('Duplicate')" :label="tn_trans('Duplicate')" />
-                            <x-filament::icon-button wire:click="toggleEnabled('{{ $row['id'] }}')"
+                            <x-filament::icon-button wire:click="toggleEnabled('{{ $row['id'] }}')" data-tn-focus-fallback="{{ $editId }}"
                                                      icon="{{ $row['enabled'] ? 'heroicon-m-eye-slash' : 'heroicon-m-eye' }}"
                                                      color="{{ $row['enabled'] ? 'warning' : 'success' }}"
                                                      :tooltip="$row['enabled'] ? tn_trans('Hide') : tn_trans('Show')"
                                                      :label="$row['enabled'] ? tn_trans('Hide') : tn_trans('Show')" />
-                            <x-filament::icon-button wire:click="removeSection('{{ $row['id'] }}')" icon="heroicon-m-trash" color="danger"
+                            <x-filament::icon-button wire:click="removeSection('{{ $row['id'] }}')" icon="heroicon-m-trash" color="danger" data-tn-focus-fallback="{{ $afterDelete }}"
                                                      :tooltip="tn_trans('Delete')" :label="tn_trans('Delete')"
                                                      wire:confirm="{{ tn_trans('Delete this section?') }}" />
                         </div>
@@ -177,10 +194,10 @@
                 {{ $this->form }}
 
                 <div class="tnl-actions" style="justify-content:flex-end;">
-                    <x-filament::button type="button" color="gray" wire:click="cancelEdit">
+                    <x-filament::button type="button" color="gray" wire:click="cancelEdit" data-tn-focus-fallback="tnl-edit-{{ $this->editingId }}">
                         {{ tn_trans('Cancel') }}
                     </x-filament::button>
-                    <x-filament::button type="submit" icon="heroicon-m-check">
+                    <x-filament::button type="submit" icon="heroicon-m-check" data-tn-focus-fallback="tnl-edit-{{ $this->editingId }}">
                         {{ tn_trans('Apply changes') }}
                     </x-filament::button>
                 </div>

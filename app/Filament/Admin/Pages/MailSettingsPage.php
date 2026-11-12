@@ -17,6 +17,7 @@ use TheNguyen\CMS\Mail\MailConfigurationBridge;
 use TheNguyen\CMS\Mail\MailConnectionTester;
 use TheNguyen\CMS\Mail\MailSettingsRepository;
 use TheNguyen\CMS\Mail\MailSettingsValidator;
+use TheNguyen\CMS\Validation\Rules\SafeEmailAddress;
 
 /**
  * System Settings → Mail (Core Mail Platform · CORE-MAIL-1 · ADR-CORE-MAIL-001/002/003).
@@ -159,6 +160,7 @@ class MailSettingsPage extends Page
                     TextInput::make('to')
                         ->label(tn_trans('Recipient'))
                         ->email()
+                        ->rule(new SafeEmailAddress)
                         ->required()
                         ->default((string) settings()->get('general.admin_email', '')),
                 ])

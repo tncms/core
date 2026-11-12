@@ -93,7 +93,7 @@ final class ResolverThreeContractCoexistenceR2Test extends TestCase
         $this->assertSame(
             [
                 'login', 'register', 'forgot-password', 'reset-password',
-                'account', 'profile', 'security', 'preferences', 'sessions', 'search',
+                'account', 'profile', 'security', 'preferences', 'sessions', 'verify-email', 'search',
             ],
             $r->pages(),
         );

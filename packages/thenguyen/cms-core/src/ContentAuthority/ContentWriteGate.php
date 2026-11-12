@@ -29,7 +29,7 @@ final class ContentWriteGate
     /** Row fields whose change on a published record changes public output. */
     public const EDITORIAL_FIELDS = [
         'type', 'author_id', 'parent_id', 'template', 'featured_image', 'sort_order', 'comment_status',
-        'views_count', 'comments_count', 'is_featured', 'show_page_title', 'published_at',
+        'views_count', 'comments_count', 'is_featured', 'show_page_title', 'published_at', 'seo_robots',
     ];
 
     /** @var array<int, int> content id => sanction depth */
