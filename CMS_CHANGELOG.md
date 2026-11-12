@@ -16,6 +16,24 @@ this project adheres to [Semantic Versioning](https://semver.org).
 
 ---
 
+## [1.0.0-beta.7.1.39.1] — Security update — 2026-11-12
+
+### Upgrade notes
+
+- **Security patch release; upgrading is recommended** for sites running 1.0.0-beta.7.1.32 through 1.0.0-beta.7.1.39.
+- **No migrations, schema changes, settings, routes, permissions or dependency changes.** Upgrade from 1.0.0-beta.7.1.39 with the `/upgrade` wizard or the upgrade package as usual, after a normal database backup.
+- Existing content does not need to be edited; the fix applies as soon as the application files are updated.
+
+### Security
+
+- Hardened Admin content-list rendering so that user-controlled media alternative text (the content title used as the thumbnail `alt` in the Posts and Pages lists) is safely escaped. Titles still display exactly as written. A security advisory accompanies this release.
+
+### Notes
+
+- No intentional feature or behaviour change. The same remediation is included in 1.0.0-beta.7.1.40.
+
+---
+
 ## [1.0.0-beta.7.1.39] — Content action authorization, private drafts, owning-extension decisions, extension presentation seams and category post counts — 2026-10-31
 
 ### Upgrade notes

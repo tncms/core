@@ -439,9 +439,11 @@ trait HasContentBulkActions
             ->height(40)
             ->width(40)
             ->defaultImageUrl(static fn (): string => static::featuredImagePlaceholder())
+            // Filament renders extraImgAttributes values unescaped, so the
+            // author-controlled title must be escaped here (H-Z1-M2).
             ->extraImgAttributes(static fn (Content $record): array => [
                 'style' => 'object-fit: cover; border-radius: 6px;',
-                'alt' => $record->translatedTitle(editing_locale()),
+                'alt' => e($record->translatedTitle(editing_locale())),
                 'loading' => 'lazy',
             ]);
     }
