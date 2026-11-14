@@ -302,6 +302,13 @@ class ExtensionInstaller
                     ? ucfirst($type) . " \"{$slug}\" is already installed. Enable “Overwrite existing files” to replace it."
                     : ($this->isActive($type, $slug) ? "The {$type} \"{$slug}\" is currently active. Deactivate it before overwriting." : null);
 
+                // The active theme renders through its parent chain, and an overwrite does not republish the
+                // parent's public assets: its new views would go live against stale assets. Refused exactly like
+                // deleting that parent (CORE-POST40-MAINTENANCE-P0-R1 P0-10).
+                if ($refusal === null && $type === 'theme' && $this->themes->activeDependentsOf($slug) !== []) {
+                    $refusal = 'The active theme depends on this theme as its parent. Switch themes before overwriting it.';
+                }
+
                 if ($refusal !== null) {
                     $txn->rollback();
 

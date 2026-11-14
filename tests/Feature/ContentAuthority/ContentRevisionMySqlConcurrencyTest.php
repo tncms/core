@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature\ContentAuthority;
 
 use PDO;
+use Tests\Support\ChildPhp;
 use Tests\TestCase;
 use Throwable;
 
@@ -64,7 +65,7 @@ final class ContentRevisionMySqlConcurrencyTest extends TestCase
             }
         }
 
-        $command = array_merge([PHP_BINARY, base_path('tests/Fixtures/ContentAuthority/mysql_writer.php')], $args);
+        $command = array_merge(ChildPhp::command(), [base_path('tests/Fixtures/ContentAuthority/mysql_writer.php')], $args);
         $process = proc_open($command, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, base_path(), $env);
         $this->assertIsResource($process);
 

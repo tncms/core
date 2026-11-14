@@ -24,6 +24,7 @@ use TheNguyen\CMS\Models\ContentTranslation;
 use TheNguyen\CMS\Models\Slug;
 use TheNguyen\CMS\Revision\DTOs\RevisionContext;
 use TheNguyen\CMS\Seo\ResourceRobotsPolicy;
+use TheNguyen\CMS\Support\Html\HtmlSanitizationFailed;
 
 /**
  * The Core write authority for content rows, their translations, slugs and
@@ -866,12 +867,30 @@ class ContentManager
                 // Rich-editor (TinyMCE) HTML is sanitized on every write so the
                 // stored body is always safe to render. Only the body is sanitized;
                 // title/excerpt/meta are plain text handled elsewhere.
-                'content' => $rawContent !== null ? $this->sanitizer->sanitize($rawContent) : null,
+                'content' => $rawContent !== null ? $this->sanitizeBody((string) $rawContent, $content) : null,
                 'meta_title' => $data['meta_title'] ?? $existing?->meta_title,
                 'meta_description' => $data['meta_description'] ?? $existing?->meta_description,
                 'meta_keywords' => $data['meta_keywords'] ?? $existing?->meta_keywords,
             ],
         ];
+    }
+
+    /**
+     * Sanitize a body for storage. A sanitizer failure refuses the whole write (the transaction rolls back) instead
+     * of persisting an empty body over valid content (CORE-POST40-MAINTENANCE-P0-R1).
+     */
+    private function sanitizeBody(string $raw, Content $content): string
+    {
+        try {
+            return $this->sanitizer->sanitizeForStorage($raw);
+        } catch (HtmlSanitizationFailed) {
+            throw new ContentWriteDenied(
+                'content_unprocessable',
+                'The content could not be processed safely, so nothing was saved. Simplify the formatting and try again.',
+                $content->exists ? (int) $content->getKey() : null,
+                $content->managed_by,
+            );
+        }
     }
 
     /**

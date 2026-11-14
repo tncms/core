@@ -6,7 +6,9 @@ namespace TheNguyen\CMS\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\Response;
 use TheNguyen\CMS\Services\PublicContentCacheManager;
 
@@ -15,8 +17,9 @@ use TheNguyen\CMS\Services\PublicContentCacheManager;
  * (v1.0.0-beta.6.4.2).
  *
  * - Budget: counts DB queries for the request and, if the page type's budget is
- *   exceeded, report()s it. It NEVER alters or fails the response — a slow page
- *   still renders; the overage just surfaces in logs/monitoring.
+ *   exceeded, logs a structured warning — at most once per page type + path per
+ *   REPORT_WINDOW_SECONDS, never as an exception report. It NEVER alters or fails
+ *   the response — a slow page still renders; the overage just surfaces in logs.
  * - Profiler: only when CMS_DEBUG_QUERIES=true, adds X-TNCMS-Queries,
  *   X-TNCMS-Time and X-TNCMS-Cache headers for diagnostics.
  *
@@ -32,6 +35,9 @@ class QueryInsights
         'cms.category' => 'category',
         'cms.tag' => 'tag',
     ];
+
+    /** One warning per page type + path per window, so a hot over-budget page cannot flood the log. */
+    private const REPORT_WINDOW_SECONDS = 600;
 
     public function handle(Request $request, Closure $next): Response
     {
@@ -92,7 +98,7 @@ class QueryInsights
     }
 
     /**
-     * report() when the query count exceeds the page type's budget. Never throws.
+     * Log a bounded warning when the query count exceeds the page type's budget. Never throws.
      */
     private function enforceBudget(string $type, int $queries, Request $request): void
     {
@@ -103,13 +109,22 @@ class QueryInsights
             return;
         }
 
-        report(new \RuntimeException(sprintf(
-            'TN CMS query budget exceeded: %d queries on a "%s" page (budget %d) at %s',
-            $queries,
-            $type,
-            $budget,
-            $request->path(),
-        )));
+        $path = $request->path();
+
+        try {
+            if (! Cache::add('cms:query-budget:'.sha1($type.'|'.$path), 1, self::REPORT_WINDOW_SECONDS)) {
+                return;
+            }
+
+            Log::warning('TN CMS query budget exceeded.', [
+                'page_type' => $type,
+                'queries' => $queries,
+                'budget' => $budget,
+                'path' => $path,
+            ]);
+        } catch (\Throwable) {
+            // Diagnostics only: a cache or log failure must never affect the response.
+        }
     }
 
     private function addHeaders(Response $response, int $queries, int $elapsedMs): void

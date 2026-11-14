@@ -396,6 +396,9 @@ class CmsServiceProvider extends ServiceProvider
             $app->make('cms.settings'),
         ));
         $this->app->alias('cms.taxonomy.directory', \TheNguyen\CMS\Taxonomy\Directory\TaxonomyDirectory::class);
+        // Public taxonomy narrowing of caller-owned Content queries + strict related content (CORE-P17-1).
+        $this->app->singleton('cms.taxonomy.content_constraint', fn () => new \TheNguyen\CMS\Taxonomy\Query\ContentTaxonomyConstraint);
+        $this->app->alias('cms.taxonomy.content_constraint', \TheNguyen\CMS\Taxonomy\Query\ContentTaxonomyConstraint::class);
 
         $this->app->singleton('cms.media', fn () => new MediaManager);
         $this->app->alias('cms.media', MediaManager::class);
@@ -1518,13 +1521,19 @@ class CmsServiceProvider extends ServiceProvider
                 ['cms.content.saved', 'Fires after a content item has been saved.', ['content' => $content, 'data' => 'array', 'context' => $ctx], 'Content'],
                 ['cms.term.saving', 'Fires before a taxonomy term is persisted.', ['term' => $term, 'data' => 'array', 'context' => $ctx], 'Taxonomy'],
                 ['cms.term.saved', 'Fires after a taxonomy term has been saved.', ['term' => $term, 'data' => 'array', 'context' => $ctx], 'Taxonomy'],
-                ['cms.media.uploaded', 'Fires after a media file has been uploaded.', ['media' => $media, 'context' => $ctx], 'Media'],
+                ['cms.media.uploaded', 'Fires after a media file has been uploaded or imported into the library.', ['media' => $media, 'context' => $ctx], 'Media'],
                 ['cms.post.rendered', 'Fires after a single post body has been rendered.', ['content' => $content, 'context' => $ctx], 'Rendering'],
                 ['cms.page.rendered', 'Fires after a single page body has been rendered.', ['content' => $content, 'context' => $ctx], 'Rendering'],
                 ['cms.theme.header', 'Theme placeholder rendered inside <body>, before the header.', [], 'Theme'],
                 ['cms.theme.before_content', 'Theme placeholder rendered before the main content.', [], 'Theme'],
                 ['cms.theme.after_content', 'Theme placeholder rendered after the main content.', [], 'Theme'],
                 ['cms.theme.footer', 'Theme placeholder rendered before the closing </body>.', [], 'Theme'],
+                // Plugin lifecycle (PluginLifecycleManager). Only the activation/deactivation events fire today;
+                // the upgrade/uninstall seams are not called by Core and are deliberately not catalogued.
+                ['cms.plugin.before_activate', 'Fires before a plugin is activated, before its database schema is installed.', ['plugin' => \TheNguyen\CMS\Support\Plugin::class], 'Plugin'],
+                ['cms.plugin.after_activate', 'Fires after a plugin has been activated.', ['plugin' => \TheNguyen\CMS\Support\Plugin::class], 'Plugin'],
+                ['cms.plugin.before_deactivate', 'Fires before a plugin is deactivated.', ['plugin' => \TheNguyen\CMS\Support\Plugin::class], 'Plugin'],
+                ['cms.plugin.after_deactivate', 'Fires after a plugin has been deactivated.', ['plugin' => \TheNguyen\CMS\Support\Plugin::class], 'Plugin'],
                 ['cms.scripts.settings.loading', 'Fires before admin-managed scripts.* settings are registered into the Global Script Manager, letting plugins inject their own settings-managed scripts. Receives the target ScriptManager (v1.0.0-beta.7.1.13.3).', ['manager' => \TheNguyen\CMS\Services\ScriptManager::class], 'Scripts'],
             ];
 

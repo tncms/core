@@ -33,11 +33,14 @@ class UpgradeController
     public function index(): ViewContract
     {
         $mgr = $this->manager();
+        $situation = $mgr->situation();
+        $active = $situation['has_active'] ? $situation['state'] : null;
 
         return view('upgrade.index', [
             'step' => 1,
             'current' => $mgr->currentVersion(),
-            'situation' => $mgr->situation(),
+            'situation' => $situation,
+            'running' => $active !== null && $mgr->applyRunning((string) $active['upgrade_id']),
             'latest' => $mgr->latest(),
             'usage' => $mgr->storageUsage(),
             'stepRoute' => fn (string $status) => $this->routeForStatus($status),
@@ -85,9 +88,12 @@ class UpgradeController
     {
         $id = $this->activeId();
         if ($id === null) {
-            return redirect()->route('cms.upgrade.index');
+            return $this->noActiveAttempt();
         }
         $mgr = $this->manager();
+        if (($redirect = $this->unlessPreBackup($id)) !== null) {
+            return $redirect;
+        }
         $pre = $mgr->preflight($id);
 
         return view('upgrade.system-check', [
@@ -103,7 +109,10 @@ class UpgradeController
     {
         $id = $this->activeId();
         if ($id === null) {
-            return redirect()->route('cms.upgrade.index');
+            return $this->noActiveAttempt();
+        }
+        if (($redirect = $this->unlessPreBackup($id)) !== null) {
+            return $redirect;
         }
         $pre = $this->manager()->preflight($id);
 
@@ -118,12 +127,12 @@ class UpgradeController
     {
         $id = $this->activeId();
         if ($id === null) {
-            return redirect()->route('cms.upgrade.index');
+            return $this->noActiveAttempt();
         }
         $state = $this->manager()->store()->load($id);
         $status = (string) ($state['status'] ?? '');
         if (UpgradeState::hasVerifiedBackup($status)) {
-            return redirect()->route('cms.upgrade.ready');
+            return redirect()->route($this->routeForStatus($status));
         }
 
         return view('upgrade.backup', ['step' => 3, 'state' => $state]);
@@ -134,7 +143,7 @@ class UpgradeController
     {
         $id = $this->activeId();
         if ($id === null) {
-            return redirect()->route('cms.upgrade.index');
+            return $this->noActiveAttempt();
         }
         $res = $this->manager()->runBackup($id);
 
@@ -148,11 +157,12 @@ class UpgradeController
     {
         $id = $this->activeId();
         if ($id === null) {
-            return redirect()->route('cms.upgrade.index');
+            return $this->noActiveAttempt();
         }
         $state = $this->manager()->store()->load($id);
         $status = (string) ($state['status'] ?? '');
-        if (! UpgradeState::hasVerifiedBackup($status)) {
+        if ($status !== UpgradeState::BACKUP_VERIFIED) {
+            // Before the backup gate, or the apply has already started: Start is offered at most once.
             return redirect()->route($this->routeForStatus($status));
         }
 
@@ -178,11 +188,16 @@ class UpgradeController
         $mgr = $this->manager();
         // The same decision the landing page shows: an attempt that needs recovery outranks everything.
         $situation = $mgr->situation();
+        $active = $mgr->active();
+        // An apply that is still running (its start response was lost, e.g. a proxy timeout) is shown as
+        // progress, never as an attempt to recover: recovery of a running apply is refused anyway.
+        $running = $active !== null && $mgr->applyRunning((string) $active['upgrade_id']);
 
         return view('upgrade.finish', [
             'step' => 5,
             'state' => $mgr->latest(),
-            'recovery' => $situation['recommendation'] === 'recover' ? $situation['state'] : null,
+            'running' => $running ? $active : null,
+            'recovery' => ! $running && $situation['recommendation'] === 'recover' ? $situation['state'] : null,
             'current' => $mgr->currentVersion(),
         ]);
     }
@@ -236,6 +251,26 @@ class UpgradeController
 
     // ---- helpers --------------------------------------------------------
 
+    /**
+     * A wizard step reached with no in-flight attempt: a stale page (Back, reload, a second tab) after the
+     * attempt ended, typically when the start response never arrived. Show that outcome; the package form
+     * is only for a site that has no attempt to report.
+     */
+    private function noActiveAttempt(): RedirectResponse
+    {
+        return redirect()->route($this->manager()->latest() !== null ? 'cms.upgrade.finish' : 'cms.upgrade.index');
+    }
+
+    /** The system check belongs to an attempt before its backup; later stages go to the step that owns them. */
+    private function unlessPreBackup(string $id): ?RedirectResponse
+    {
+        $status = (string) (($this->manager()->store()->load($id) ?? [])['status'] ?? '');
+
+        return \in_array($status, [UpgradeState::VERIFIED, UpgradeState::PREFLIGHT_PASSED], true)
+            ? null
+            : redirect()->route($this->routeForStatus($status));
+    }
+
     private function activeId(): ?string
     {
         $active = $this->manager()->active();
@@ -250,7 +285,7 @@ class UpgradeController
             $status === UpgradeState::UPLOADED => 'cms.upgrade.index',
             $status === UpgradeState::VERIFIED => 'cms.upgrade.systemCheck',
             $status === UpgradeState::PREFLIGHT_PASSED => 'cms.upgrade.backup',
-            UpgradeState::hasVerifiedBackup($status) && $status !== UpgradeState::COMPLETED => 'cms.upgrade.ready',
+            $status === UpgradeState::BACKUP_VERIFIED => 'cms.upgrade.ready',
             default => 'cms.upgrade.finish',
         };
     }

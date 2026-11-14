@@ -263,8 +263,10 @@ final class InteractiveHtmlProfile
 
         try {
             $dom->loadHTML(
-                '<meta http-equiv="Content-Type" content="text/html; charset=utf-8"><div data-cms-profile-root="1">'.$html.'</div>',
-                LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD | LIBXML_NONET,
+                // UTF-8 via an XML encoding declaration, not an http-equiv charset switch (fails on libxml
+                // 2.11–2.12); HTML_PARSE_IGNORE_ENC (1 << 21) keeps in-content charset hints from re-decoding.
+                '<?xml encoding="UTF-8"><div data-cms-profile-root="1">'.$html.'</div>',
+                LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD | LIBXML_NONET | (1 << 21),
             );
         } finally {
             libxml_clear_errors();

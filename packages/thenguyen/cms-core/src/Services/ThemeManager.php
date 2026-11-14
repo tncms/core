@@ -888,7 +888,7 @@ class ThemeManager
             $data = $this->readManifest($path);
 
             if ($data === null) {
-                $invalid[] = ['slug' => $dir, 'reason' => 'Missing or invalid theme.json'];
+                $invalid[] = ['slug' => $dir, 'reason' => $this->unreadableManifestReason($path)];
 
                 continue;
             }
@@ -952,6 +952,27 @@ class ThemeManager
         }
 
         return $this->readManifest($path);
+    }
+
+    /**
+     * Why readManifest() returned null for an extension folder, naming the JSON parser error so the
+     * invalid-extension list tells the author what to fix. Only called for folders already known to be invalid.
+     */
+    private function unreadableManifestReason(string $path): string
+    {
+        $jsonFile = $path . DIRECTORY_SEPARATOR . 'theme.json';
+
+        if (! File::exists($jsonFile)) {
+            return 'Missing theme.json';
+        }
+
+        $data = json_decode((string) File::get($jsonFile), true);
+
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            return 'Invalid theme.json: ' . json_last_error_msg();
+        }
+
+        return is_array($data) ? 'Invalid theme.json' : 'Invalid theme.json: the top level must be a JSON object';
     }
 
     /**

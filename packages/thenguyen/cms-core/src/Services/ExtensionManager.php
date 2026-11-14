@@ -180,7 +180,7 @@ class ExtensionManager
             $data = $this->readManifest($path);
 
             if ($data === null) {
-                $invalid[] = ['slug' => $dir, 'reason' => 'Missing or invalid plugin.json'];
+                $invalid[] = ['slug' => $dir, 'reason' => $this->unreadableManifestReason($path)];
 
                 continue;
             }
@@ -787,6 +787,27 @@ class ExtensionManager
         $value = $data[$key] ?? null;
 
         return is_string($value) && trim($value) !== '' ? trim($value) : null;
+    }
+
+    /**
+     * Why readManifest() returned null for an extension folder, naming the JSON parser error so the
+     * invalid-extension list tells the author what to fix. Only called for folders already known to be invalid.
+     */
+    private function unreadableManifestReason(string $path): string
+    {
+        $jsonFile = $path.DIRECTORY_SEPARATOR.'plugin.json';
+
+        if (! File::exists($jsonFile)) {
+            return 'Missing plugin.json';
+        }
+
+        $data = json_decode((string) File::get($jsonFile), true);
+
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            return 'Invalid plugin.json: '.json_last_error_msg();
+        }
+
+        return is_array($data) ? 'Invalid plugin.json' : 'Invalid plugin.json: the top level must be a JSON object';
     }
 
     /**

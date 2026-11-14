@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex, nofollow">
+    @stack('head')
     @php($currentStep = $step ?? 1)
     <title>@yield('title', 'Upgrade') · {{ \TheNguyen\CMS\Support\CmsInfo::BRAND }}</title>
     <style>

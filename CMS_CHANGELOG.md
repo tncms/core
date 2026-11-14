@@ -16,6 +16,62 @@ this project adheres to [Semantic Versioning](https://semver.org).
 
 ---
 
+## [1.0.0-beta.7.1.41] — taxonomy content constraint for extensions, trusted-proxy switch and maintenance fixes — 2026-11-14
+
+### Upgrade notes
+
+- **1.0.0-beta.7.1.40.1 was never published. This release contains all of its fixes** (libxml 2.11–2.12 empty content and the upgrade wizard progress pages, listed under 1.0.0-beta.7.1.40.1 below) and supersedes it. Sites on libxml 2.11.x or 2.12.x should upgrade before creating or editing content; bodies already stored empty cannot be restored by the upgrade.
+- **No migrations, schema changes, settings, routes, permissions or dependency changes.** Upgrade from 1.0.0-beta.7.1.40 or 1.0.0-beta.7.1.39 / .39.1 (or any release down to 1.0.0-beta.7.0.0) with the `/upgrade` wizard or the upgrade package, after a database and files backup.
+- **Behind a proxy, load balancer or CDN, set `TRUSTED_PROXIES`** (addresses or CIDR ranges, comma-separated, or `*` only when the site is reachable solely through the proxy). Empty, the default, trusts no `X-Forwarded-*` header. Deployments on Laravel Forge, Vapor or Laravel Cloud must now set it explicitly: the framework's implicit trust for those hosts, which a client could trigger with a forged `Host` header, no longer applies.
+- Monitoring that read query-budget overages from the exception reporter now finds them as a rate-limited `warning` log entry.
+- Run `php artisan optimize:clear` if you deploy files by other means than the upgrade wizard.
+
+### Added
+
+- **Public taxonomy content constraint** (`cms.taxonomy.content_constraint`, `TheNguyen\CMS\Taxonomy\Query\ContentTaxonomyConstraint`). `constrain($query, 'category'|'tag', $termIds, 'any'|'all')` narrows a plugin- or theme-owned `Content` query to content carrying any or all of up to 50 selected terms. `relatedTo($query, $current, 'same_category'|'same_tags'|'automatic')` selects content sharing a live category or tag with `$current`, never `$current` itself. Both fail closed: an empty selection, a selection with any malformed, missing, deleted or other-taxonomy id, or a current item without a live term matches nothing (`relatedTo` then returns `false`), with no fallback to unrelated content. Unsupported input throws `InvalidContentTaxonomyConstraint` with a stable `reason`. The caller keeps its filters, locale, ordering and pagination; the seam only adds an `AND`. See PLUGIN_DEVELOPMENT.md.
+- `TRUSTED_PROXIES` operator setting (`config/trustedproxy.php`), untrusted by default.
+
+### Changed
+
+- The query-budget middleware reports an overage as one `Log::warning` per page type and path every 10 minutes instead of through the exception reporter.
+- The `cms.media.uploaded` hook also fires for files imported by Core (demo content, bundled assets), with the same payload.
+- Overwriting, by ZIP, a theme that the active theme inherits from is refused, as deleting it already was. Switch themes first.
+- An unreadable plugin or theme manifest now names the JSON error.
+- After the upgrade wizard replaces Core files it resets the PHP opcode cache where the running PHP allows it.
+
+### Fixed
+
+- The sanitizer no longer stores an empty body when the parser loses the content root, and keeps content after a stray closing tag or void element on libxml 2.11 and later. A body that cannot be sanitized safely is refused instead of saved empty.
+
+### Notes
+
+- The plugin activation and deactivation hooks are now catalogued; they already fired.
+- The existing related-posts behaviour (`RelatedContentSelector`, including its automatic "latest excluding self" fallback for posts without terms) is unchanged.
+- The accessibility statement keeps its existing scope; this release makes no general WCAG claim.
+
+## [1.0.0-beta.7.1.40.1] — libxml compatibility fix: content no longer renders empty on libxml 2.11–2.12 — 2026-11-13
+
+### Upgrade notes
+
+- **Compatibility patch release for the 1.0.0-beta.7.1.40 line. Upgrading is recommended for every site whose PHP is built against libxml 2.11.x or 2.12.x** (check with `php -r 'echo LIBXML_DOTTED_VERSION;'`). Sites on other libxml versions see no behaviour change.
+- **No migrations, schema changes, settings, routes, permissions or dependency changes.** Upgrade from 1.0.0-beta.7.1.40 (or any release down to 1.0.0-beta.7.0.0) with the `/upgrade` wizard or the upgrade package as usual, after a normal database backup.
+- **On an affected site, upgrade before creating or editing any content.** The sanitizer also runs when content is saved, so every page or post body created or saved while the site ran on affected libxml was stored empty, including the sample page and post seeded by the installer. Revisions hold the same empty body. Upgrading cannot bring those bodies back: restore them from a database backup taken before they were saved, or enter them again. Content saved on an unaffected PHP (for example before the PHP or libxml change) is intact and renders again as soon as the application files are updated.
+- Run `php artisan optimize:clear` if you deploy files by other means than the upgrade wizard.
+
+### Fixed
+
+- On PHP builds using libxml 2.11.x–2.12.x (observed: 2.11.7, 2.11.8, 2.11.9, 2.12.10, including the official Windows PHP 8.5 builds), the rich-content sanitizer (`cms_html()`) silently returned an empty string, so page and post bodies rendered blank, bodies saved through the admin or the Core content service were stored empty, and every valid trusted interactive component was rejected as malformed. Core now declares UTF-8 to the HTML parser in a way these libxml versions accept, and charset declarations inside content can no longer re-decode it. Sanitizer allowlists and output policy are unchanged; output on other libxml versions is byte-identical.
+
+- Upgrade wizard: when the "Start upgrade" response did not reach the browser (a proxy timeout such as the sample nginx configuration's 60-second 504, a closed tab or a dropped connection), the upgrade kept running, but Back or reload showed the Ready page with a live Start button and, once the upgrade ended, the package upload form, so a completed upgrade looked as if it had restarted. Every wizard step now shows the attempt's progress or outcome instead. While the upgrade runs, the finish page reports "Upgrade in progress" and refreshes every 10 seconds, and no start, discard or recovery action is offered. The `/upgrade` page links the last upgrade's result. Authentication, CSRF, package verification, the backup gate, the upgrade lock and recovery are unchanged.
+
+### Notes
+
+- Not a security vulnerability: the failure produced empty output, never unsanitized output. It is a data-integrity defect on affected libxml versions, present in every release since 0.8.1.
+- The wizard fix takes effect for upgrades started from this release. An upgrade from 1.0.0-beta.7.1.40 still runs the 1.0.0-beta.7.1.40 wizard until its files are replaced: if its start step shows a timeout page, wait a few minutes and open `/upgrade/finish` (not `/upgrade`) to see the result. Do not start again.
+- Page Builder has its own, separate fix for the same libxml behaviour in authored Text / Custom HTML blocks; it is released with Page Builder, not with Core.
+
+---
+
 ## [1.0.0-beta.7.1.40] — Dependency security, scheduled-content privacy, sitemap administration, frontend media and accounts, and accessibility — 2026-11-12
 
 ### Upgrade notes

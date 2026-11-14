@@ -1,9 +1,9 @@
 {
     "product": "TNCMS Core",
     "profile": "source",
-    "version": "1.0.0-beta.7.1.40",
-    "source_commit": "da72391447981037ca0a91568576d318dde2accf",
-    "exported_at": "2026-11-12T13:39:06+00:00",
+    "version": "1.0.0-beta.7.1.41",
+    "source_commit": "bd50b0062979b9c833c8ea11462a75b32f08886c",
+    "exported_at": "2026-11-14T10:53:55+00:00",
     "plugin_count": 1,
     "theme_count": 1,
     "demo_plugin": "plugins/hello-world",

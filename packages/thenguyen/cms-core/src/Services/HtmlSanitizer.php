@@ -10,7 +10,10 @@ use DOMElement;
 use DOMNode;
 use DOMText;
 use DOMXPath;
+use Illuminate\Support\Facades\Facade;
+use Illuminate\Support\Facades\Log;
 use TheNguyen\CMS\Support\Html\AccessibleAttributePolicy;
+use TheNguyen\CMS\Support\Html\HtmlSanitizationFailed;
 use TheNguyen\CMS\Support\Html\SafeHtmlId;
 
 /**
@@ -32,6 +35,9 @@ use TheNguyen\CMS\Support\Html\SafeHtmlId;
  */
 class HtmlSanitizer
 {
+    /** libxml HTML_PARSE_IGNORE_ENC (no PHP constant): ignore charset hints found inside the document. */
+    private const HTML_PARSE_IGNORE_ENC = 1 << 21;
+
     /** Tags kept in the output. */
     private const ALLOWED_TAGS = [
         'p', 'br', 'strong', 'b', 'em', 'i', 'u', 's',
@@ -71,7 +77,31 @@ class HtmlSanitizer
         'th' => ['colspan', 'rowspan'],
     ];
 
+    /**
+     * Render-safe entry point: never throws. If the parsed content root cannot be recovered the result is the
+     * empty string (fail closed) and a warning is logged without any of the content.
+     */
     public function sanitize(?string $html): string
+    {
+        try {
+            return $this->sanitizeForStorage($html);
+        } catch (HtmlSanitizationFailed $e) {
+            $this->logFailure($e, $html);
+
+            return '';
+        }
+    }
+
+    /**
+     * Write-path entry point (CORE-POST40-MAINTENANCE-P0-R1): identical output to {@see sanitize()}, but a parser
+     * failure that loses the content root throws instead of returning '' so a caller never persists an empty body
+     * in place of valid authored content. Input that legitimately sanitizes to nothing still returns ''.
+     *
+     * @internal Core write paths only; not an extension contract.
+     *
+     * @throws HtmlSanitizationFailed
+     */
+    public function sanitizeForStorage(?string $html): string
     {
         if ($html === null) {
             return '';
@@ -83,22 +113,30 @@ class HtmlSanitizer
             return '';
         }
 
-        $dom = new DOMDocument('1.0', 'UTF-8');
-        $previous = libxml_use_internal_errors(true);
-
-        // Wrap so we have a single, identifiable root and a forced UTF-8 charset.
-        $wrapped = '<meta http-equiv="Content-Type" content="text/html; charset=utf-8">'
+        // Wrap so we have a single, identifiable root and a forced UTF-8 charset. The XML encoding declaration
+        // sets UTF-8 without an http-equiv charset switch (which fails on libxml 2.11–2.12 and drops the root);
+        // HTML_PARSE_IGNORE_ENC stops charset declarations inside the content from re-decoding the rest.
+        $wrapped = '<?xml encoding="UTF-8">'
             . '<div data-cms-root="1">' . $html . '</div>';
 
-        $dom->loadHTML($wrapped, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
+        $flags = LIBXML_HTML_NODEFDTD | self::HTML_PARSE_IGNORE_ENC;
+        [$dom, $root] = $this->parse($wrapped, $flags | LIBXML_HTML_NOIMPLIED);
 
-        libxml_clear_errors();
-        libxml_use_internal_errors($previous);
-
-        $root = $this->findRoot($dom);
+        // A stray closing tag in the input (e.g. `</div>`) closes the synthetic root early; libxml then places the
+        // rest of the content after the root. Without an implied <body>, libxml 2.11+ silently discards every
+        // top-level node after a void element there (`</div><img><b>x</b>` keeps only the <img>), so that case is
+        // re-parsed with an implied body, where all following content survives as siblings of the root.
+        if ($root?->nextSibling !== null) {
+            [$dom, $root] = $this->parse($wrapped, $flags);
+        }
 
         if ($root === null) {
-            return '';
+            throw new HtmlSanitizationFailed('The HTML parser did not return the content root.');
+        }
+
+        // Move the content that followed the early close back inside the root so it is sanitized and kept.
+        while ($root->nextSibling !== null) {
+            $root->appendChild($root->nextSibling);
         }
 
         $this->cleanChildren($root);
@@ -112,7 +150,42 @@ class HtmlSanitizer
         return trim($out);
     }
 
-    private function findRoot(DOMDocument $dom): ?DOMElement
+    /** @return array{DOMDocument, ?DOMElement} */
+    private function parse(string $wrapped, int $flags): array
+    {
+        $dom = new DOMDocument('1.0', 'UTF-8');
+        $previous = libxml_use_internal_errors(true);
+
+        $dom->loadHTML($wrapped, $flags);
+
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+
+        return [$dom, $this->findRoot($dom)];
+    }
+
+    private function logFailure(HtmlSanitizationFailed $e, ?string $html): void
+    {
+        // The sanitizer also runs without a booted application (unit use); logging is best-effort diagnostics and
+        // must never turn the fail-closed render result into an exception.
+        $app = Facade::getFacadeApplication();
+
+        if ($app === null || ! $app->bound('log')) {
+            return;
+        }
+
+        try {
+            Log::warning('TN CMS: the HTML sanitizer could not recover the content root; the output was rendered empty.', [
+                'reason' => $e->getMessage(),
+                'input_bytes' => strlen((string) $html),
+                'libxml' => LIBXML_DOTTED_VERSION,
+            ]);
+        } catch (\Throwable) {
+            // Logging unavailable: the safe empty output stands.
+        }
+    }
+
+    protected function findRoot(DOMDocument $dom): ?DOMElement
     {
         $nodes = (new DOMXPath($dom))->query('//div[@data-cms-root="1"]');
 

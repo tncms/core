@@ -342,30 +342,47 @@ class MediaManager
             throw new \RuntimeException("Could not copy media file to {$fullPath}");
         }
 
-        [$detectedWidth, $detectedHeight] = $this->dimensions($fullPath, $extension);
-        $width = $meta['width'] ?? $detectedWidth;
-        $height = $meta['height'] ?? $detectedHeight;
+        // Same unit as upload(): if recording fails, or a listener throws while the caller's transaction
+        // will roll the row back, the copied file is removed so no orphan stays in the public web root.
+        $media = null;
 
-        $path = $folder.'/'.$filename;
+        try {
+            [$detectedWidth, $detectedHeight] = $this->dimensions($fullPath, $extension);
+            $width = $meta['width'] ?? $detectedWidth;
+            $height = $meta['height'] ?? $detectedHeight;
 
-        return Media::create([
-            'disk' => 'public',
-            'folder' => $folder,
-            'filename' => $filename,
-            'original_filename' => $originalName,
-            'extension' => $extension !== '' ? $extension : null,
-            'mime_type' => $meta['mime'] ?? null,
-            'size' => (int) (File::size($fullPath) ?: 0),
-            'width' => $width,
-            'height' => $height,
-            'path' => $path,
-            'url' => '/'.$path,
-            'alt' => $meta['alt'] ?? null,
-            'title' => $meta['title'] ?? null,
-            'caption' => null,
-            'description' => null,
-            'uploaded_by' => $meta['uploaded_by'] ?? Auth::id(),
-        ]);
+            $path = $folder.'/'.$filename;
+
+            $media = Media::create([
+                'disk' => 'public',
+                'folder' => $folder,
+                'filename' => $filename,
+                'original_filename' => $originalName,
+                'extension' => $extension !== '' ? $extension : null,
+                'mime_type' => $meta['mime'] ?? null,
+                'size' => (int) (File::size($fullPath) ?: 0),
+                'width' => $width,
+                'height' => $height,
+                'path' => $path,
+                'url' => '/'.$path,
+                'alt' => $meta['alt'] ?? null,
+                'title' => $meta['title'] ?? null,
+                'caption' => null,
+                'description' => null,
+                'uploaded_by' => $meta['uploaded_by'] ?? Auth::id(),
+            ]);
+
+            // Hook point: an imported file entered the library exactly like an upload (CORE-POST40-MAINTENANCE-P0-R1).
+            do_action('cms.media.uploaded', $media, hook_context(['media' => $media]));
+        } catch (\Throwable $e) {
+            if ($media === null || DB::transactionLevel() > 0) {
+                File::delete($fullPath);
+            }
+
+            throw $e;
+        }
+
+        return $media;
     }
 
     /**

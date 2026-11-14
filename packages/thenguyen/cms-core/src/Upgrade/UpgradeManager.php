@@ -542,6 +542,8 @@ class UpgradeManager
             $this->store->transition($id, UpgradeState::REPLACING, 'Replacing Core release state', ['plan' => $plan['counts']]);
             $stats = $txn->execute($plan);
             $this->store->patch($id, ['applied' => $plan['counts'] + $stats]);
+            // The promoted PHP files must not be shadowed by previously compiled opcodes (best-effort).
+            $this->resetOpcodeCache();
 
             // Migrations (§37). The journal marks the point after which the database must be restored;
             // the inventory recorded here is the provenance for tables a failed migration creates.
@@ -739,6 +741,7 @@ class UpgradeManager
             $problems[] = ['rel' => 'state', 'reason' => 'the recovery outcome could not be recorded'];
         }
         if ($recovered) {
+            $this->resetOpcodeCache(); // the restored files must not be shadowed by the failed target's opcodes
             $this->exitMaintenance(); // only once the verified outcome is durably recorded
             $this->contained(fn () => $this->store->patch($id, ['cleanup' => $this->removeTransientArtifacts($id, true)]), null);
         }
@@ -1542,6 +1545,19 @@ class UpgradeManager
         return ['has_active' => true, 'state' => $active, 'recommendation' => $rec];
     }
 
+    /**
+     * True while apply() of $id is running: the lock is held under $id from the backup step on, and only a
+     * heartbeat that is not stale marks the apply itself. A live lock that cannot be read counts as running
+     * (never guess). The same rule refuses discard() and manualRecover() for a running attempt.
+     */
+    public function applyRunning(string $id): bool
+    {
+        $owner = $this->lock->owner();
+
+        return $this->lock->isLocked() && ! $this->lock->isStale()
+            && ($owner === null || (($owner['upgrade_id'] ?? null) === $id && isset($owner['heartbeat_at'])));
+    }
+
     /** Abandon a pre-mutation attempt (§44): mark failed + free the lock. */
     /**
      * End an attempt that never mutated the live site. Refused while its apply() is running. An attempt
@@ -1551,10 +1567,7 @@ class UpgradeManager
      */
     public function discard(string $id): array
     {
-        // The lock is held under $id from the backup step on; only a heartbeat means its apply() is running.
-        $owner = $this->lock->owner();
-        if ($this->lock->isLocked() && ! $this->lock->isStale()
-            && ($owner === null || (($owner['upgrade_id'] ?? null) === $id && isset($owner['heartbeat_at'])))) {
+        if ($this->applyRunning($id)) {
             // Running, or a live lock that cannot be read right now: never guess.
             return ['ok' => false, 'reason' => 'this upgrade is still running (or stopped less than an hour ago); wait for it to finish, then try again'];
         }
@@ -1578,6 +1591,12 @@ class UpgradeManager
     protected function enterMaintenance(): void
     {
         $this->setMaintenance(true);
+    }
+
+    /** Overridable seam: best-effort OPcache reset after Core PHP files changed on disk (never throws). */
+    protected function resetOpcodeCache(): void
+    {
+        \TheNguyen\CMS\Support\OpcodeCache::reset();
     }
 
     /** Overridable seam: leave maintenance. */

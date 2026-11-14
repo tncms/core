@@ -6,7 +6,19 @@
     @php($status = $state['status'] ?? null)
     @php($recovery = $recovery ?? null)
 
-    @if ($recovery !== null)
+    @if (($running ?? null) !== null)
+        @push('head')
+            <meta http-equiv="refresh" content="10">
+        @endpush
+        <h1>Upgrade in progress</h1>
+        <div class="alert alert--warn">
+            The upgrade to <strong>v{{ $running['target_version'] ?? '?' }}</strong> is still running
+            (stage: <strong>{{ str_replace('_', ' ', (string) ($running['status'] ?? '')) }}</strong>).
+            Keep this page open: it refreshes every 10 seconds and shows the result when the upgrade ends.
+            Do not start, discard or recover anything meanwhile.
+        </div>
+        <div class="kv"><span class="label">Upgrade ID</span><span class="v"><code>{{ $running['upgrade_id'] ?? '—' }}</code></span></div>
+    @elseif ($recovery !== null)
         <h1>An upgrade needs recovery</h1>
         <div class="alert alert--error">
             @if (($recovery['outcome'] ?? null) === \TheNguyen\CMS\Upgrade\UpgradeOutcome::RECOVERY_REQUIRED)

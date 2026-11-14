@@ -6,7 +6,7 @@ namespace TheNguyen\CMS\Support;
 
 final class CmsInfo
 {
-    public const VERSION = '1.0.0-beta.7.1.40';
+    public const VERSION = '1.0.0-beta.7.1.41';
 
     /**
      * True inside a long-running worker (Laravel Octane on Swoole/RoadRunner/

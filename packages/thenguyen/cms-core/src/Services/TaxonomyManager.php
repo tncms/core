@@ -13,6 +13,7 @@ use TheNguyen\CMS\Models\Term;
 use TheNguyen\CMS\Models\TermTranslation;
 use TheNguyen\CMS\Revision\DTOs\RevisionContext;
 use TheNguyen\CMS\Seo\ResourceRobotsPolicy;
+use TheNguyen\CMS\Support\Html\HtmlSanitizationFailed;
 
 class TaxonomyManager
 {
@@ -195,7 +196,7 @@ class TaxonomyManager
         // for post bodies). A null/absent description leaves the existing value.
         $rawDescription = $data['description'] ?? null;
         $description = $rawDescription !== null
-            ? $this->sanitizer->sanitize((string) $rawDescription)
+            ? $this->sanitizeDescription((string) $rawDescription)
             : $existing?->description;
 
         $payload = [
@@ -253,6 +254,23 @@ class TaxonomyManager
             return $adapter->isActive() ? $adapter : null;
         } catch (\Throwable) {
             return null;
+        }
+    }
+
+    /**
+     * Sanitize a description for storage; a sanitizer failure refuses the write instead of storing an empty value
+     * (CORE-POST40-MAINTENANCE-P0-R1).
+     *
+     * @throws ValidationException
+     */
+    private function sanitizeDescription(string $raw): string
+    {
+        try {
+            return $this->sanitizer->sanitizeForStorage($raw);
+        } catch (HtmlSanitizationFailed) {
+            throw ValidationException::withMessages([
+                'description' => core_trans('The description could not be processed safely, so nothing was saved. Simplify the formatting and try again.'),
+            ]);
         }
     }
 

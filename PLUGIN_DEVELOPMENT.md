@@ -891,6 +891,53 @@ return a query of the **public, indexable** rows of a type in a locale from
   `ContentSeoProvider` to keep noindex content out of the sitemap. Core calls
   it once per chunk.
 
+## Taxonomy content constraint (CORE-P17-1)
+
+`app('cms.taxonomy.content_constraint')` (class
+`TheNguyen\CMS\Taxonomy\Query\ContentTaxonomyConstraint`) narrows a
+`Builder<Content>` that **you** built by category or tag terms. It only adds
+an `AND` to your query. Your type, status, publication, locale, visibility,
+ordering, selected columns and pagination stay as you set them.
+
+```php
+$seam = app('cms.taxonomy.content_constraint');
+
+$query = Content::query()->where('type', 'post')->published()
+    ->orderByDesc('published_at')->orderByDesc('id');
+
+// Content with ANY (default) or ALL of the selected live category terms.
+$seam->constrain($query, 'category', $request->input('terms', []), ContentTaxonomyConstraint::MATCH_ALL);
+
+// Strict related content: shares a live term with $post, never $post itself.
+$related = Content::query()->where('type', 'post')->published()->latest('published_at')->limit(6);
+$seam->relatedTo($related, $post, ContentTaxonomyConstraint::MODE_SAME_CATEGORY); // same_tags | automatic
+```
+
+- `constrain($query, 'category'|'tag', $ids, 'any'|'all')`. Ids may be
+  positive ints or canonical decimal strings, and duplicates are ignored.
+  **An empty selection, or any member that is malformed, missing,
+  soft-deleted or of the other taxonomy, makes the query match nothing.** No
+  member is ever dropped silently. More than `MAX_TERM_IDS` (50) distinct ids
+  throws.
+- `relatedTo($query, Content|int $current, 'same_category'|'same_tags'|'automatic')`
+  returns `true` when a relationship constraint was applied, even if no row
+  matches. It returns `false` and constrains the query to nothing when the
+  current content is missing, unsaved or trashed, or has no live term of that
+  kind. There is no "latest posts" fallback, so ignoring the return value is
+  safe. `automatic` means "shares any live category or tag".
+- An unsupported taxonomy, match or mode, or a query that is not a plain
+  `Content` query on `cms_contents` (no table alias), throws
+  `InvalidContentTaxonomyConstraint`. Its `$reason` is one of the `REASON_*`
+  constants.
+- Ids are always bound parameters. `constrain()` issues no query.
+  `relatedTo()` issues one existence read. Neither adds per-row queries.
+- The term relationship is locale-free, so filter locale yourself.
+- An ungrouped `orWhere` on your query is grouped before the constraint is
+  added, so it is never broadened.
+- The legacy `RelatedContentSelector` (default post related list, Page
+  Builder related source) keeps its own behaviour, including its automatic
+  "latest excluding self" fallback. It is not part of this contract.
+
 ---
 
 _TN CMS Â· <https://tncms.org> Â· support@tncms.org Â· The Nguyen Media._

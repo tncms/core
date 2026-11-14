@@ -15,6 +15,16 @@
         <span class="label">Installed version</span>
         <span class="v">v{{ $current }}</span>
     </div>
+    @if (! $situation['has_active'] && $latest !== null)
+        <div class="kv">
+            <span class="label">Last upgrade</span>
+            <span class="v">
+                {{ str_replace('_', ' ', (string) ($latest['status'] ?? '')) }}
+                (v{{ $latest['source_version'] ?? '?' }} → v{{ $latest['target_version'] ?? '?' }})
+                · <a href="{{ route('cms.upgrade.finish') }}">View result</a>
+            </span>
+        </div>
+    @endif
     @if (($usage['attempts'] ?? 0) > 0)
         <div class="kv">
             <span class="label">Upgrade data on disk</span>
@@ -39,7 +49,9 @@
             </div>
         @endif
         <div class="actions">
-            @if ($situation['recommendation'] === 'recover')
+            @if ($running ?? false)
+                <a class="btn btn--primary" href="{{ route('cms.upgrade.finish') }}">View progress →</a>
+            @elseif ($situation['recommendation'] === 'recover')
                 <form method="POST" action="{{ route('cms.upgrade.recover') }}">
                     @csrf
                     <button type="submit" class="btn btn--primary">Recover now</button>
